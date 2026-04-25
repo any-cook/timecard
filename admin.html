@@ -1,4 +1,6 @@
-<!DOCTYPE html>
+では admin.html を全部書き直しましょう。
+admin.html を鉛筆アイコンで開いて、中身を全部消して以下を丸ごと貼り付けてください：
+html<!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
@@ -8,9 +10,6 @@
 </head>
 <body>
 
-  <!-- ============================================================
-       PIN認証画面
-       ============================================================ -->
   <div id="pinScreen">
     <div class="pin-logo">
       <h1>📊 タイムカード管理</h1>
@@ -42,35 +41,22 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       管理画面本体
-       ============================================================ -->
   <div id="adminContent">
-
-    <!-- デモバナー -->
     <div class="demo-banner" id="demoBanner" style="display:none;">
       🔧 デモモード動作中 — データはブラウザのローカルストレージに保存されます。
-      <strong>js/config.js</strong> にSupabaseの設定を入力すると本番稼動できます。
     </div>
-
-    <!-- ヘッダー -->
     <header class="admin-header">
       <span class="admin-logo">📊 タイムカード管理システム</span>
       <a href="index.html" class="clock-link">⏰ 打刻画面へ</a>
     </header>
-
-    <!-- タブナビ -->
     <nav class="tab-nav">
-      <button class="tab-btn active" data-tab="staff"      onclick="switchTab('staff')">👥 スタッフ管理</button>
-      <button class="tab-btn"        data-tab="attendance" onclick="switchTab('attendance')">📋 勤怠管理</button>
-      <button class="tab-btn"        data-tab="special"    onclick="switchTab('special')">⭐ 特別日設定</button>
-      <button class="tab-btn"        data-tab="payroll"    onclick="switchTab('payroll')">💰 集計・給与明細</button>
-      <button class="tab-btn"        data-tab="tax"        onclick="switchTab('tax')">📋 税額表管理</button>
+      <button class="tab-btn active" data-tab="staff" onclick="switchTab('staff')">👥 スタッフ管理</button>
+      <button class="tab-btn" data-tab="attendance" onclick="switchTab('attendance')">📋 勤怠管理</button>
+      <button class="tab-btn" data-tab="special" onclick="switchTab('special')">⭐ 特別日設定</button>
+      <button class="tab-btn" data-tab="payroll" onclick="switchTab('payroll')">💰 集計・給与明細</button>
+      <button class="tab-btn" data-tab="tax" onclick="switchTab('tax')">📋 税額表管理</button>
     </nav>
 
-    <!-- ============================================================
-         タブ1: スタッフ管理
-         ============================================================ -->
     <div class="tab-panel active" id="tab-staff">
       <div class="section-header">
         <h2 class="section-title">👥 スタッフ管理</h2>
@@ -79,13 +65,7 @@
       <div class="table-scroll">
         <table class="data-table">
           <thead>
-            <tr>
-              <th>氏名</th>
-              <th>種別</th>
-              <th>時給 / 月額</th>
-              <th>状態</th>
-              <th>操作</th>
-            </tr>
+            <tr><th>氏名</th><th>種別</th><th>時給 / 月額</th><th>状態</th><th>操作</th></tr>
           </thead>
           <tbody id="staffTableBody">
             <tr><td colspan="5" class="empty-cell">読み込み中...</td></tr>
@@ -94,15 +74,11 @@
       </div>
     </div>
 
-    <!-- ============================================================
-         タブ2: 勤怠管理
-         ============================================================ -->
     <div class="tab-panel" id="tab-attendance">
       <div class="section-header">
         <h2 class="section-title">📋 勤怠管理</h2>
         <button class="btn btn-primary" onclick="openAttendanceAddModal()">➕ 打刻を手動追加</button>
       </div>
-
       <div class="filter-bar">
         <div class="filter-group">
           <span class="filter-label">年</span>
@@ -131,21 +107,12 @@
         </div>
         <button class="btn btn-secondary" onclick="loadAttendanceRecords()" style="margin-left:auto;">🔄 更新</button>
       </div>
-
       <div class="table-scroll">
         <table class="data-table">
           <thead>
             <tr>
-              <th>日付</th>
-              <th>スタッフ</th>
-              <th>出勤(実)</th>
-              <th>退勤(実)</th>
-              <th>出勤(計)</th>
-              <th>退勤(計)</th>
-              <th>労働時間</th>
-              <th>日給</th>
-              <th>特別日</th>
-              <th>操作</th>
+              <th>日付</th><th>スタッフ</th><th>出勤(実)</th><th>退勤(実)</th>
+              <th>出勤(計)</th><th>退勤(計)</th><th>労働時間</th><th>日給</th><th>特別日</th><th>操作</th>
             </tr>
           </thead>
           <tbody id="attendanceTableBody">
@@ -156,17 +123,12 @@
       <div class="summary-bar" id="attendanceSummary"></div>
     </div>
 
-    <!-- ============================================================
-         タブ3: 特別日設定
-         ============================================================ -->
     <div class="tab-panel" id="tab-special">
       <h2 class="section-title" style="margin-bottom:20px;">⭐ 特別日設定（時給 +50円 対象日）</h2>
-
       <div class="special-rules-card">
         <h3>🤖 自動判定されるルール（変更不可）</h3>
         <ul id="autoRulesList"></ul>
       </div>
-
       <div class="add-special-form">
         <div class="form-group">
           <label class="form-label">日付</label>
@@ -174,19 +136,16 @@
         </div>
         <div class="form-group">
           <label class="form-label">理由（任意）</label>
-          <input type="text" id="newSpecialReason" placeholder="例: 年末年始営業、特別イベントなど" style="width:280px;">
+          <input type="text" id="newSpecialReason" placeholder="例: 年末年始営業" style="width:280px;">
         </div>
         <button class="btn btn-primary" onclick="addSpecialDay()" style="align-self:flex-end;">➕ 追加</button>
       </div>
-
       <div class="section-header">
         <h3 class="section-title" style="font-size:0.95rem;">📅 手動追加済みの特別日</h3>
       </div>
       <div class="table-scroll">
         <table class="data-table">
-          <thead>
-            <tr><th>日付</th><th>理由</th><th>操作</th></tr>
-          </thead>
+          <thead><tr><th>日付</th><th>理由</th><th>操作</th></tr></thead>
           <tbody id="specialTableBody">
             <tr><td colspan="3" class="empty-cell">読み込み中...</td></tr>
           </tbody>
@@ -194,9 +153,6 @@
       </div>
     </div>
 
-    <!-- ============================================================
-         タブ4: 集計・給与明細
-         ============================================================ -->
     <div class="tab-panel" id="tab-payroll">
       <div class="section-header">
         <h2 class="section-title">💰 月次給与集計</h2>
@@ -216,19 +172,12 @@
           </select>
         </div>
       </div>
-
       <div class="table-scroll">
         <table class="data-table">
           <thead>
             <tr>
-              <th>スタッフ</th>
-              <th>種別</th>
-              <th>労働時間</th>
-              <th>特別日数</th>
-              <th>支給額(税前)</th>
-              <th>源泉徴収</th>
-              <th>差引支給額</th>
-              <th>明細</th>
+              <th>スタッフ</th><th>種別</th><th>労働時間</th><th>特別日数</th>
+              <th>支給額(税前)</th><th>源泉徴収</th><th>差引支給額</th><th>明細</th>
             </tr>
           </thead>
           <tbody id="payrollTableBody">
@@ -239,29 +188,21 @@
       <div class="payroll-summary-bar" id="payrollGrandTotal"></div>
     </div>
 
-    <!-- ============================================================
-         タブ5: 税額表管理
-         ============================================================ -->
     <div class="tab-panel" id="tab-tax">
       <div class="section-header">
         <h2 class="section-title">📋 源泉徴収税額表</h2>
         <button class="btn btn-primary" onclick="openTaxModal()">➕ 行を追加</button>
       </div>
-
       <div class="tax-type-tabs">
-        <button class="tax-type-btn active" data-type="kou"  onclick="loadTaxTable('kou')">甲欄（扶養申告書あり）</button>
-        <button class="tax-type-btn"        data-type="otsu" onclick="loadTaxTable('otsu')">乙欄（扶養申告書なし）</button>
+        <button class="tax-type-btn active" data-type="kou" onclick="loadTaxTable('kou')">甲欄（扶養申告書あり）</button>
+        <button class="tax-type-btn" data-type="otsu" onclick="loadTaxTable('otsu')">乙欄（扶養申告書なし）</button>
       </div>
-
       <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:14px;">
-        ※ 月収がその行の「以上」の金額に該当する場合、その税額が適用されます。毎年1月に国税庁の最新税額表で更新してください。
+        ※ 毎年1月に国税庁の最新税額表で更新してください。
       </p>
-
       <div class="table-scroll">
         <table class="data-table">
-          <thead>
-            <tr><th>月収（以上）</th><th>税額</th><th>操作</th></tr>
-          </thead>
+          <thead><tr><th>月収（以上）</th><th>税額</th><th>操作</th></tr></thead>
           <tbody id="taxTableBody">
             <tr><td colspan="3" class="empty-cell">読み込み中...</td></tr>
           </tbody>
@@ -269,48 +210,45 @@
       </div>
     </div>
 
-  </div><!-- #adminContent -->
+  </div>
 
-
-  <!-- ============================================================
-       モーダル群
-       ============================================================ -->
-
-  <!-- スタッフ追加・編集モーダル -->
+  <!-- スタッフモーダル -->
   <div class="modal-overlay" id="staffModal">
     <div class="modal-card">
       <div class="modal-header">
         <h3 class="modal-title" id="staffModalTitle">スタッフ追加</h3>
         <button class="modal-close" onclick="closeModal('staffModal')">✕</button>
       </div>
-      <div class="form-grid">
-        <div class="form-group full">
-          <label class="form-label">氏名 *</label>
-          <input type="text" id="staffName" class="form-input" placeholder="例: 田中 太郎" maxlength="30">
+      <form id="staffForm">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label class="form-label">氏名 *</label>
+            <input type="text" id="staffName" class="form-input" placeholder="例: 田中 太郎" maxlength="30">
+          </div>
+          <div class="form-group">
+            <label class="form-label">種別 *</label>
+            <select id="staffType" class="form-input" onchange="updateStaffTypeFields()">
+              <option value="hourly">時給スタッフ</option>
+              <option value="senzoku">専従者</option>
+              <option value="employee">社員</option>
+            </select>
+          </div>
+          <div class="form-group" id="staffWageSection">
+            <label class="form-label">基本時給（円）</label>
+            <input type="number" id="staffWage" class="form-input" placeholder="1100" min="0" step="10">
+          </div>
+          <div class="form-group" id="staffSalarySection" style="display:none;">
+            <label class="form-label">月額給与（円）</label>
+            <input type="number" id="staffSalary" class="form-input" placeholder="200000" min="0" step="1000">
+          </div>
+          <div class="form-group">
+            <label class="form-check">
+              <input type="checkbox" id="staffActive" checked>
+              在籍中
+            </label>
+          </div>
         </div>
-        <div class="form-group">
-          <label class="form-label">種別 *</label>
-          <select id="staffType" class="form-input" onchange="updateStaffTypeFields()">
-            <option value="hourly">時給スタッフ</option>
-            <option value="senzoku">専従者</option>
-            <option value="employee">社員</option>
-          </select>
-        </div>
-        <div class="form-group" id="staffWageSection">
-          <label class="form-label">基本時給（円）</label>
-          <input type="number" id="staffWage" class="form-input" placeholder="1100" min="0" step="10">
-        </div>
-        <div class="form-group" id="staffSalarySection" style="display:none;">
-          <label class="form-label">月額給与（円）</label>
-          <input type="number" id="staffSalary" class="form-input" placeholder="200000" min="0" step="1000">
-        </div>
-        <div class="form-group">
-          <label class="form-check">
-            <input type="checkbox" id="staffActive" checked>
-            在籍中
-          </label>
-        </div>
-      </div>
+      </form>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('staffModal')">キャンセル</button>
         <button class="btn btn-success" onclick="saveStaff()">💾 保存</button>
@@ -318,7 +256,7 @@
     </div>
   </div>
 
-  <!-- 打刻 追加・修正モーダル -->
+  <!-- 打刻モーダル -->
   <div class="modal-overlay" id="attendanceModal">
     <div class="modal-card">
       <div class="modal-header">
@@ -358,9 +296,6 @@
           <textarea id="attendanceNotes" class="form-input" rows="2" placeholder="メモがあれば入力" style="resize:vertical;"></textarea>
         </div>
       </div>
-      <p style="font-size:0.78rem; color:var(--text-muted); margin-top:12px;">
-        ※ 出退勤時刻は入力後、自動的に30分単位で丸め計算されます
-      </p>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('attendanceModal')">キャンセル</button>
         <button class="btn btn-success" onclick="saveAttendance()">💾 保存</button>
@@ -382,7 +317,7 @@
     </div>
   </div>
 
-  <!-- 税額表 編集モーダル -->
+  <!-- 税額表モーダル -->
   <div class="modal-overlay" id="taxModal">
     <div class="modal-card" style="max-width:400px;">
       <div class="modal-header">
@@ -407,24 +342,19 @@
     </div>
   </div>
 
-
-  <!-- Firebase SDK (CDN) -->
+  <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
   <script src="js/config.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/holidays.js"></script>
   <script src="js/demo-data.js"></script>
   <script src="js/admin.js"></script>
   <script>
-    // デモモード表示
     if (DEMO_MODE) {
       document.getElementById('demoBanner').style.display = 'block';
       initDemoData();
     }
-
-    // PIN画面初期化
     initPin();
   </script>
 </body>
