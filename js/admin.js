@@ -1,8 +1,4 @@
-では最後のJSファイルです。一番長いです。
-
-js/admin.js
-ファイル名：js/admin.js
-javascriptlet pinInput = '';
+let pinInput = '';
 
 function initPin() {
   document.getElementById('pinScreen').style.display = 'flex';
