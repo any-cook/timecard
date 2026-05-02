@@ -16,10 +16,8 @@
     <div class="pin-card">
       <div class="pin-label">暗証番号 (4桁)</div>
       <div class="pin-dots">
-        <div class="pin-dot" id="dot0"></div>
-        <div class="pin-dot" id="dot1"></div>
-        <div class="pin-dot" id="dot2"></div>
-        <div class="pin-dot" id="dot3"></div>
+        <div class="pin-dot" id="dot0"></div><div class="pin-dot" id="dot1"></div>
+        <div class="pin-dot" id="dot2"></div><div class="pin-dot" id="dot3"></div>
       </div>
       <div class="pin-pad">
         <button class="pin-btn" onclick="pinPress('1')">1</button>
@@ -31,7 +29,7 @@
         <button class="pin-btn" onclick="pinPress('7')">7</button>
         <button class="pin-btn" onclick="pinPress('8')">8</button>
         <button class="pin-btn" onclick="pinPress('9')">9</button>
-        <button class="pin-btn" style="opacity:0; pointer-events:none;"></button>
+        <button class="pin-btn" style="opacity:0;pointer-events:none;"></button>
         <button class="pin-btn" onclick="pinPress('0')">0</button>
         <button class="pin-btn delete-btn" onclick="pinDelete()">⌫</button>
       </div>
@@ -52,13 +50,11 @@
       <button class="tab-btn"        data-tab="attendance" onclick="switchTab('attendance')">📋 勤怠管理</button>
       <button class="tab-btn"        data-tab="special"    onclick="switchTab('special')">⭐ 特別日設定</button>
       <button class="tab-btn"        data-tab="payroll"    onclick="switchTab('payroll')">💰 集計・給与明細</button>
-      <button class="tab-btn"        data-tab="tax"        onclick="switchTab('tax')">📋 税額表管理</button>
+      <button class="tab-btn"        data-tab="tax"        onclick="switchTab('tax')">📋 税額表・保険料管理</button>
       <button class="tab-btn"        data-tab="leave"      onclick="switchTab('leave')">🏖️ 有休管理</button>
     </nav>
 
-    <!-- ============================================================
-         タブ1: スタッフ管理
-         ============================================================ -->
+    <!-- タブ1: スタッフ管理 -->
     <div class="tab-panel active" id="tab-staff">
       <div class="section-header">
         <h2 class="section-title">👥 スタッフ管理</h2>
@@ -66,58 +62,43 @@
       </div>
       <div class="table-scroll">
         <table class="data-table">
-          <thead>
-            <tr><th>氏名</th><th>種別</th><th>時給 / 月額</th><th>社会保険</th><th>状態</th><th>操作</th></tr>
-          </thead>
-          <tbody id="staffTableBody">
-            <tr><td colspan="6" class="empty-cell">読み込み中...</td></tr>
-          </tbody>
+          <thead><tr><th>氏名</th><th>種別</th><th>時給 / 月額</th><th>社会保険</th><th>状態</th><th>操作</th></tr></thead>
+          <tbody id="staffTableBody"><tr><td colspan="6" class="empty-cell">読み込み中...</td></tr></tbody>
         </table>
       </div>
     </div>
 
-    <!-- ============================================================
-         タブ2: 勤怠管理
-         ============================================================ -->
+    <!-- タブ2: 勤怠管理 -->
     <div class="tab-panel" id="tab-attendance">
       <div class="section-header">
         <h2 class="section-title">📋 勤怠管理</h2>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex;gap:8px;">
           <button class="btn btn-primary" onclick="openAttendanceAddModal()">➕ 手動追加</button>
           <button class="btn btn-secondary" onclick="openCsvModal()">📂 CSVインポート</button>
         </div>
       </div>
-
       <div class="filter-bar">
         <div class="filter-group">
           <span class="filter-label">年</span>
           <select id="filterYear" onchange="loadAttendanceRecords()">
-            <option value="2024">2024</option>
-            <option value="2025">2025</option>
-            <option value="2026" selected>2026</option>
+            <option value="2024">2024</option><option value="2025">2025</option><option value="2026" selected>2026</option>
           </select>
         </div>
         <div class="filter-group">
           <span class="filter-label">月</span>
           <select id="filterMonth" onchange="loadAttendanceRecords()">
-            <option value="1">1月</option><option value="2">2月</option>
-            <option value="3">3月</option><option value="4">4月</option>
-            <option value="5">5月</option><option value="6">6月</option>
-            <option value="7">7月</option><option value="8">8月</option>
-            <option value="9">9月</option><option value="10">10月</option>
-            <option value="11">11月</option><option value="12">12月</option>
+            <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+            <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+            <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+            <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
           </select>
         </div>
         <div class="filter-group">
           <span class="filter-label">スタッフ</span>
-          <select id="filterStaff" onchange="loadAttendanceRecords()">
-            <option value="">全スタッフ</option>
-          </select>
+          <select id="filterStaff" onchange="loadAttendanceRecords()"><option value="">全スタッフ</option></select>
         </div>
         <button class="btn btn-secondary" onclick="loadAttendanceRecords()" style="margin-left:auto;">🔄 更新</button>
       </div>
-
-      <!-- 集計サマリー -->
       <div class="summary-cards">
         <div class="summary-card">
           <div class="summary-card-label">合計労働時間</div>
@@ -128,42 +109,26 @@
           <div class="summary-card-value" id="attendanceTotalWage">-</div>
         </div>
       </div>
-
-      <!-- 個人別集計 -->
-      <div style="margin-bottom:20px;">
-        <h3 style="font-size:0.9rem; font-weight:700; margin-bottom:10px; color:var(--text-muted);">👤 個人別集計</h3>
-        <div class="table-scroll">
-          <table class="data-table">
-            <thead>
-              <tr><th>スタッフ</th><th>労働時間</th><th>支給額合計</th></tr>
-            </thead>
-            <tbody id="staffSummaryBody">
-              <tr><td colspan="3" class="empty-cell">データがありません</td></tr>
-            </tbody>
-          </table>
-        </div>
+      <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:10px;color:var(--text-muted);">👤 個人別集計</h3>
+      <div class="table-scroll" style="margin-bottom:20px;">
+        <table class="data-table">
+          <thead><tr><th>スタッフ</th><th>労働時間</th><th>支給額合計</th></tr></thead>
+          <tbody id="staffSummaryBody"><tr><td colspan="3" class="empty-cell">データがありません</td></tr></tbody>
+        </table>
       </div>
-
-      <!-- 勤怠一覧 -->
-      <h3 style="font-size:0.9rem; font-weight:700; margin-bottom:10px; color:var(--text-muted);">📋 打刻一覧</h3>
+      <h3 style="font-size:0.9rem;font-weight:700;margin-bottom:10px;color:var(--text-muted);">📋 打刻一覧</h3>
       <div class="table-scroll">
         <table class="data-table">
           <thead>
-            <tr>
-              <th>日付</th><th>スタッフ</th><th>出勤(実)</th><th>退勤(実)</th>
-              <th>出勤(計)</th><th>退勤(計)</th><th>労働時間</th><th>日給</th><th>特別日</th><th>操作</th>
-            </tr>
+            <tr><th>日付</th><th>スタッフ</th><th>出勤(実)</th><th>退勤(実)</th>
+            <th>出勤(計)</th><th>退勤(計)</th><th>労働時間</th><th>日給</th><th>特別日</th><th>操作</th></tr>
           </thead>
-          <tbody id="attendanceTableBody">
-            <tr><td colspan="10" class="empty-cell">読み込み中...</td></tr>
-          </tbody>
+          <tbody id="attendanceTableBody"><tr><td colspan="10" class="empty-cell">読み込み中...</td></tr></tbody>
         </table>
       </div>
     </div>
 
-    <!-- ============================================================
-         タブ3: 特別日設定
-         ============================================================ -->
+    <!-- タブ3: 特別日設定 -->
     <div class="tab-panel" id="tab-special">
       <h2 class="section-title" style="margin-bottom:20px;">⭐ 特別日設定（時給 +50円 対象日）</h2>
       <div class="special-rules-card">
@@ -181,106 +146,105 @@
         </div>
         <button class="btn btn-primary" onclick="addSpecialDay()" style="align-self:flex-end;">➕ 追加</button>
       </div>
-      <div class="section-header">
-        <h3 class="section-title" style="font-size:0.95rem;">📅 手動追加済みの特別日</h3>
-      </div>
       <div class="table-scroll">
         <table class="data-table">
           <thead><tr><th>日付</th><th>理由</th><th>操作</th></tr></thead>
-          <tbody id="specialTableBody">
-            <tr><td colspan="3" class="empty-cell">読み込み中...</td></tr>
-          </tbody>
+          <tbody id="specialTableBody"><tr><td colspan="3" class="empty-cell">読み込み中...</td></tr></tbody>
         </table>
       </div>
     </div>
 
-    <!-- ============================================================
-         タブ4: 集計・給与明細
-         ============================================================ -->
+    <!-- タブ4: 集計・給与明細 -->
     <div class="tab-panel" id="tab-payroll">
       <div class="section-header">
         <h2 class="section-title">💰 月次給与集計</h2>
-        <div style="display:flex; gap:10px; align-items:center;">
+        <div style="display:flex;gap:10px;align-items:center;">
           <select id="payrollYear" onchange="loadPayrollSummary()">
-            <option value="2024">2024年</option>
-            <option value="2025">2025年</option>
-            <option value="2026" selected>2026年</option>
+            <option value="2024">2024年</option><option value="2025">2025年</option><option value="2026" selected>2026年</option>
           </select>
           <select id="payrollMonth" onchange="loadPayrollSummary()">
-            <option value="1">1月</option><option value="2">2月</option>
-            <option value="3">3月</option><option value="4">4月</option>
-            <option value="5">5月</option><option value="6">6月</option>
-            <option value="7">7月</option><option value="8">8月</option>
-            <option value="9">9月</option><option value="10">10月</option>
-            <option value="11">11月</option><option value="12">12月</option>
+            <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+            <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+            <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+            <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
           </select>
         </div>
       </div>
       <div class="table-scroll">
         <table class="data-table">
           <thead>
-            <tr>
-              <th>スタッフ</th><th>種別</th><th>労働時間</th><th>特別日数</th>
-              <th>支給額(税前)</th><th>源泉徴収</th><th>社会保険</th><th>差引支給額</th><th>明細</th>
-            </tr>
+            <tr><th>スタッフ</th><th>種別</th><th>労働時間</th><th>特別日数</th>
+            <th>支給額(税前)</th><th>源泉徴収</th><th>社会保険料</th><th>差引支給額</th><th>明細</th></tr>
           </thead>
-          <tbody id="payrollTableBody">
-            <tr><td colspan="9" class="empty-cell">読み込み中...</td></tr>
-          </tbody>
+          <tbody id="payrollTableBody"><tr><td colspan="9" class="empty-cell">読み込み中...</td></tr></tbody>
         </table>
       </div>
       <div class="payroll-summary-bar" id="payrollGrandTotal"></div>
     </div>
 
-    <!-- ============================================================
-         タブ5: 税額表管理
-         ============================================================ -->
+    <!-- タブ5: 税額表・保険料管理 -->
     <div class="tab-panel" id="tab-tax">
+
+      <!-- 所得税額表セクション -->
       <div class="section-header">
-        <h2 class="section-title">📋 源泉徴収税額表</h2>
-        <button class="btn btn-primary" onclick="openTaxModal()">➕ 行を追加</button>
+        <h2 class="section-title">📋 所得税額表管理</h2>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-secondary" onclick="openTaxCsvModal()">📂 CSVインポート</button>
+          <button class="btn btn-primary" onclick="openTaxModal()">➕ 行を追加</button>
+        </div>
       </div>
       <div class="tax-type-tabs">
-        <button class="tax-type-btn active" data-type="kou"  onclick="loadTaxTable('kou')">甲欄（扶養申告書あり）</button>
-        <button class="tax-type-btn"        data-type="otsu" onclick="loadTaxTable('otsu')">乙欄（扶養申告書なし）</button>
+        <button class="tax-type-btn active" data-type="kou" onclick="loadTaxTable('kou')">甲欄（扶養申告書あり）</button>
+        <button class="tax-type-btn" data-type="otsu" onclick="loadTaxTable('otsu')">乙欄（扶養申告書なし）</button>
       </div>
-      <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:14px;">
-        ※ 毎年1月に国税庁の最新税額表で更新してください。
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;">
+        ※ 国税庁の税額表CSVをインポートして更新できます。形式: 月収以上（円）, 税額（円）
+      </p>
+      <div class="table-scroll" style="margin-bottom:32px;">
+        <table class="data-table">
+          <thead><tr><th>月収（以上）</th><th>税額</th><th>操作</th></tr></thead>
+          <tbody id="taxTableBody"><tr><td colspan="3" class="empty-cell">読み込み中...</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- 社会保険料額表セクション -->
+      <div class="section-header">
+        <h2 class="section-title">🏥 社会保険料額表管理</h2>
+        <button class="btn btn-secondary" onclick="openInsuranceCsvModal()">📂 CSVインポート</button>
+      </div>
+      <div class="tax-type-tabs">
+        <button class="insurance-type-btn active" data-type="pension" onclick="loadInsuranceTable('pension')">厚生年金保険料</button>
+        <button class="insurance-type-btn" data-type="health" onclick="loadInsuranceTable('health')">健康保険料</button>
+      </div>
+      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;">
+        ※ 日本年金機構・協会けんぽのCSVをインポートして更新できます。<br>
+        形式: 等級, 標準報酬月額, 月収下限, 月収上限, 被保険者負担額, 事業主負担額
       </p>
       <div class="table-scroll">
         <table class="data-table">
-          <thead><tr><th>月収（以上）</th><th>税額</th><th>操作</th></tr></thead>
-          <tbody id="taxTableBody">
-            <tr><td colspan="3" class="empty-cell">読み込み中...</td></tr>
-          </tbody>
+          <thead>
+            <tr><th>等級</th><th>標準報酬月額</th><th>報酬月額範囲</th><th>被保険者負担</th><th>事業主負担</th></tr>
+          </thead>
+          <tbody id="insuranceTableBody"><tr><td colspan="5" class="empty-cell">読み込み中...</td></tr></tbody>
         </table>
       </div>
     </div>
 
-    <!-- ============================================================
-         タブ6: 有休管理
-         ============================================================ -->
+    <!-- タブ6: 有休管理 -->
     <div class="tab-panel" id="tab-leave">
       <div class="section-header">
         <h2 class="section-title">🏖️ 有休管理</h2>
         <button class="btn btn-primary" onclick="openLeaveModal()">➕ 有休を追加</button>
       </div>
-
       <div class="filter-bar" style="margin-bottom:16px;">
         <div class="filter-group">
           <span class="filter-label">スタッフ</span>
-          <select id="leaveStaffSelect" onchange="loadLeaveList()">
-            <option value="">全スタッフ</option>
-          </select>
+          <select id="leaveStaffSelect" onchange="loadLeaveList()"><option value="">全スタッフ</option></select>
         </div>
       </div>
-
-      <!-- 個人別詳細サマリー -->
-      <div id="leaveDetailSection" style="display:none; margin-bottom:20px;">
+      <div id="leaveDetailSection" style="display:none;margin-bottom:20px;">
         <div class="summary-cards">
-          <div class="summary-card">
-            <div class="summary-card-label">👤 <span id="leaveStaffName"></span></div>
-          </div>
+          <div class="summary-card"><div class="summary-card-label">👤 <span id="leaveStaffName"></span></div></div>
           <div class="summary-card">
             <div class="summary-card-label">付与日数</div>
             <div class="summary-card-value" id="leaveGranted">-</div>
@@ -295,24 +259,17 @@
           </div>
         </div>
       </div>
-
       <div class="table-scroll">
         <table class="data-table">
-          <thead>
-            <tr><th>スタッフ</th><th>付与日数</th><th>使用日数</th><th>残日数</th><th>詳細</th></tr>
-          </thead>
-          <tbody id="leaveTableBody">
-            <tr><td colspan="5" class="empty-cell">読み込み中...</td></tr>
-          </tbody>
+          <thead><tr><th>スタッフ</th><th>付与日数</th><th>使用日数</th><th>残日数</th><th>詳細</th></tr></thead>
+          <tbody id="leaveTableBody"><tr><td colspan="5" class="empty-cell">読み込み中...</td></tr></tbody>
         </table>
       </div>
     </div>
 
   </div><!-- #adminContent -->
 
-  <!-- ============================================================
-       モーダル群
-       ============================================================ -->
+  <!-- ============================================================ モーダル群 ============================================================ -->
 
   <!-- スタッフモーダル -->
   <div class="modal-overlay" id="staffModal">
@@ -336,6 +293,13 @@
               <option value="officer">役員</option>
             </select>
           </div>
+          <div class="form-group">
+            <label class="form-label">源泉徴収区分</label>
+            <select id="staffTaxType" class="form-input">
+              <option value="kou">甲欄（扶養申告書あり）</option>
+              <option value="otsu">乙欄（扶養申告書なし）</option>
+            </select>
+          </div>
           <div class="form-group" id="staffWageSection">
             <label class="form-label">基本時給（円）</label>
             <input type="number" id="staffWage" class="form-input" placeholder="1100" min="0" step="10">
@@ -346,29 +310,48 @@
           </div>
           <div class="form-group">
             <label class="form-check">
-              <input type="checkbox" id="staffActive" checked>
-              在籍中
+              <input type="checkbox" id="staffActive" checked> 在籍中
             </label>
           </div>
           <div class="form-group full">
             <label class="form-label" style="margin-bottom:8px;">🏥 社会保険管理</label>
             <label class="form-check" style="margin-bottom:10px;">
-              <input type="checkbox" id="staffSocialInsurance" onchange="toggleSocialInsurance()">
-              社会保険加入
+              <input type="checkbox" id="staffSocialInsurance" onchange="toggleSocialInsurance()"> 社会保険加入
             </label>
             <div id="socialInsuranceFields" style="display:none;">
-              <div class="form-grid" style="margin-top:8px;">
-                <div class="form-group">
-                  <label class="form-label">健康保険料（円/月）</label>
-                  <input type="number" id="staffHealthInsurance" class="form-input" placeholder="15000" min="0">
+              <div style="margin-bottom:10px;">
+                <button type="button" class="btn btn-secondary" onclick="autoSelectGradeByMonthly()" style="font-size:0.8rem;padding:6px 14px;">
+                  💡 報酬月額から等級を自動選択
+                </button>
+              </div>
+              <div class="form-grid">
+                <div class="form-group full">
+                  <label class="form-label">厚生年金保険料 等級</label>
+                  <select id="staffPensionGrade" class="form-input" onchange="updateInsurancePreview()">
+                    <option value="">選択してください</option>
+                  </select>
+                </div>
+                <div class="form-group full">
+                  <label class="form-label">健康保険料 等級</label>
+                  <select id="staffHealthGrade" class="form-input" onchange="updateInsurancePreview()">
+                    <option value="">選択してください</option>
+                  </select>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">厚生年金（円/月）</label>
-                  <input type="number" id="staffPension" class="form-input" placeholder="27000" min="0">
+                  <label class="form-label">雇用保険料（円/月）</label>
+                  <input type="number" id="staffEmploymentInsurance" class="form-input" placeholder="1000" min="0" onchange="updateInsurancePreview()">
                 </div>
-                <div class="form-group">
-                  <label class="form-label">雇用保険（円/月）</label>
-                  <input type="number" id="staffEmploymentInsurance" class="form-input" placeholder="1000" min="0">
+              </div>
+              <!-- 保険料プレビュー -->
+              <div class="insurance-preview">
+                <div class="insurance-preview-row">
+                  <span>厚生年金（本人負担）</span><span id="insurancePreviewPension">¥0</span>
+                </div>
+                <div class="insurance-preview-row">
+                  <span>健康保険（本人負担）</span><span id="insurancePreviewHealth">¥0</span>
+                </div>
+                <div class="insurance-preview-row total">
+                  <span>社会保険料合計</span><span id="insurancePreviewTotal">¥0</span>
                 </div>
               </div>
             </div>
@@ -413,13 +396,12 @@
         </div>
         <div class="form-group" style="align-self:flex-end;">
           <label class="form-check">
-            <input type="checkbox" id="attendanceSpecial">
-            ⭐ 特別日（+50円）
+            <input type="checkbox" id="attendanceSpecial"> ⭐ 特別日（+50円）
           </label>
         </div>
         <div class="form-group full">
           <label class="form-label">備考</label>
-          <textarea id="attendanceNotes" class="form-input" rows="2" placeholder="メモがあれば入力" style="resize:vertical;"></textarea>
+          <textarea id="attendanceNotes" class="form-input" rows="2" style="resize:vertical;"></textarea>
         </div>
       </div>
       <div class="modal-footer">
@@ -429,42 +411,118 @@
     </div>
   </div>
 
-  <!-- CSVインポートモーダル -->
+  <!-- 勤怠CSVインポートモーダル -->
   <div class="modal-overlay" id="csvModal">
     <div class="modal-card modal-wide">
       <div class="modal-header">
-        <h3 class="modal-title">📂 CSVインポート</h3>
+        <h3 class="modal-title">📂 勤怠CSVインポート</h3>
         <button class="modal-close" onclick="closeModal('csvModal')">✕</button>
       </div>
-      <div style="margin-bottom:16px; padding:12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; font-size:0.85rem;">
-        <strong>CSV形式:</strong> スタッフ名, 日付(YYYY-MM-DD), 出勤時刻(HH:MM), 退勤時刻(HH:MM)<br>
-        1行目はヘッダー行として自動スキップされます。
-        <button class="btn btn-secondary" onclick="downloadCsvTemplate()" style="margin-left:12px; font-size:0.78rem; padding:4px 10px;">📥 テンプレートDL</button>
+      <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:0.85rem;">
+        <strong>CSV形式:</strong> スタッフ名, 日付(YYYY-MM-DD), 出勤時刻(HH:MM), 退勤時刻(HH:MM)
+        <button class="btn btn-secondary" onclick="downloadCsvTemplate()" style="margin-left:12px;font-size:0.78rem;padding:4px 10px;">📥 テンプレートDL</button>
       </div>
-      <div class="form-group" style="margin-bottom:16px;">
-        <label class="form-label">CSVファイルを選択</label>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label class="form-label">CSVファイル</label>
         <input type="file" id="csvFile" accept=".csv" style="margin-top:6px;">
       </div>
       <button class="btn btn-primary" onclick="previewCsv()">👁️ プレビュー確認</button>
-
-      <div id="csvPreviewArea" style="display:none; margin-top:20px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-          <strong id="csvImportCount" style="color:var(--accent);"></strong>
-        </div>
+      <div id="csvPreviewArea" style="display:none;margin-top:16px;">
+        <strong id="csvImportCount" style="color:var(--accent);display:block;margin-bottom:8px;"></strong>
         <div class="table-scroll">
           <table class="data-table">
             <thead><tr><th>スタッフ名</th><th>日付</th><th>出勤</th><th>退勤</th></tr></thead>
             <tbody id="csvPreviewBody"></tbody>
           </table>
         </div>
-        <div style="margin-top:6px; font-size:0.78rem; color:var(--text-muted);">
-          ❌ 赤字はスタッフ名が登録されていないためスキップされます
-        </div>
       </div>
-
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('csvModal')">キャンセル</button>
         <button class="btn btn-success" onclick="importCsv()">📥 インポート実行</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 所得税CSVインポートモーダル -->
+  <div class="modal-overlay" id="taxCsvModal">
+    <div class="modal-card modal-wide">
+      <div class="modal-header">
+        <h3 class="modal-title">📂 所得税額表CSVインポート</h3>
+        <button class="modal-close" onclick="closeModal('taxCsvModal')">✕</button>
+      </div>
+      <div style="margin-bottom:12px;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:0.85rem;">
+        <strong>CSV形式:</strong> 月収以上（円）, 税額（円）<br>
+        1行目はヘッダーとして自動スキップ。¥マークやカンマは自動除去されます。
+        <button class="btn btn-secondary" onclick="downloadTaxCsvTemplate()" style="margin-left:12px;font-size:0.78rem;padding:4px 10px;">📥 テンプレートDL</button>
+      </div>
+      <div class="form-grid" style="margin-bottom:12px;">
+        <div class="form-group">
+          <label class="form-label">対象</label>
+          <select id="taxCsvType" class="form-input">
+            <option value="kou">甲欄</option>
+            <option value="otsu">乙欄</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">CSVファイル</label>
+          <input type="file" id="taxCsvFile" accept=".csv" style="margin-top:6px;">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="previewTaxCsv()">👁️ プレビュー確認</button>
+      <div id="taxCsvPreview" style="display:none;margin-top:16px;">
+        <strong id="taxCsvCount" style="color:var(--accent);display:block;margin-bottom:8px;"></strong>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>月収（以上）</th><th>税額</th></tr></thead>
+            <tbody id="taxCsvPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('taxCsvModal')">キャンセル</button>
+        <button class="btn btn-danger" onclick="importTaxCsv()">⚠️ 上書きインポート</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 社会保険料CSVインポートモーダル -->
+  <div class="modal-overlay" id="insuranceCsvModal">
+    <div class="modal-card modal-wide">
+      <div class="modal-header">
+        <h3 class="modal-title">📂 社会保険料額表CSVインポート</h3>
+        <button class="modal-close" onclick="closeModal('insuranceCsvModal')">✕</button>
+      </div>
+      <div style="margin-bottom:12px;padding:12px;background:#faf5ff;border:1px solid #ddd6fe;border-radius:8px;font-size:0.85rem;">
+        <strong>CSV形式:</strong> 等級, 標準報酬月額, 月収下限, 月収上限, 被保険者負担, 事業主負担<br>
+        日本年金機構・協会けんぽのCSVをそのまま、またはテンプレート形式でインポートできます。
+        <button class="btn btn-secondary" onclick="downloadInsuranceCsvTemplate()" style="margin-left:12px;font-size:0.78rem;padding:4px 10px;">📥 テンプレートDL</button>
+      </div>
+      <div class="form-grid" style="margin-bottom:12px;">
+        <div class="form-group">
+          <label class="form-label">対象</label>
+          <select id="insuranceCsvType" class="form-input">
+            <option value="pension">厚生年金保険料</option>
+            <option value="health">健康保険料</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">CSVファイル</label>
+          <input type="file" id="insuranceCsvFile" accept=".csv" style="margin-top:6px;">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="previewInsuranceCsv()">👁️ プレビュー確認</button>
+      <div id="insuranceCsvPreview" style="display:none;margin-top:16px;">
+        <strong id="insuranceCsvCount" style="color:var(--accent);display:block;margin-bottom:8px;"></strong>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>等級</th><th>標準報酬月額</th><th>被保険者負担</th></tr></thead>
+            <tbody id="insuranceCsvPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('insuranceCsvModal')">キャンセル</button>
+        <button class="btn btn-danger" onclick="importInsuranceCsv()">⚠️ 上書きインポート</button>
       </div>
     </div>
   </div>
@@ -474,7 +532,7 @@
     <div class="modal-card modal-wide">
       <div class="modal-header">
         <h3 class="modal-title">📄 給与明細書</h3>
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex;gap:8px;">
           <button class="btn btn-secondary" onclick="printPayslip()">🖨️ 印刷</button>
           <button class="modal-close" onclick="closeModal('payslipModal')">✕</button>
         </div>
@@ -483,7 +541,7 @@
     </div>
   </div>
 
-  <!-- 税額表モーダル -->
+  <!-- 税額表行編集モーダル -->
   <div class="modal-overlay" id="taxModal">
     <div class="modal-card" style="max-width:400px;">
       <div class="modal-header">
@@ -556,10 +614,7 @@
   <script src="js/demo-data.js"></script>
   <script src="js/admin.js"></script>
   <script>
-    if (DEMO_MODE) {
-      document.getElementById('demoBanner').style.display = 'block';
-      initDemoData();
-    }
+    if (DEMO_MODE) { document.getElementById('demoBanner').style.display='block'; initDemoData(); }
     initPin();
   </script>
 </body>
