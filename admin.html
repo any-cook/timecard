@@ -62,8 +62,8 @@
       </div>
       <div class="table-scroll">
         <table class="data-table">
-          <thead><tr><th>氏名</th><th>種別</th><th>時給 / 月額</th><th>社会保険</th><th>状態</th><th>操作</th></tr></thead>
-          <tbody id="staffTableBody"><tr><td colspan="6" class="empty-cell">読み込み中...</td></tr></tbody>
+          <thead><tr><th>氏名</th><th>種別</th><th>時給 / 月額</th><th>年齢</th><th>介護保険</th><th>社会保険</th><th>状態</th><th>操作</th></tr></thead>
+          <tbody id="staffTableBody"><tr><td colspan="8" class="empty-cell">読み込み中...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -195,9 +195,6 @@
         <button class="tax-type-btn active" data-type="kou" onclick="loadTaxTable('kou')">甲欄（扶養申告書あり）</button>
         <button class="tax-type-btn" data-type="otsu" onclick="loadTaxTable('otsu')">乙欄（扶養申告書なし）</button>
       </div>
-      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;">
-        ※ CSVインポート形式: 月収以上（円）, 税額（円）
-      </p>
       <div class="table-scroll" style="margin-bottom:32px;">
         <table class="data-table">
           <thead><tr><th>月収（以上）</th><th>税額</th><th>操作</th></tr></thead>
@@ -209,13 +206,16 @@
         <h2 class="section-title">🏥 社会保険料額表管理</h2>
         <button class="btn btn-secondary" onclick="openInsuranceCsvModal()">📂 CSVインポート</button>
       </div>
+      <p style="font-size:0.82rem;background:#fef3c7;border:1px solid #d97706;border-radius:8px;padding:10px 14px;margin-bottom:12px;">
+        ⚠️ <strong>健康保険料は2種類登録が必要です。</strong><br>
+        「健康保険（介護保険なし）」→ 39歳以下・65歳以上のスタッフに適用<br>
+        「健康保険（介護保険込み）」→ 40歳〜64歳のスタッフに自動適用
+      </p>
       <div class="tax-type-tabs">
         <button class="insurance-type-btn active" data-type="pension" onclick="loadInsuranceTable('pension')">厚生年金保険料</button>
-        <button class="insurance-type-btn" data-type="health" onclick="loadInsuranceTable('health')">健康保険料</button>
+        <button class="insurance-type-btn" data-type="health" onclick="loadInsuranceTable('health')">健康保険料（介護なし・39歳以下等）</button>
+        <button class="insurance-type-btn" data-type="health_nursing" onclick="loadInsuranceTable('health_nursing')">健康保険料（介護込み・40〜64歳）</button>
       </div>
-      <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;">
-        ※ CSVインポート形式: 等級, 標準報酬月額, 月収下限, 月収上限, 被保険者負担額, 事業主負担額
-      </p>
       <div class="table-scroll">
         <table class="data-table">
           <thead>
@@ -279,6 +279,16 @@
             <input type="text" id="staffName" class="form-input" placeholder="例: 田中 太郎" maxlength="30">
           </div>
           <div class="form-group">
+            <label class="form-label">生年月日</label>
+            <input type="date" id="staffBirthdate" class="form-input" onchange="updateNursingCareStatus()">
+          </div>
+          <div class="form-group">
+            <label class="form-label">年齢・介護保険区分</label>
+            <div id="nursingCareStatus" style="padding:8px 12px;border-radius:8px;font-size:0.875rem;background:#f1f5f9;color:var(--text-muted);">
+              生年月日を入力すると自動判定
+            </div>
+          </div>
+          <div class="form-group">
             <label class="form-label">種別 *</label>
             <select id="staffType" class="form-input" onchange="updateStaffTypeFields()">
               <option value="hourly">時給スタッフ</option>
@@ -326,7 +336,9 @@
                   </select>
                 </div>
                 <div class="form-group full">
-                  <label class="form-label">健康保険料 等級</label>
+                  <label class="form-label">健康保険料 等級
+                    <span id="nursingCareLabel" style="margin-left:8px;font-size:0.75rem;padding:2px 8px;border-radius:999px;background:#dbeafe;color:#1d4ed8;font-weight:700;"></span>
+                  </label>
                   <select id="staffHealthGrade" class="form-input" onchange="updateInsurancePreview()">
                     <option value="">選択してください</option>
                   </select>
@@ -341,7 +353,7 @@
                   <span>厚生年金（本人負担）</span><span id="insurancePreviewPension">¥0</span>
                 </div>
                 <div class="insurance-preview-row">
-                  <span>健康保険（本人負担）</span><span id="insurancePreviewHealth">¥0</span>
+                  <span id="healthLabel">健康保険（本人負担）</span><span id="insurancePreviewHealth">¥0</span>
                 </div>
                 <div class="insurance-preview-row total">
                   <span>社会保険料合計</span><span id="insurancePreviewTotal">¥0</span>
@@ -404,7 +416,7 @@
     </div>
   </div>
 
-  <!-- モーダル: 勤怠CSVインポート -->
+  <!-- モーダル: 勤怠CSV -->
   <div class="modal-overlay" id="csvModal">
     <div class="modal-card modal-wide">
       <div class="modal-header">
@@ -436,7 +448,7 @@
     </div>
   </div>
 
-  <!-- モーダル: 所得税CSVインポート -->
+  <!-- モーダル: 所得税CSV -->
   <div class="modal-overlay" id="taxCsvModal">
     <div class="modal-card modal-wide">
       <div class="modal-header">
@@ -444,8 +456,7 @@
         <button class="modal-close" onclick="closeModal('taxCsvModal')">✕</button>
       </div>
       <div style="margin-bottom:12px;padding:12px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;font-size:0.85rem;">
-        <strong>CSV形式:</strong> 月収以上（円）, 税額（円）<br>
-        1行目はヘッダーとして自動スキップ。¥マークやカンマは自動除去されます。
+        <strong>CSV形式:</strong> 月収以上（円）, 税額（円）
         <button class="btn btn-secondary" onclick="downloadTaxCsvTemplate()" style="margin-left:12px;font-size:0.78rem;padding:4px 10px;">📥 テンプレートDL</button>
       </div>
       <div class="form-grid" style="margin-bottom:12px;">
@@ -478,7 +489,7 @@
     </div>
   </div>
 
-  <!-- モーダル: 社会保険料CSVインポート -->
+  <!-- モーダル: 社会保険料CSV -->
   <div class="modal-overlay" id="insuranceCsvModal">
     <div class="modal-card modal-wide">
       <div class="modal-header">
@@ -494,7 +505,8 @@
           <label class="form-label">対象</label>
           <select id="insuranceCsvType" class="form-input">
             <option value="pension">厚生年金保険料</option>
-            <option value="health">健康保険料</option>
+            <option value="health">健康保険料（介護なし・39歳以下等）</option>
+            <option value="health_nursing">健康保険料（介護込み・40〜64歳）</option>
           </select>
         </div>
         <div class="form-group">

@@ -248,12 +248,13 @@ const DB = {
     const key = 'insurance_' + type;
     if (DEMO_MODE) {
       const stored = localStorage.getItem(key);
-      return stored ? JSON.parse(stored) : (type === 'pension' ? DEFAULT_PENSION_TABLE : DEFAULT_HEALTH_TABLE);
+      var defaults = type === 'pension' ? DEFAULT_PENSION_TABLE : (type === 'health_nursing' ? DEFAULT_HEALTH_NURSING_TABLE : DEFAULT_HEALTH_TABLE);
+      return stored ? JSON.parse(stored) : defaults;
     }
     const col = 'insurance_' + type;
     const snap = await getDB().collection(col).orderBy('grade').get();
     if (snap.empty) {
-      const defaults = type === 'pension' ? DEFAULT_PENSION_TABLE : DEFAULT_HEALTH_TABLE;
+      const defaults = type === 'pension' ? DEFAULT_PENSION_TABLE : (type === 'health_nursing' ? DEFAULT_HEALTH_NURSING_TABLE : DEFAULT_HEALTH_TABLE);
       const batch = getDB().batch();
       defaults.forEach(row => { const {id,...data} = row; batch.set(getDB().collection(col).doc(id), data); });
       await batch.commit(); return defaults;
@@ -425,3 +426,57 @@ function findInsuranceGradeByMonthly(monthly, table) {
   }
   return sorted[sorted.length-1];
 }
+
+// ---- 健康保険料額表（介護保険込み・40〜64歳）令和8年度 福岡支部 ----
+const DEFAULT_HEALTH_NURSING_TABLE = [
+  {id:'hn1',grade:1,label:'1等級',standard:58000,monthly_min:0,monthly_max:63000,employee:3402,employer:3402},
+  {id:'hn2',grade:2,label:'2等級',standard:68000,monthly_min:63000,monthly_max:73000,employee:3988,employer:3988},
+  {id:'hn3',grade:3,label:'3等級',standard:78000,monthly_min:73000,monthly_max:83000,employee:4575,employer:4575},
+  {id:'hn4',grade:4,label:'4等級',standard:88000,monthly_min:83000,monthly_max:93000,employee:5161,employer:5161},
+  {id:'hn5',grade:5,label:'5等級',standard:98000,monthly_min:93000,monthly_max:101000,employee:5748,employer:5748},
+  {id:'hn6',grade:6,label:'6等級',standard:104000,monthly_min:101000,monthly_max:107000,employee:6100,employer:6100},
+  {id:'hn7',grade:7,label:'7等級',standard:110000,monthly_min:107000,monthly_max:114000,employee:6452,employer:6452},
+  {id:'hn8',grade:8,label:'8等級',standard:118000,monthly_min:114000,monthly_max:122000,employee:6921,employer:6921},
+  {id:'hn9',grade:9,label:'9等級',standard:126000,monthly_min:122000,monthly_max:130000,employee:7390,employer:7390},
+  {id:'hn10',grade:10,label:'10等級',standard:134000,monthly_min:130000,monthly_max:138000,employee:7859,employer:7859},
+  {id:'hn11',grade:11,label:'11等級',standard:142000,monthly_min:138000,monthly_max:146000,employee:8328,employer:8328},
+  {id:'hn12',grade:12,label:'12等級',standard:150000,monthly_min:146000,monthly_max:155000,employee:8798,employer:8798},
+  {id:'hn13',grade:13,label:'13等級',standard:160000,monthly_min:155000,monthly_max:165000,employee:9384,employer:9384},
+  {id:'hn14',grade:14,label:'14等級',standard:170000,monthly_min:165000,monthly_max:175000,employee:9971,employer:9971},
+  {id:'hn15',grade:15,label:'15等級',standard:180000,monthly_min:175000,monthly_max:185000,employee:10557,employer:10557},
+  {id:'hn16',grade:16,label:'16等級',standard:190000,monthly_min:185000,monthly_max:195000,employee:11144,employer:11144},
+  {id:'hn17',grade:17,label:'17等級',standard:200000,monthly_min:195000,monthly_max:210000,employee:11730,employer:11730},
+  {id:'hn18',grade:18,label:'18等級',standard:220000,monthly_min:210000,monthly_max:230000,employee:12903,employer:12903},
+  {id:'hn19',grade:19,label:'19等級',standard:240000,monthly_min:230000,monthly_max:250000,employee:14076,employer:14076},
+  {id:'hn20',grade:20,label:'20等級',standard:260000,monthly_min:250000,monthly_max:270000,employee:15249,employer:15249},
+  {id:'hn21',grade:21,label:'21等級',standard:280000,monthly_min:270000,monthly_max:290000,employee:16422,employer:16422},
+  {id:'hn22',grade:22,label:'22等級',standard:300000,monthly_min:290000,monthly_max:310000,employee:17595,employer:17595},
+  {id:'hn23',grade:23,label:'23等級',standard:320000,monthly_min:310000,monthly_max:330000,employee:18768,employer:18768},
+  {id:'hn24',grade:24,label:'24等級',standard:340000,monthly_min:330000,monthly_max:350000,employee:19941,employer:19941},
+  {id:'hn25',grade:25,label:'25等級',standard:360000,monthly_min:350000,monthly_max:370000,employee:21114,employer:21114},
+  {id:'hn26',grade:26,label:'26等級',standard:380000,monthly_min:370000,monthly_max:395000,employee:22287,employer:22287},
+  {id:'hn27',grade:27,label:'27等級',standard:410000,monthly_min:395000,monthly_max:425000,employee:24047,employer:24047},
+  {id:'hn28',grade:28,label:'28等級',standard:440000,monthly_min:425000,monthly_max:455000,employee:25806,employer:25806},
+  {id:'hn29',grade:29,label:'29等級',standard:470000,monthly_min:455000,monthly_max:485000,employee:27566,employer:27566},
+  {id:'hn30',grade:30,label:'30等級',standard:500000,monthly_min:485000,monthly_max:515000,employee:29325,employer:29325},
+  {id:'hn31',grade:31,label:'31等級',standard:530000,monthly_min:515000,monthly_max:545000,employee:31085,employer:31085},
+  {id:'hn32',grade:32,label:'32等級',standard:560000,monthly_min:545000,monthly_max:575000,employee:32844,employer:32844},
+  {id:'hn33',grade:33,label:'33等級',standard:590000,monthly_min:575000,monthly_max:605000,employee:34604,employer:34604},
+  {id:'hn34',grade:34,label:'34等級',standard:620000,monthly_min:605000,monthly_max:635000,employee:36363,employer:36363},
+  {id:'hn35',grade:35,label:'35等級',standard:650000,monthly_min:635000,monthly_max:665000,employee:38123,employer:38123},
+  {id:'hn36',grade:36,label:'36等級',standard:680000,monthly_min:665000,monthly_max:695000,employee:39882,employer:39882},
+  {id:'hn37',grade:37,label:'37等級',standard:710000,monthly_min:695000,monthly_max:730000,employee:41642,employer:41642},
+  {id:'hn38',grade:38,label:'38等級',standard:750000,monthly_min:730000,monthly_max:770000,employee:43988,employer:43988},
+  {id:'hn39',grade:39,label:'39等級',standard:790000,monthly_min:770000,monthly_max:810000,employee:46334,employer:46334},
+  {id:'hn40',grade:40,label:'40等級',standard:830000,monthly_min:810000,monthly_max:855000,employee:48680,employer:48680},
+  {id:'hn41',grade:41,label:'41等級',standard:880000,monthly_min:855000,monthly_max:905000,employee:51612,employer:51612},
+  {id:'hn42',grade:42,label:'42等級',standard:930000,monthly_min:905000,monthly_max:955000,employee:54545,employer:54545},
+  {id:'hn43',grade:43,label:'43等級',standard:980000,monthly_min:955000,monthly_max:1005000,employee:57477,employer:57477},
+  {id:'hn44',grade:44,label:'44等級',standard:1030000,monthly_min:1005000,monthly_max:1055000,employee:60410,employer:60410},
+  {id:'hn45',grade:45,label:'45等級',standard:1090000,monthly_min:1055000,monthly_max:1115000,employee:63929,employer:63929},
+  {id:'hn46',grade:46,label:'46等級',standard:1150000,monthly_min:1115000,monthly_max:1175000,employee:67448,employer:67448},
+  {id:'hn47',grade:47,label:'47等級',standard:1210000,monthly_min:1175000,monthly_max:1235000,employee:70967,employer:70967},
+  {id:'hn48',grade:48,label:'48等級',standard:1270000,monthly_min:1235000,monthly_max:1295000,employee:74486,employer:74486},
+  {id:'hn49',grade:49,label:'49等級',standard:1330000,monthly_min:1295000,monthly_max:1355000,employee:78005,employer:78005},
+  {id:'hn50',grade:50,label:'50等級',standard:1390000,monthly_min:1355000,monthly_max:9999999,employee:81524,employer:81524},
+];
