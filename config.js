@@ -248,22 +248,16 @@ const DB = {
     const key = 'insurance_' + type;
     if (DEMO_MODE) {
       const stored = localStorage.getItem(key);
-      const defaults = type==='pension' ? DEFAULT_PENSION_TABLE
-        : type==='health_nursing' ? DEFAULT_HEALTH_NURSING_TABLE
-        : type==='child_support' ? DEFAULT_CHILD_SUPPORT_TABLE
-        : DEFAULT_HEALTH_TABLE;
-      return stored ? JSON.parse(stored) : defaults;
+      const def = type==='pension' ? DEFAULT_PENSION_TABLE : type==='health_nursing' ? DEFAULT_HEALTH_NURSING_TABLE : type==='child_support' ? DEFAULT_CHILD_SUPPORT_TABLE : DEFAULT_HEALTH_TABLE;
+      return stored ? JSON.parse(stored) : def;
     }
     const col = 'insurance_' + type;
     const snap = await getDB().collection(col).orderBy('grade').get();
     if (snap.empty) {
-      const defaults = type==='pension' ? DEFAULT_PENSION_TABLE
-        : type==='health_nursing' ? DEFAULT_HEALTH_NURSING_TABLE
-        : type==='child_support' ? DEFAULT_CHILD_SUPPORT_TABLE
-        : DEFAULT_HEALTH_TABLE;
+      const def = type==='pension' ? DEFAULT_PENSION_TABLE : type==='health_nursing' ? DEFAULT_HEALTH_NURSING_TABLE : type==='child_support' ? DEFAULT_CHILD_SUPPORT_TABLE : DEFAULT_HEALTH_TABLE;
       const batch = getDB().batch();
-      defaults.forEach(row => { const {id,...data}=row; batch.set(getDB().collection(col).doc(id),data); });
-      await batch.commit(); return defaults;
+      def.forEach(row => { const {id,...data}=row; batch.set(getDB().collection(col).doc(id),data); });
+      await batch.commit(); return def;
     }
     return snap.docs.map(d => ({ id: d.id, ...d.data() }));
   },
@@ -372,7 +366,6 @@ const DEFAULT_PENSION_TABLE = [
   {id:'p31',grade:31,label:'31等級',standard:620000,monthly_min:605000,monthly_max:635000,employee:56730,employer:56730},
   {id:'p32',grade:32,label:'32等級',standard:650000,monthly_min:635000,monthly_max:999999,employee:59475,employer:59475},
 ];
-
 const DEFAULT_HEALTH_TABLE = [
   {id:'h1',grade:1,label:'1等級',standard:58000,monthly_min:0,monthly_max:63000,employee:2932,employer:2932},
   {id:'h2',grade:2,label:'2等級',standard:68000,monthly_min:63000,monthly_max:73000,employee:3437,employer:3437},
@@ -425,7 +418,6 @@ const DEFAULT_HEALTH_TABLE = [
   {id:'h49',grade:49,label:'49等級',standard:1330000,monthly_min:1295000,monthly_max:1355000,employee:67232,employer:67232},
   {id:'h50',grade:50,label:'50等級',standard:1390000,monthly_min:1355000,monthly_max:999999,employee:70265,employer:70265},
 ];
-
 const DEFAULT_HEALTH_NURSING_TABLE = [
   {id:'hn1',grade:1,label:'1等級',standard:58000,monthly_min:0,monthly_max:63000,employee:3402,employer:3402},
   {id:'hn2',grade:2,label:'2等級',standard:68000,monthly_min:63000,monthly_max:73000,employee:3988,employer:3988},
@@ -478,7 +470,6 @@ const DEFAULT_HEALTH_NURSING_TABLE = [
   {id:'hn49',grade:49,label:'49等級',standard:1330000,monthly_min:1295000,monthly_max:1355000,employee:78005,employer:78005},
   {id:'hn50',grade:50,label:'50等級',standard:1390000,monthly_min:1355000,monthly_max:999999,employee:81524,employer:81524},
 ];
-
 const DEFAULT_CHILD_SUPPORT_TABLE = [
   {id:'cs1',grade:1,label:'1等級',standard:58000,monthly_min:0,monthly_max:63000,employee:67,employer:67},
   {id:'cs2',grade:2,label:'2等級',standard:68000,monthly_min:63000,monthly_max:73000,employee:78,employer:78},
@@ -531,7 +522,6 @@ const DEFAULT_CHILD_SUPPORT_TABLE = [
   {id:'cs49',grade:49,label:'49等級',standard:1330000,monthly_min:1295000,monthly_max:1355000,employee:1530,employer:1530},
   {id:'cs50',grade:50,label:'50等級',standard:1390000,monthly_min:1355000,monthly_max:999999,employee:1599,employer:1599},
 ];
-
 function getInsuranceAmountByGrade(gradeId, table) {
   if (!gradeId||!table) return 0;
   const row = table.find(r => r.id === gradeId);
@@ -540,8 +530,6 @@ function getInsuranceAmountByGrade(gradeId, table) {
 function findInsuranceGradeByMonthly(monthly, table) {
   if (!table||!table.length) return null;
   const sorted = [...table].sort((a,b) => a.grade-b.grade);
-  for (const row of sorted) {
-    if (monthly >= row.monthly_min && monthly < row.monthly_max) return row;
-  }
+  for (const row of sorted) { if (monthly >= row.monthly_min && monthly < row.monthly_max) return row; }
   return sorted[sorted.length-1];
 }
