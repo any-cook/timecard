@@ -12,10 +12,20 @@
   <script src="holidays.js" defer></script>
   <script src="demo-data.js" defer></script>
   <script src="admin.js" defer></script>
-  <script defer>
+  <script>
     document.addEventListener('DOMContentLoaded', function() {
+      // PINパッド：数字ボタン
+      document.getElementById('pinPad').addEventListener('click', function(e) {
+        var btn = e.target.closest('.pin-btn[data-pin]');
+        if (btn) pinPress(btn.dataset.pin);
+      });
+      // PINパッド：削除ボタン
+      document.getElementById('pinDeleteBtn').addEventListener('click', function() {
+        pinDelete();
+      });
+      // デモモード・PIN初期化
       if (typeof DEMO_MODE !== 'undefined' && DEMO_MODE) {
-        document.getElementById('demoBanner').style.display='block';
+        document.getElementById('demoBanner').style.display = 'block';
         initDemoData();
       }
       initPin();
@@ -44,13 +54,13 @@
         <div class="pin-dot" id="dot0"></div><div class="pin-dot" id="dot1"></div>
         <div class="pin-dot" id="dot2"></div><div class="pin-dot" id="dot3"></div>
       </div>
-      <div class="pin-pad">
-        <button class="pin-btn" onclick="pinPress('1')">1</button><button class="pin-btn" onclick="pinPress('2')">2</button><button class="pin-btn" onclick="pinPress('3')">3</button>
-        <button class="pin-btn" onclick="pinPress('4')">4</button><button class="pin-btn" onclick="pinPress('5')">5</button><button class="pin-btn" onclick="pinPress('6')">6</button>
-        <button class="pin-btn" onclick="pinPress('7')">7</button><button class="pin-btn" onclick="pinPress('8')">8</button><button class="pin-btn" onclick="pinPress('9')">9</button>
+      <div class="pin-pad" id="pinPad">
+        <button class="pin-btn" data-pin="1">1</button><button class="pin-btn" data-pin="2">2</button><button class="pin-btn" data-pin="3">3</button>
+        <button class="pin-btn" data-pin="4">4</button><button class="pin-btn" data-pin="5">5</button><button class="pin-btn" data-pin="6">6</button>
+        <button class="pin-btn" data-pin="7">7</button><button class="pin-btn" data-pin="8">8</button><button class="pin-btn" data-pin="9">9</button>
         <button class="pin-btn" style="opacity:0;pointer-events:none;"></button>
-        <button class="pin-btn" onclick="pinPress('0')">0</button>
-        <button class="pin-btn delete-btn" onclick="pinDelete()">⌫</button>
+        <button class="pin-btn" data-pin="0">0</button>
+        <button class="pin-btn delete-btn" id="pinDeleteBtn">⌫</button>
       </div>
       <div class="pin-error" id="pinError">❌ 暗証番号が違います</div>
     </div>
