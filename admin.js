@@ -483,7 +483,7 @@ async function showPayslip(staffId,year,month){
     '<div><strong>種別:</strong> '+staffTypeLabel(staff.type)+'</div>'+
     (age!==null?'<div><strong>年齢:</strong> '+age+'歳'+(staff.birthdate&&isNursingCare(staff.birthdate)?'（介護保険第2号）':'')+'</div>':'')+
     (staff.address?'<div><strong>住所:</strong> '+staff.address+'</div>':'')+
-    '<div><strong>扶養親族:</strong> '+（staff.dependents||0)+'人</div>'+
+    '<div><strong>扶養親族:</strong> '+(staff.dependents||0)+'人</div>'+
     (staff.type==='hourly'?'<div><strong>基本時給:</strong> '+formatCurrency(staff.wage)+'</div><div><strong>労働時間:</strong> '+formatWorkTime(totalMins)+'</div>':'')+
     '<div><strong>出勤日数:</strong> '+workDays+'日</div>'+
     (pensionRow?'<div><strong>厚生年金等級:</strong> '+pensionRow.label+'（標準報酬 '+formatCurrency(pensionRow.standard)+'）</div>':'')+
@@ -495,7 +495,7 @@ async function showPayslip(staffId,year,month){
     (commuteData.total>0?'<div class="summary-row"><span>通勤費合計（'+workDays+'日×'+formatCurrency(staff.commute_daily_amount||0)+'）</span><span>'+formatCurrency(commuteData.total)+'</span></div>':'')+
     (commuteData.total>0?'<div class="summary-row" style="font-size:.8rem;color:var(--text-muted);"><span>　うち非課税分</span><span>'+formatCurrency(commuteData.taxFree)+'</span></div>':'')+
     (commuteData.taxable>0?'<div class="summary-row" style="font-size:.8rem;color:#dc2626;"><span>　うち課税分（所得税対象）</span><span>'+formatCurrency(commuteData.taxable)+'</span></div>':'')+
-    '<div class="summary-row deduction"><span>源泉徴収税（'+（staff.tax_type==='otsu'?'乙欄':'甲欄・扶養'+(staff.dependents||0)+'人')+'）</span><span>- '+formatCurrency(tax)+'</span></div>'+
+    '<div class="summary-row deduction"><span>源泉徴収税（'+(staff.tax_type==='otsu'?'乙欄':'甲欄・扶養'+(staff.dependents||0)+'人')+'）</span><span>- '+formatCurrency(tax)+'</span></div>'+
     (pension>0?'<div class="summary-row deduction"><span>厚生年金保険料</span><span>- '+formatCurrency(pension)+'</span></div>':'')+
     (health>0?'<div class="summary-row deduction"><span>健康保険料'+(staff.health_table_type==='health_nursing'?'（介護保険込み）':'')+'</span><span>- '+formatCurrency(health)+'</span></div>':'')+
     (childSupport>0?'<div class="summary-row deduction"><span>子ども・子育て支援金</span><span>- '+formatCurrency(childSupport)+'</span></div>':'')+
