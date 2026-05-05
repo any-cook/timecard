@@ -39,7 +39,7 @@ function renderStaffButtons() {
   const container = document.getElementById('staffButtons');
   if (!container) return;
   container.innerHTML = '';
-  clockStaffList.forEach(staff => {
+  clockStaffList.filter(s => s.type !== 'officer').forEach(staff => {
     const btn = document.createElement('button');
     btn.className = 'staff-btn';
     btn.textContent = staff.name;
