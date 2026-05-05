@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <title>⏰ タイムカード | 打刻</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
@@ -84,13 +84,20 @@
   <!-- Firebase SDK (CDN) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
   <script src="config.js"></script>
   <script src="utils.js"></script>
   <script src="holidays.js"></script>
   <script src="demo-data.js"></script>
   <script src="clock.js"></script>
   <script>
-    if (DEMO_MODE) { document.getElementById('demoBanner').style.display = 'block'; initDemoData(); }
+    // デモモード表示
+    if (DEMO_MODE) {
+      document.getElementById('demoBanner').style.display = 'block';
+      initDemoData();
+    }
+
+    // 初期化
     initClock().catch(err => {
       console.error(err);
       document.getElementById('staffButtons').innerHTML =
