@@ -61,6 +61,9 @@ async function openStaffModal(id){
   editingStaff=null;
   document.getElementById('staffModalTitle').textContent=id?'スタッフ編集':'スタッフ追加';
   document.getElementById('staffForm').reset();
+  document.getElementById('staffCode').value='';
+  document.getElementById('staffHireDate').value='';
+  document.getElementById('empInsDateSameAsHire').checked=false;
   document.getElementById('staffWageSection').style.display='block';
   document.getElementById('staffSalarySection').style.display='none';
   document.getElementById('socialInsuranceFields').style.display='none';
@@ -74,6 +77,8 @@ async function openStaffModal(id){
     var staff=await DB.getStaff();editingStaff=staff.find(function(s){return s.id===id;});
     if(editingStaff){
       document.getElementById('staffName').value=editingStaff.name;
+      document.getElementById('staffCode').value=editingStaff.staff_code||'';
+      document.getElementById('staffHireDate').value=editingStaff.hire_date||'';
       document.getElementById('staffBirthdate').value=editingStaff.birthdate||'';
       document.getElementById('staffType').value=editingStaff.type;
       document.getElementById('staffWage').value=editingStaff.wage||'';
@@ -91,6 +96,8 @@ async function openStaffModal(id){
       document.getElementById('staffSocialInsurance').checked=editingStaff.social_insurance||false;
       document.getElementById('staffEmploymentInsurance').checked=editingStaff.employment_insurance||false;
       document.getElementById('staffEmploymentInsuranceDate').value=editingStaff.employment_insurance_date||'';
+      var sameAsHire=editingStaff.hire_date&&editingStaff.employment_insurance_date&&editingStaff.hire_date===editingStaff.employment_insurance_date;
+      document.getElementById('empInsDateSameAsHire').checked=!!sameAsHire;
       document.getElementById('staffWorkersComp').checked=editingStaff.workers_comp||false;
       if(editingStaff.birthdate)updateNursingCareStatus();
       if(editingStaff.commute_distance)updateCommuteTaxFree();
@@ -154,6 +161,19 @@ function toggleSocialInsurance(){
 function toggleEmploymentInsurance(){
   var checked=document.getElementById('staffEmploymentInsurance').checked;
   document.getElementById('employmentInsuranceFields').style.display=checked?'block':'none';
+  if(checked)syncHireDateToEmpIns();
+}
+
+function syncHireDateToEmpIns(){
+  var sameChk=document.getElementById('empInsDateSameAsHire');
+  if(!sameChk)return;
+  if(sameChk.checked){
+    var hireDate=document.getElementById('staffHireDate').value;
+    document.getElementById('staffEmploymentInsuranceDate').value=hireDate;
+    document.getElementById('staffEmploymentInsuranceDate').readOnly=true;
+  }else{
+    document.getElementById('staffEmploymentInsuranceDate').readOnly=false;
+  }
 }
 
 function updateInsurancePreview(){
@@ -211,6 +231,8 @@ async function updateTaxPreview(){
 async function saveStaff(){
   var name=document.getElementById('staffName').value.trim();
   if(!name){showToast('スタッフ名を入力してください','error');return;}
+  var staffCode=document.getElementById('staffCode').value.trim();
+  var hireDate=document.getElementById('staffHireDate').value;
   var birthdate=document.getElementById('staffBirthdate').value;
   var type=document.getElementById('staffType').value;
   var wage=parseInt(document.getElementById('staffWage').value)||0;
@@ -235,7 +257,7 @@ async function saveStaff(){
   var tableType=(birthdate&&isNursingCare(birthdate))?'health_nursing':'health';
   var useTable=tableType==='health_nursing'?_healthNursingTable:_healthTable;
   var record=editingStaff?Object.assign({},editingStaff):{};
-  Object.assign(record,{name,birthdate,type,wage,monthly_salary:salary,is_active:isActive,
+  Object.assign(record,{name,staff_code:staffCode,hire_date:hireDate,birthdate,type,wage,monthly_salary:salary,is_active:isActive,
     tax_type:taxType,dependents,address,phone,emergency_phone:emergencyPhone,emergency_name:emergencyName,email,
     commute_distance:commuteDistance,commute_daily_amount:commuteDailyAmount,
     social_insurance:socialInsurance,pension_grade_id:pensionGradeId,health_grade_id:healthGradeId,

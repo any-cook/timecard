@@ -5,32 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>📊 タイムカード管理システム | 管理画面</title>
   <link rel="stylesheet" href="admin.css">
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" defer></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js" defer></script>
-  <script src="config.js" defer></script>
-  <script src="utils.js" defer></script>
-  <script src="holidays.js" defer></script>
-  <script src="demo-data.js" defer></script>
-  <script src="admin.js" defer></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      // PINパッド：数字ボタン
-      document.getElementById('pinPad').addEventListener('click', function(e) {
-        var btn = e.target.closest('.pin-btn[data-pin]');
-        if (btn) pinPress(btn.dataset.pin);
-      });
-      // PINパッド：削除ボタン
-      document.getElementById('pinDeleteBtn').addEventListener('click', function() {
-        pinDelete();
-      });
-      // デモモード・PIN初期化
-      if (typeof DEMO_MODE !== 'undefined' && DEMO_MODE) {
-        document.getElementById('demoBanner').style.display = 'block';
-        initDemoData();
-      }
-      initPin();
-    });
-  </script>
   <style>
     .collapsible-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;user-select:none;margin-bottom:4px;transition:background .15s}
     .collapsible-header:hover{background:#e2e8f0}
@@ -54,13 +28,13 @@
         <div class="pin-dot" id="dot0"></div><div class="pin-dot" id="dot1"></div>
         <div class="pin-dot" id="dot2"></div><div class="pin-dot" id="dot3"></div>
       </div>
-      <div class="pin-pad" id="pinPad">
-        <button class="pin-btn" data-pin="1">1</button><button class="pin-btn" data-pin="2">2</button><button class="pin-btn" data-pin="3">3</button>
-        <button class="pin-btn" data-pin="4">4</button><button class="pin-btn" data-pin="5">5</button><button class="pin-btn" data-pin="6">6</button>
-        <button class="pin-btn" data-pin="7">7</button><button class="pin-btn" data-pin="8">8</button><button class="pin-btn" data-pin="9">9</button>
+      <div class="pin-pad">
+        <button class="pin-btn" onclick="pinPress('1')">1</button><button class="pin-btn" onclick="pinPress('2')">2</button><button class="pin-btn" onclick="pinPress('3')">3</button>
+        <button class="pin-btn" onclick="pinPress('4')">4</button><button class="pin-btn" onclick="pinPress('5')">5</button><button class="pin-btn" onclick="pinPress('6')">6</button>
+        <button class="pin-btn" onclick="pinPress('7')">7</button><button class="pin-btn" onclick="pinPress('8')">8</button><button class="pin-btn" onclick="pinPress('9')">9</button>
         <button class="pin-btn" style="opacity:0;pointer-events:none;"></button>
-        <button class="pin-btn" data-pin="0">0</button>
-        <button class="pin-btn delete-btn" id="pinDeleteBtn">⌫</button>
+        <button class="pin-btn" onclick="pinPress('0')">0</button>
+        <button class="pin-btn delete-btn" onclick="pinDelete()">⌫</button>
       </div>
       <div class="pin-error" id="pinError">❌ 暗証番号が違います</div>
     </div>
@@ -265,6 +239,8 @@
         <!-- 基本情報 -->
         <div class="form-section-title">👤 基本情報</div>
         <div class="form-grid">
+          <div class="form-group"><label class="form-label">スタッフコード</label><input type="text" id="staffCode" class="form-input" placeholder="例: S001" maxlength="20"></div>
+          <div class="form-group"><label class="form-label">入社年月日</label><input type="date" id="staffHireDate" class="form-input" onchange="syncHireDateToEmpIns()"></div>
           <div class="form-group full"><label class="form-label">氏名 *</label><input type="text" id="staffName" class="form-input" placeholder="例: 田中 太郎" maxlength="30"></div>
           <div class="form-group"><label class="form-label">生年月日</label><input type="date" id="staffBirthdate" class="form-input" onchange="updateNursingCareStatus()"></div>
           <div class="form-group"><label class="form-label">年齢・介護保険区分</label>
@@ -359,7 +335,10 @@
             <label class="form-check" style="margin-bottom:8px;"><input type="checkbox" id="staffEmploymentInsurance" onchange="toggleEmploymentInsurance()"> 雇用保険 加入</label>
             <div id="employmentInsuranceFields" style="display:none;">
               <label class="form-label" style="margin-top:8px;">加入日</label>
-              <input type="date" id="staffEmploymentInsuranceDate" class="form-input">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+                <input type="date" id="staffEmploymentInsuranceDate" class="form-input" style="flex:1;">
+                <label class="form-check" style="white-space:nowrap;font-size:.82rem;"><input type="checkbox" id="empInsDateSameAsHire" onchange="syncHireDateToEmpIns()"> 入社年月日と同じ</label>
+              </div>
               <div id="empInsPreview" style="margin-top:8px;padding:8px 12px;border-radius:8px;font-size:.82rem;background:#f0fdf4;border:1px solid #bbf7d0;">
                 保険料率：6/1000（月収×0.6%）<br>※時給・月額入力後に試算額を表示します
               </div>
@@ -536,6 +515,17 @@
     </div>
   </div>
 
-
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="config.js"></script>
+  <script src="utils.js"></script>
+  <script src="holidays.js"></script>
+  <script src="demo-data.js"></script>
+  <script src="admin.js"></script>
+  <script>
+    if (DEMO_MODE) { document.getElementById('demoBanner').style.display='block'; initDemoData(); }
+    initPin();
+  </script>
 </body>
 </html>
