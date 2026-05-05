@@ -9,7 +9,7 @@ let manualSpecialDays = [];
 
 // 初期化
 async function initClock() {
-  clockStaffList = (await DB.getStaff()).filter(s => s.is_active);
+  clockStaffList = (await DB.getStaff()).filter(s => s.is_active && s.type !== 'officer');
   manualSpecialDays = await DB.getSpecialDays();
   renderStaffButtons();
   startClock();
