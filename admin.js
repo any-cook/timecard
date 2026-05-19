@@ -41,7 +41,7 @@ async function loadStaffTab(){
     var nursing=s.birthdate?(isNursingCare(s.birthdate)?'<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #d97706;">介護2号</span>':'<span class="badge badge-inactive">非該当</span>'):'-';
     var emp=s.employment_insurance?'<span class="badge badge-active">加入</span>':'<span class="badge badge-inactive">未加入</span>';
     var tr=document.createElement('tr');if(!s.is_active)tr.classList.add('inactive-row');
-    tr.innerHTML='<td>'+s.name+'</td><td><span class="badge badge-type">'+staffTypeLabel(s.type)+'</span></td>'+
+    tr.innerHTML='<td><span style="font-size:.75rem;font-weight:700;color:var(--text-muted);margin-right:6px;">#'+(s.staff_number||'-')+'</span>'+s.name+'</td><td><span class="badge badge-type">'+staffTypeLabel(s.type)+'</span></td>'+
       '<td>'+(s.type==='hourly'?formatCurrency(s.wage)+'/時':formatCurrency(s.monthly_salary)+'/月')+'</td>'+
       '<td>'+ageStr+'</td><td>'+nursing+'</td><td>'+emp+'</td>'+
       '<td><span class="badge '+(s.is_active?'badge-active':'badge-inactive')+'">'+(s.is_active?'在籍':'退職')+'</span></td>'+
@@ -61,9 +61,6 @@ async function openStaffModal(id){
   editingStaff=null;
   document.getElementById('staffModalTitle').textContent=id?'スタッフ編集':'スタッフ追加';
   document.getElementById('staffForm').reset();
-  document.getElementById('staffCode').value='';
-  document.getElementById('staffHireDate').value='';
-  document.getElementById('empInsDateSameAsHire').checked=false;
   document.getElementById('staffWageSection').style.display='block';
   document.getElementById('staffSalarySection').style.display='none';
   document.getElementById('socialInsuranceFields').style.display='none';
@@ -76,9 +73,8 @@ async function openStaffModal(id){
   if(id){
     var staff=await DB.getStaff();editingStaff=staff.find(function(s){return s.id===id;});
     if(editingStaff){
+      document.getElementById('staffNumber').value=editingStaff.staff_number||'';
       document.getElementById('staffName').value=editingStaff.name;
-      document.getElementById('staffCode').value=editingStaff.staff_code||'';
-      document.getElementById('staffHireDate').value=editingStaff.hire_date||'';
       document.getElementById('staffBirthdate').value=editingStaff.birthdate||'';
       document.getElementById('staffType').value=editingStaff.type;
       document.getElementById('staffWage').value=editingStaff.wage||'';
@@ -96,8 +92,6 @@ async function openStaffModal(id){
       document.getElementById('staffSocialInsurance').checked=editingStaff.social_insurance||false;
       document.getElementById('staffEmploymentInsurance').checked=editingStaff.employment_insurance||false;
       document.getElementById('staffEmploymentInsuranceDate').value=editingStaff.employment_insurance_date||'';
-      var sameAsHire=editingStaff.hire_date&&editingStaff.employment_insurance_date&&editingStaff.hire_date===editingStaff.employment_insurance_date;
-      document.getElementById('empInsDateSameAsHire').checked=!!sameAsHire;
       document.getElementById('staffWorkersComp').checked=editingStaff.workers_comp||false;
       if(editingStaff.birthdate)updateNursingCareStatus();
       if(editingStaff.commute_distance)updateCommuteTaxFree();
@@ -161,19 +155,6 @@ function toggleSocialInsurance(){
 function toggleEmploymentInsurance(){
   var checked=document.getElementById('staffEmploymentInsurance').checked;
   document.getElementById('employmentInsuranceFields').style.display=checked?'block':'none';
-  if(checked)syncHireDateToEmpIns();
-}
-
-function syncHireDateToEmpIns(){
-  var sameChk=document.getElementById('empInsDateSameAsHire');
-  if(!sameChk)return;
-  if(sameChk.checked){
-    var hireDate=document.getElementById('staffHireDate').value;
-    document.getElementById('staffEmploymentInsuranceDate').value=hireDate;
-    document.getElementById('staffEmploymentInsuranceDate').readOnly=true;
-  }else{
-    document.getElementById('staffEmploymentInsuranceDate').readOnly=false;
-  }
 }
 
 function updateInsurancePreview(){
@@ -229,10 +210,14 @@ async function updateTaxPreview(){
 }
 
 async function saveStaff(){
+  var staffNumber=document.getElementById('staffNumber').value.trim();
   var name=document.getElementById('staffName').value.trim();
+  if(!staffNumber){showToast('登録番号を入力してください','error');return;}
   if(!name){showToast('スタッフ名を入力してください','error');return;}
-  var staffCode=document.getElementById('staffCode').value.trim();
-  var hireDate=document.getElementById('staffHireDate').value;
+  // 番号の重複チェック
+  var allS=await DB.getStaff();
+  var dupNum=allS.find(function(s){return s.staff_number===staffNumber&&(!editingStaff||s.id!==editingStaff.id);});
+  if(dupNum){showToast('登録番号 '+staffNumber+' は既に '+dupNum.name+' さんが使用しています','error');return;}
   var birthdate=document.getElementById('staffBirthdate').value;
   var type=document.getElementById('staffType').value;
   var wage=parseInt(document.getElementById('staffWage').value)||0;
@@ -257,7 +242,7 @@ async function saveStaff(){
   var tableType=(birthdate&&isNursingCare(birthdate))?'health_nursing':'health';
   var useTable=tableType==='health_nursing'?_healthNursingTable:_healthTable;
   var record=editingStaff?Object.assign({},editingStaff):{};
-  Object.assign(record,{name,staff_code:staffCode,hire_date:hireDate,birthdate,type,wage,monthly_salary:salary,is_active:isActive,
+  Object.assign(record,{staff_number:staffNumber,name,birthdate,type,wage,monthly_salary:salary,is_active:isActive,
     tax_type:taxType,dependents,address,phone,emergency_phone:emergencyPhone,emergency_name:emergencyName,email,
     commute_distance:commuteDistance,commute_daily_amount:commuteDailyAmount,
     social_insurance:socialInsurance,pension_grade_id:pensionGradeId,health_grade_id:healthGradeId,
@@ -505,7 +490,7 @@ async function showPayslip(staffId,year,month){
     '<div><strong>種別:</strong> '+staffTypeLabel(staff.type)+'</div>'+
     (age!==null?'<div><strong>年齢:</strong> '+age+'歳'+(staff.birthdate&&isNursingCare(staff.birthdate)?'（介護保険第2号）':'')+'</div>':'')+
     (staff.address?'<div><strong>住所:</strong> '+staff.address+'</div>':'')+
-    '<div><strong>扶養親族:</strong> '+(staff.dependents||0)+'人</div>'+
+    '<div><strong>扶養親族:</strong> '+（staff.dependents||0)+'人</div>'+
     (staff.type==='hourly'?'<div><strong>基本時給:</strong> '+formatCurrency(staff.wage)+'</div><div><strong>労働時間:</strong> '+formatWorkTime(totalMins)+'</div>':'')+
     '<div><strong>出勤日数:</strong> '+workDays+'日</div>'+
     (pensionRow?'<div><strong>厚生年金等級:</strong> '+pensionRow.label+'（標準報酬 '+formatCurrency(pensionRow.standard)+'）</div>':'')+
@@ -517,7 +502,7 @@ async function showPayslip(staffId,year,month){
     (commuteData.total>0?'<div class="summary-row"><span>通勤費合計（'+workDays+'日×'+formatCurrency(staff.commute_daily_amount||0)+'）</span><span>'+formatCurrency(commuteData.total)+'</span></div>':'')+
     (commuteData.total>0?'<div class="summary-row" style="font-size:.8rem;color:var(--text-muted);"><span>　うち非課税分</span><span>'+formatCurrency(commuteData.taxFree)+'</span></div>':'')+
     (commuteData.taxable>0?'<div class="summary-row" style="font-size:.8rem;color:#dc2626;"><span>　うち課税分（所得税対象）</span><span>'+formatCurrency(commuteData.taxable)+'</span></div>':'')+
-    '<div class="summary-row deduction"><span>源泉徴収税（'+(staff.tax_type==='otsu'?'乙欄':'甲欄・扶養'+(staff.dependents||0)+'人')+'）</span><span>- '+formatCurrency(tax)+'</span></div>'+
+    '<div class="summary-row deduction"><span>源泉徴収税（'+（staff.tax_type==='otsu'?'乙欄':'甲欄・扶養'+(staff.dependents||0)+'人')+'）</span><span>- '+formatCurrency(tax)+'</span></div>'+
     (pension>0?'<div class="summary-row deduction"><span>厚生年金保険料</span><span>- '+formatCurrency(pension)+'</span></div>':'')+
     (health>0?'<div class="summary-row deduction"><span>健康保険料'+(staff.health_table_type==='health_nursing'?'（介護保険込み）':'')+'</span><span>- '+formatCurrency(health)+'</span></div>':'')+
     (childSupport>0?'<div class="summary-row deduction"><span>子ども・子育て支援金</span><span>- '+formatCurrency(childSupport)+'</span></div>':'')+
