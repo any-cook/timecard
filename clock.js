@@ -93,7 +93,8 @@ async function goToClockAction() {
 async function updateClockStatus() {
   if (!selectedStaff) return;
   var today = todayStr();
-  var records = await DB.getAttendance({ staff_id: selectedStaff.id });
+  var now = new Date();
+  var records = await DB.getAttendance({ staff_id: selectedStaff.id, year: now.getFullYear(), month: now.getMonth()+1 });
   var r = records.find(function(x){ return x.date === today; });
   var statusEl = document.getElementById('clockStatus');
   var btnIn = document.getElementById('btnClockIn');
@@ -129,7 +130,8 @@ async function clockOut() {
   var btn = document.getElementById('btnClockOut');
   btn.disabled = true; btn.innerHTML = '<span class="btn-icon">⏳</span>処理中...';
   var now = nowTimeStr(), today = todayStr();
-  var records = await DB.getAttendance({ staff_id:selectedStaff.id });
+  var nowDate = new Date();
+  var records = await DB.getAttendance({ staff_id: selectedStaff.id, year: nowDate.getFullYear(), month: nowDate.getMonth()+1 });
   var r = records.find(function(x){ return x.date === today; });
   if (r) { r.clock_out_actual = now; r.clock_out_calc = roundDownClockOut(now); await DB.saveAttendance(r); }
   showPunchMessage('✅ 退勤しました！', now, '#dc2626');
