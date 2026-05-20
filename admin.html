@@ -62,8 +62,8 @@
       </div>
       <div class="table-scroll">
         <table class="data-table">
-          <thead><tr><th>登録番号</th><th>氏名</th><th>種別</th><th>時給/月額</th><th>年齢</th><th>介護保険</th><th>雇用保険</th><th>状態</th><th>操作</th></tr></thead>
-          <tbody id="staffTableBody"><tr><td colspan="9" class="empty-cell">読み込み中...</td></tr></tbody>
+          <thead><tr><th>登録番号</th><th>氏名</th><th>種別</th><th>時給/月額</th><th>入社日</th><th>年齢</th><th>介護保険</th><th>雇用保険</th><th>状態</th><th>操作</th></tr></thead>
+          <tbody id="staffTableBody"><tr><td colspan="10" class="empty-cell">読み込み中...</td></tr></tbody>
         </table>
       </div>
     </div>
@@ -229,6 +229,7 @@
           <div class="form-group"><label class="form-label">登録番号 *<span style="font-size:.75rem;font-weight:400;color:var(--text-muted);margin-left:8px;">打刻時に使用</span></label><input type="text" id="staffNumber" class="form-input" placeholder="例: 001" maxlength="4" style="font-size:1.3rem;font-weight:700;letter-spacing:.15em;"></div>
           <div class="form-group full"><label class="form-label">氏名 *</label><input type="text" id="staffName" class="form-input" placeholder="例: 田中 太郎" maxlength="30"></div>
           <div class="form-group"><label class="form-label">生年月日</label><input type="date" id="staffBirthdate" class="form-input" onchange="updateNursingCareStatus()"></div>
+          <div class="form-group"><label class="form-label">入社日</label><input type="date" id="staffHireDate" class="form-input"></div>
           <div class="form-group"><label class="form-label">年齢・介護保険区分</label>
             <div id="nursingCareStatus" style="padding:8px 12px;border-radius:8px;font-size:.875rem;background:#f1f5f9;color:var(--text-muted);">生年月日を入力すると自動判定</div>
           </div>

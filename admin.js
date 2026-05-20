@@ -32,10 +32,11 @@ async function loadStaffTab(){
     var nursing=s.birthdate?(isNursingCare(s.birthdate)?'<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #d97706;">介護2号</span>':'<span class="badge badge-inactive">非該当</span>'):'-';
     var emp=s.employment_insurance?'<span class="badge badge-active">加入</span>':'<span class="badge badge-inactive">未加入</span>';
     var tr=document.createElement('tr');if(!s.is_active)tr.classList.add('inactive-row');
+    var hireDateStr=s.hire_date?formatDateJP(s.hire_date):'-';
     tr.innerHTML='<td style="font-size:1rem;font-weight:700;color:var(--accent);">'+(s.staff_number||'-')+'</td>'+
       '<td>'+s.name+'</td><td><span class="badge badge-type">'+staffTypeLabel(s.type)+'</span></td>'+
       '<td>'+(s.type==='hourly'?formatCurrency(s.wage)+'/時':formatCurrency(s.monthly_salary)+'/月')+'</td>'+
-      '<td>'+ageStr+'</td><td>'+nursing+'</td><td>'+emp+'</td>'+
+      '<td>'+hireDateStr+'</td><td>'+ageStr+'</td><td>'+nursing+'</td><td>'+emp+'</td>'+
       '<td><span class="badge '+(s.is_active?'badge-active':'badge-inactive')+'">'+(s.is_active?'在籍':'退職')+'</span></td>'+
       '<td><button class="btn-sm btn-edit" onclick="openStaffModal(\''+s.id+'\')">✏️ 編集</button> '+
       '<button class="btn-sm btn-toggle" onclick="toggleStaffActive(\''+s.id+'\','+(!s.is_active)+')">'+(s.is_active?'退職処理':'在籍に戻す')+'</button></td>';
@@ -67,6 +68,7 @@ async function openStaffModal(id){
       document.getElementById('staffNumber').value=editingStaff.staff_number||'';
       document.getElementById('staffName').value=editingStaff.name;
       document.getElementById('staffBirthdate').value=editingStaff.birthdate||'';
+      document.getElementById('staffHireDate').value=editingStaff.hire_date||'';
       document.getElementById('staffType').value=editingStaff.type;
       document.getElementById('staffWage').value=editingStaff.wage||'';
       document.getElementById('staffSalary').value=editingStaff.monthly_salary||'';
@@ -175,6 +177,7 @@ async function saveStaff(){
   var record=editingStaff?Object.assign({},editingStaff):{};
   Object.assign(record,{
     staff_number:staffNumber,name:name,birthdate:birthdate,
+    hire_date:document.getElementById('staffHireDate').value,
     type:document.getElementById('staffType').value,
     wage:parseInt(document.getElementById('staffWage').value)||0,
     monthly_salary:parseInt(document.getElementById('staffSalary').value)||0,
