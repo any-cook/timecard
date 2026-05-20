@@ -11,7 +11,7 @@ function initAdminTabs(){switchTab('staff');}
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===tab);});
   document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.toggle('active',p.id==='tab-'+tab);});
-  ({staff:loadStaffTab,attendance:loadAttendanceTab,special:loadSpecialTab,payroll:loadPayrollTab,tax:loadTaxTab,leave:loadLeaveTab})[tab]();
+  ({staff:loadStaffTab,attendance:loadAttendanceTab,special:loadSpecialTab,payroll:loadPayrollTab,tax:loadTaxTab,leave:loadLeaveTab,today:loadTodayTab})[tab]();
 }
 function toggleCollapsible(id){var b=document.getElementById(id),a=document.getElementById(id+'Arrow');if(!b)return;var o=b.classList.contains('open');b.classList.toggle('open',!o);if(a)a.classList.toggle('open',!o);}
 function openCollapsible(id){var b=document.getElementById(id),a=document.getElementById(id+'Arrow');if(b)b.classList.add('open');if(a)a.classList.add('open');}
@@ -437,5 +437,99 @@ function selectLeaveStaff(staffId){document.getElementById('leaveStaffSelect').v
 async function openLeaveModal(){var staffId=document.getElementById('leaveStaffSelect').value,staff=await DB.getStaff(),sel=document.getElementById('leaveModalStaff');sel.innerHTML='';staff.filter(function(s){return s.is_active;}).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;if(s.id===staffId)o.selected=true;sel.appendChild(o);});document.getElementById('leaveDate').value=todayStr();document.getElementById('leaveType').value='grant';document.getElementById('leaveDays').value='1';document.getElementById('leaveReason').value='';openModal('leaveModal');}
 async function saveLeave(){var staff_id=document.getElementById('leaveModalStaff').value,date=document.getElementById('leaveDate').value,type=document.getElementById('leaveType').value,days=parseFloat(document.getElementById('leaveDays').value)||0,reason=document.getElementById('leaveReason').value.trim();if(!staff_id||!date||days<=0){showToast('スタッフ・日付・日数を正しく入力してください','error');return;}await DB.saveLeave({staff_id:staff_id,date:date,type:type,days:days,reason:reason});closeModal('leaveModal');showToast('保存しました');loadLeaveList();}
 async function deleteLeave(id){if(!confirmAction('この有休記録を削除しますか？'))return;await DB.deleteLeave(id);showToast('削除しました');loadLeaveList();}
+
+// ============================================================
+// タブ: 本日の出勤状況
+// ============================================================
+async function loadTodayTab() {
+  var today = todayStr();
+  var now = new Date();
+  var days = ['日','月','火','水','木','金','土'];
+  document.getElementById('todayDate').textContent =
+    now.getFullYear()+'年'+(now.getMonth()+1)+'月'+now.getDate()+'日（'+days[now.getDay()]+'） の出勤状況';
+
+  var staff = await DB.getStaff();
+  var activeStaff = staff.filter(function(s){ return s.is_active && s.type !== 'officer'; });
+  var records = await DB.getAttendance({ year: now.getFullYear(), month: now.getMonth()+1 });
+  var todayRecords = records.filter(function(r){ return r.date === today; });
+  var staffMap = {};
+  activeStaff.forEach(function(s){ staffMap[s.id] = s; });
+
+  var inList = [], doneList = [], outList = [];
+
+  activeStaff.forEach(function(s) {
+    var r = todayRecords.find(function(x){ return x.staff_id === s.id; });
+    if (!r || !r.clock_in_actual) {
+      outList.push(s);
+    } else if (r.clock_in_actual && !r.clock_out_actual) {
+      inList.push({ staff: s, record: r });
+    } else {
+      doneList.push({ staff: s, record: r });
+    }
+  });
+
+  // カウント表示
+  document.getElementById('todayCountIn').textContent = inList.length + '人';
+  document.getElementById('todayCountDone').textContent = doneList.length + '人';
+  document.getElementById('todayCountOut').textContent = outList.length + '人';
+
+  // 出勤中テーブル
+  var inBody = document.getElementById('todayInBody');
+  inBody.innerHTML = '';
+  if (!inList.length) {
+    inBody.innerHTML = '<tr><td colspan="4" class="empty-cell">出勤中のスタッフはいません</td></tr>';
+  } else {
+    // 出勤時刻が早い順
+    inList.sort(function(a,b){ return a.record.clock_in_actual > b.record.clock_in_actual ? 1 : -1; });
+    inList.forEach(function(item) {
+      var nowMins = now.getHours()*60 + now.getMinutes();
+      var inMins = timeToMinutes(item.record.clock_in_calc || item.record.clock_in_actual);
+      var workMins = Math.max(0, nowMins - inMins);
+      var tr = document.createElement('tr');
+      tr.style.background = '#f0fdf4';
+      tr.innerHTML =
+        '<td><strong>' + item.staff.name + '</strong></td>' +
+        '<td><span style="font-size:1.05rem;font-weight:700;color:#16a34a;">' + item.record.clock_in_actual + '</span></td>' +
+        '<td>' + formatWorkTime(workMins) + '（経過）</td>' +
+        '<td><span class="badge badge-type">' + staffTypeLabel(item.staff.type) + '</span></td>';
+      inBody.appendChild(tr);
+    });
+  }
+
+  // 退勤済みテーブル
+  var doneBody = document.getElementById('todayDoneBody');
+  doneBody.innerHTML = '';
+  if (!doneList.length) {
+    doneBody.innerHTML = '<tr><td colspan="4" class="empty-cell">退勤済みのスタッフはいません</td></tr>';
+  } else {
+    doneList.sort(function(a,b){ return a.record.clock_out_actual > b.record.clock_out_actual ? -1 : 1; });
+    doneList.forEach(function(item) {
+      var r = item.record;
+      var workMins = timeToMinutes(r.clock_out_calc||r.clock_out_actual) - timeToMinutes(r.clock_in_calc||r.clock_in_actual);
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + item.staff.name + '</td>' +
+        '<td>' + r.clock_in_actual + '</td>' +
+        '<td><strong>' + r.clock_out_actual + '</strong></td>' +
+        '<td>' + formatWorkTime(Math.max(0,workMins)) + '</td>';
+      doneBody.appendChild(tr);
+    });
+  }
+
+  // 未出勤テーブル
+  var outBody = document.getElementById('todayOutBody');
+  outBody.innerHTML = '';
+  if (!outList.length) {
+    outBody.innerHTML = '<tr><td colspan="2" class="empty-cell">未出勤のスタッフはいません</td></tr>';
+  } else {
+    outList.forEach(function(s) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + s.name + '</td>' +
+        '<td><span class="badge badge-type">' + staffTypeLabel(s.type) + '</span></td>';
+      outBody.appendChild(tr);
+    });
+  }
+}
 
 function _uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}

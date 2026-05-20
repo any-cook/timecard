@@ -57,6 +57,7 @@
       <button class="tab-btn"        data-tab="payroll"    onclick="switchTab('payroll')">💰 集計・給与明細</button>
       <button class="tab-btn"        data-tab="tax"        onclick="switchTab('tax')">📋 税額表・保険料</button>
       <button class="tab-btn"        data-tab="leave"      onclick="switchTab('leave')">🏖️ 有休管理</button>
+      <button class="tab-btn"        data-tab="today"      onclick="switchTab('today')">📍 本日の出勤状況</button>
     </nav>
 
     <!-- タブ1: スタッフ管理 -->
@@ -220,6 +221,53 @@
       </div>
     </div>
   </div>
+
+    <!-- タブ: 本日の出勤状況 -->
+    <div class="tab-panel" id="tab-today">
+      <div class="section-header">
+        <h2 class="section-title">📍 本日の出勤状況</h2>
+        <button class="btn btn-secondary" onclick="loadTodayTab()">🔄 更新</button>
+      </div>
+      <div id="todayDate" style="font-size:.85rem;color:var(--text-muted);margin-bottom:16px;"></div>
+      <div class="summary-cards" style="margin-bottom:20px;">
+        <div class="summary-card"><div class="summary-card-label">出勤中</div><div class="summary-card-value" id="todayCountIn" style="color:#16a34a;">-</div></div>
+        <div class="summary-card"><div class="summary-card-label">退勤済み</div><div class="summary-card-value" id="todayCountDone" style="color:var(--text-muted);">-</div></div>
+        <div class="summary-card"><div class="summary-card-label">未出勤</div><div class="summary-card-value" id="todayCountOut" style="color:#dc2626;">-</div></div>
+      </div>
+
+      <!-- 出勤中 -->
+      <div style="margin-bottom:24px;">
+        <h3 style="font-size:.85rem;font-weight:800;color:#16a34a;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;">🟢 出勤中</h3>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>氏名</th><th>出勤時刻</th><th>勤務時間</th><th>種別</th></tr></thead>
+            <tbody id="todayInBody"><tr><td colspan="4" class="empty-cell">読み込み中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 退勤済み -->
+      <div style="margin-bottom:24px;">
+        <h3 style="font-size:.85rem;font-weight:800;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;">✅ 退勤済み</h3>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>氏名</th><th>出勤時刻</th><th>退勤時刻</th><th>労働時間</th></tr></thead>
+            <tbody id="todayDoneBody"><tr><td colspan="4" class="empty-cell">読み込み中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 未出勤 -->
+      <div>
+        <h3 style="font-size:.85rem;font-weight:800;color:#dc2626;letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;">⭕ 未出勤</h3>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>氏名</th><th>種別</th></tr></thead>
+            <tbody id="todayOutBody"><tr><td colspan="2" class="empty-cell">読み込み中...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
   <!-- モーダル: スタッフ -->
   <div class="modal-overlay" id="staffModal">
