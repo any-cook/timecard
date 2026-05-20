@@ -176,7 +176,7 @@ async function saveStaff(){
   var childSupportGradeId=document.getElementById('staffChildSupportGrade').value;
   var record=editingStaff?Object.assign({},editingStaff):{};
   Object.assign(record,{
-    staff_number:staffNumber,name:name,birthdate:birthdate,
+    staff_number:String(staffNumber).trim(),name:name,birthdate:birthdate,
     hire_date:document.getElementById('staffHireDate').value,
     type:document.getElementById('staffType').value,
     wage:parseInt(document.getElementById('staffWage').value)||0,

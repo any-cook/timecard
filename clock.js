@@ -66,9 +66,13 @@ function updateNumberDisplay() {
 
 function confirmNumber() {
   if (!inputNumber) return;
+  // 前ゼロあり・なし・数値型・文字列型・スペースすべてに対応
+  var inputTrimmed = inputNumber.replace(/^0+/, '') || '0';
   var found = allStaff.find(function(s) {
-    return String(s.staff_number) === inputNumber ||
-           String(parseInt(s.staff_number || '0')) === String(parseInt(inputNumber));
+    var sn = String(s.staff_number != null ? s.staff_number : '').trim();
+    var snTrimmed = sn.replace(/^0+/, '') || '0';
+    return sn === inputNumber ||       // 完全一致（"001" === "001"）
+           snTrimmed === inputTrimmed; // 前ゼロ除去後一致（"001" === "1"）
   });
   if (!found) {
     document.getElementById('numberError').textContent = '❌ 登録番号が見つかりません。もう一度入力してください。';
