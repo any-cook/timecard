@@ -255,10 +255,17 @@ async function openAttendanceAddModal(){
   staff.filter(function(s){return s.is_active;}).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;sel.appendChild(o);});
   document.getElementById('attendanceDate').value=todayStr();
   ['attendanceClockIn','attendanceClockOut','attendanceWage','attendanceNotes'].forEach(function(id){document.getElementById(id).value='';});
-  document.getElementById('attendanceSpecial').checked=false;openModal('attendanceModal');
+  document.getElementById('attendanceSpecial').checked=false;
+  document.getElementById('btnDeleteAttendance').style.display='none';
+  openModal('attendanceModal');
 }
 async function openAttendanceEditModal(id){
-  var records=await DB.getAttendance({}),r=records.find(function(x){return x.id===id;});if(!r)return;
+  // 現在表示中の年月でフィルターして取得（Firestore対応）
+  var year=parseInt(document.getElementById('filterYear').value);
+  var month=parseInt(document.getElementById('filterMonth').value);
+  var records=await DB.getAttendance({year:year,month:month});
+  var r=records.find(function(x){return x.id===id;});
+  if(!r){showToast('レコードが見つかりません','error');return;}
   document.getElementById('attendanceModalTitle').textContent='打刻の修正';document.getElementById('attendanceId').value=r.id;
   var staff=await DB.getStaff(),sel=document.getElementById('attendanceStaff');sel.innerHTML='';
   staff.forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;if(s.id===r.staff_id)o.selected=true;sel.appendChild(o);});
@@ -267,7 +274,12 @@ async function openAttendanceEditModal(id){
   document.getElementById('attendanceClockOut').value=r.clock_out_actual||'';
   document.getElementById('attendanceWage').value=r.wage_at_date||'';
   document.getElementById('attendanceSpecial').checked=r.is_special_day||false;
-  document.getElementById('attendanceNotes').value=r.notes||'';openModal('attendanceModal');
+  document.getElementById('attendanceNotes').value=r.notes||'';
+  // 編集時は削除ボタンを表示
+  var delBtn=document.getElementById('btnDeleteAttendance');
+  delBtn.style.display='block';
+  delBtn.dataset.id=r.id;
+  openModal('attendanceModal');
 }
 async function saveAttendance(){
   var id=document.getElementById('attendanceId').value,staff_id=document.getElementById('attendanceStaff').value;
@@ -280,6 +292,14 @@ async function saveAttendance(){
   await DB.saveAttendance(record);closeModal('attendanceModal');showToast('保存しました');loadAttendanceRecords();
 }
 async function deleteAttendance(id){if(!confirmAction('この打刻記録を削除しますか？'))return;await DB.deleteAttendance(id);showToast('削除しました');loadAttendanceRecords();}
+async function deleteAttendanceFromModal(){
+  var id=document.getElementById('btnDeleteAttendance').dataset.id;
+  if(!id||!confirmAction('この打刻記録を削除しますか？'))return;
+  await DB.deleteAttendance(id);
+  closeModal('attendanceModal');
+  showToast('削除しました');
+  loadAttendanceRecords();
+}
 function openCsvModal(){document.getElementById('csvPreviewArea').style.display='none';document.getElementById('csvFile').value='';document.getElementById('csvPreviewBody').innerHTML='';openModal('csvModal');}
 var csvParsedData=[];
 async function previewCsv(){

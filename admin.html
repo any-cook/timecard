@@ -354,21 +354,41 @@
 
   <!-- モーダル: 打刻 -->
   <div class="modal-overlay" id="attendanceModal">
-    <div class="modal-card">
-      <div class="modal-header"><h3 class="modal-title" id="attendanceModalTitle">打刻の追加</h3><button class="modal-close" onclick="closeModal('attendanceModal')">✕</button></div>
+    <div class="modal-card" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="attendanceModalTitle">打刻の追加・編集</h3>
+        <button class="modal-close" onclick="closeModal('attendanceModal')">✕</button>
+      </div>
       <input type="hidden" id="attendanceId">
       <div class="form-grid">
-        <div class="form-group"><label class="form-label">スタッフ *</label><select id="attendanceStaff" class="form-input"></select></div>
-        <div class="form-group"><label class="form-label">日付 *</label><input type="date" id="attendanceDate" class="form-input"></div>
-        <div class="form-group"><label class="form-label">出勤時刻 *</label><input type="time" id="attendanceClockIn" class="form-input"></div>
-        <div class="form-group"><label class="form-label">退勤時刻</label><input type="time" id="attendanceClockOut" class="form-input"></div>
+        <div class="form-group full"><label class="form-label">スタッフ *</label><select id="attendanceStaff" class="form-input"></select></div>
+        <div class="form-group full"><label class="form-label">日付 *</label><input type="date" id="attendanceDate" class="form-input"></div>
+      </div>
+      <!-- 出退勤時刻 大きく表示 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0;">
+        <div style="background:#f0fdf4;border:2px solid #bbf7d0;border-radius:14px;padding:16px;text-align:center;">
+          <div style="font-size:.75rem;font-weight:700;color:#16a34a;margin-bottom:8px;">🟢 出勤時刻</div>
+          <input type="time" id="attendanceClockIn" class="form-input" style="font-size:1.4rem;font-weight:700;text-align:center;border:none;background:transparent;color:#16a34a;width:100%;padding:4px 0;">
+        </div>
+        <div style="background:#fff0f0;border:2px solid #fca5a5;border-radius:14px;padding:16px;text-align:center;">
+          <div style="font-size:.75rem;font-weight:700;color:#dc2626;margin-bottom:8px;">🔴 退勤時刻</div>
+          <input type="time" id="attendanceClockOut" class="form-input" style="font-size:1.4rem;font-weight:700;text-align:center;border:none;background:transparent;color:#dc2626;width:100%;padding:4px 0;">
+        </div>
+      </div>
+      <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:14px;padding:8px 12px;background:#f8fafc;border-radius:8px;">
+        ⚙️ 計算時刻：出勤は<strong>30分単位で切り上げ</strong>、退勤は<strong>30分単位で切り捨て</strong>て自動計算されます
+      </div>
+      <div class="form-grid">
         <div class="form-group"><label class="form-label">この日の時給（円）</label><input type="number" id="attendanceWage" class="form-input" placeholder="空白=スタッフ設定値"></div>
         <div class="form-group" style="align-self:flex-end;"><label class="form-check"><input type="checkbox" id="attendanceSpecial"> ⭐ 特別日（+50円）</label></div>
         <div class="form-group full"><label class="form-label">備考</label><textarea id="attendanceNotes" class="form-input" rows="2" style="resize:vertical;"></textarea></div>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('attendanceModal')">キャンセル</button>
-        <button class="btn btn-success" onclick="saveAttendance()">💾 保存</button>
+      <div class="modal-footer" style="justify-content:space-between;">
+        <button class="btn btn-danger" id="btnDeleteAttendance" onclick="deleteAttendanceFromModal()" style="display:none;">🗑️ 削除</button>
+        <div style="display:flex;gap:8px;margin-left:auto;">
+          <button class="btn btn-secondary" onclick="closeModal('attendanceModal')">キャンセル</button>
+          <button class="btn btn-success" onclick="saveAttendance()">💾 保存</button>
+        </div>
       </div>
     </div>
   </div>
