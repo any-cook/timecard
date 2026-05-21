@@ -99,20 +99,20 @@
         <button class="btn btn-secondary" onclick="loadAttendanceRecords()" style="margin-left:auto;">🔄 更新</button>
       </div>
       <div class="summary-cards">
-        <div class="summary-card"><div class="summary-card-label">合計労働時間</div><div class="summary-card-value" id="attendanceTotalTime">-</div></div>
+        <div class="summary-card"><div class="summary-card-label">合計勤務時間</div><div class="summary-card-value" id="attendanceTotalTime">-</div></div>
         <div class="summary-card"><div class="summary-card-label">合計支給額</div><div class="summary-card-value" id="attendanceTotalWage">-</div></div>
       </div>
       <h3 style="font-size:.9rem;font-weight:700;margin-bottom:10px;color:var(--text-muted);">👤 個人別集計</h3>
       <div class="table-scroll" style="margin-bottom:20px;">
         <table class="data-table">
-          <thead><tr><th>スタッフ</th><th>出勤日数</th><th>労働時間</th><th>支給額合計</th><th>通勤費合計</th></tr></thead>
+          <thead><tr><th>スタッフ</th><th>出勤日数</th><th>勤務時間</th><th>支給額合計</th><th>通勤費合計</th></tr></thead>
           <tbody id="staffSummaryBody"><tr><td colspan="5" class="empty-cell">データがありません</td></tr></tbody>
         </table>
       </div>
       <h3 style="font-size:.9rem;font-weight:700;margin-bottom:10px;color:var(--text-muted);">📋 打刻一覧</h3>
       <div class="table-scroll">
         <table class="data-table">
-          <thead><tr><th>日付</th><th>スタッフ</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>労働時間</th><th>日給</th><th>通勤費</th><th>特別日</th><th>操作</th></tr></thead>
+          <thead><tr><th>日付</th><th>スタッフ</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>勤務時間</th><th>日給</th><th>通勤費</th><th>特別日</th><th>操作</th></tr></thead>
           <tbody id="attendanceTableBody"><tr><td colspan="11" class="empty-cell">読み込み中...</td></tr></tbody>
         </table>
       </div>
@@ -149,7 +149,7 @@
       </div>
       <div class="table-scroll">
         <table class="data-table">
-          <thead><tr><th>スタッフ</th><th>種別</th><th>労働時間</th><th>出勤日数</th><th>支給額(税前)</th><th>通勤費</th><th>源泉徴収</th><th>社会保険料</th><th>差引支給額</th><th>明細</th></tr></thead>
+          <thead><tr><th>スタッフ</th><th>種別</th><th>勤務時間</th><th>出勤日数</th><th>支給額(税前)</th><th>通勤費</th><th>源泉徴収</th><th>社会保険料</th><th>差引支給額</th><th>明細</th></tr></thead>
           <tbody id="payrollTableBody"><tr><td colspan="10" class="empty-cell">読み込み中...</td></tr></tbody>
         </table>
       </div>
@@ -251,7 +251,7 @@
         <h3 style="font-size:.85rem;font-weight:800;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:10px;">✅ 退勤済み</h3>
         <div class="table-scroll">
           <table class="data-table">
-            <thead><tr><th>氏名</th><th>出勤時刻</th><th>退勤時刻</th><th>労働時間</th></tr></thead>
+            <thead><tr><th>氏名</th><th>出勤時刻</th><th>退勤時刻</th><th>勤務時間</th></tr></thead>
             <tbody id="todayDoneBody"><tr><td colspan="4" class="empty-cell">読み込み中...</td></tr></tbody>
           </table>
         </div>
@@ -294,6 +294,10 @@
           <div class="form-group"><label class="form-label">源泉徴収区分</label>
             <select id="staffTaxType" class="form-input"><option value="kou">甲欄</option><option value="otsu">乙欄</option></select>
           </div>
+          <div class="form-group" style="align-self:flex-end;">
+            <label class="form-check"><input type="checkbox" id="staffLunchBreak"> 🍱 昼休憩あり（1時間控除）</label>
+            <p style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">勤務時間から昼休憩1時間を差し引きます</p>
+          </div>
           <div class="form-group" id="staffWageSection"><label class="form-label">基本時給（円）</label><input type="number" id="staffWage" class="form-input" placeholder="1100" min="0" step="10"></div>
           <div class="form-group" id="staffSalarySection" style="display:none;"><label class="form-label">月額給与（円）</label><input type="number" id="staffSalary" class="form-input" placeholder="200000" min="0" step="1000"></div>
           <div class="form-group"><label class="form-check"><input type="checkbox" id="staffActive" checked> 在籍中</label></div>
@@ -315,6 +319,19 @@
           <div class="form-group"><label class="form-label">通勤距離（km）</label><input type="number" id="staffCommuteDistance" class="form-input" placeholder="0" min="0" step="0.1" onchange="updateCommuteTaxFree()"></div>
           <div class="form-group"><label class="form-label">1日あたり通勤費（円）</label><input type="number" id="staffCommuteDailyAmount" class="form-input" placeholder="0" min="0" step="10"></div>
           <div class="form-group full"><div id="commuteTaxFreeInfo" class="commute-info-box" style="display:none;"></div></div>
+        </div>
+        <div class="form-section-title">🕐 勤務設定</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-check" style="margin-bottom:8px;"><input type="checkbox" id="staffLunchBreak" onchange="toggleLunchBreak()"> 昼休みあり（控除する）</label>
+            <div id="lunchBreakFields" style="display:none;">
+              <label class="form-label" style="margin-top:8px;">昼休み開始</label>
+              <input type="time" id="staffLunchStart" class="form-input" value="12:00">
+              <label class="form-label" style="margin-top:8px;">昼休み終了</label>
+              <input type="time" id="staffLunchEnd" class="form-input" value="13:00">
+              <p style="font-size:.78rem;color:var(--text-muted);margin-top:6px;">勤務中に昼休み時間帯が含まれる場合、その時間を出勤時間から自動控除します。</p>
+            </div>
+          </div>
         </div>
         <div class="form-section-title">🏥 社会保険</div>
         <div class="form-grid">

@@ -18,36 +18,65 @@ function timeToMinutes(timeStr) {
 function minutesToTime(mins) {
   return String(Math.floor(mins/60)).padStart(2,'0') + ':' + String(mins%60).padStart(2,'0');
 }
+
+// 出勤：30分単位で切り上げ
 function roundUpClockIn(timeStr) {
   var mins = timeToMinutes(timeStr), r = mins % 30;
-  return r === 0 ? timeStr : minutesToTime(mins + (30-r));
+  return r === 0 ? timeStr : minutesToTime(mins + (30 - r));
 }
+
+// 退勤：30分単位で切り捨て
 function roundDownClockOut(timeStr) {
-  return minutesToTime(Math.floor(timeToMinutes(timeStr)/30)*30);
+  return minutesToTime(Math.floor(timeToMinutes(timeStr) / 30) * 30);
 }
-function calcWorkMinutes(clockIn, clockOut) {
-  if (!clockIn || !clockOut) return 0;
-  var diff = timeToMinutes(clockOut) - timeToMinutes(clockIn);
-  return diff > 0 ? diff : 0;
+
+// ============================================================
+// 勤務時間計算（昼休憩対応）
+// hasLunchBreak: true の場合 60分控除
+// ============================================================
+function calcWorkMinutes(clockInCalc, clockOutCalc, lunchBreak, lunchStart, lunchEnd) {
+  if (!clockInCalc || !clockOutCalc) return 0;
+  var inMins  = timeToMinutes(clockInCalc);
+  var outMins = timeToMinutes(clockOutCalc);
+  var diff = outMins - inMins;
+  if (diff <= 0) return 0;
+  // 昼休み控除（開始〜終了が設定されていればその時間、なければ0）
+  if (lunchBreak && lunchStart && lunchEnd) {
+    var lsM = timeToMinutes(lunchStart);
+    var leM = timeToMinutes(lunchEnd);
+    var overlapStart = Math.max(inMins, lsM);
+    var overlapEnd   = Math.min(outMins, leM);
+    var overlap = Math.max(0, overlapEnd - overlapStart);
+    diff -= overlap;
+  }
+  return Math.max(0, diff);
 }
+
 function formatWorkTime(mins) {
   if (!mins || mins === 0) return '0時間';
-  var h = Math.floor(mins/60), m = mins%60;
-  return m === 0 ? h+'時間' : h+'時間'+m+'分';
+  var h = Math.floor(mins / 60), m = mins % 60;
+  return m === 0 ? h + '時間' : h + '時間' + m + '分';
 }
-function calcDailyWage(clockInCalc, clockOutCalc, wage, isSpecialDay) {
-  var workMins = calcWorkMinutes(clockInCalc, clockOutCalc);
-  return Math.floor((workMins/60)*(isSpecialDay ? wage+50 : wage));
+
+// 日給計算（勤務時間×時給）
+function calcDailyWage(clockInCalc, clockOutCalc, wage, isSpecialDay, lunchBreak, lunchStart, lunchEnd) {
+  var workMins = calcWorkMinutes(clockInCalc, clockOutCalc, lunchBreak, lunchStart, lunchEnd);
+  var effectiveWage = isSpecialDay ? wage + 50 : wage;
+  return Math.floor((workMins / 60) * effectiveWage);
 }
-function formatCurrency(amount) { return '¥' + Number(amount||0).toLocaleString(); }
+
+function formatCurrency(amount) { return '¥' + Number(amount || 0).toLocaleString(); }
+
 function formatDateJP(dateStr) {
   if (!dateStr) return '';
   var d = parseDate(dateStr), days = ['日','月','火','水','木','金','土'];
-  return (d.getMonth()+1)+'月'+d.getDate()+'日('+days[d.getDay()]+')';
+  return (d.getMonth()+1) + '月' + d.getDate() + '日(' + days[d.getDay()] + ')';
 }
+
 function staffTypeLabel(type) {
-  return {hourly:'時給スタッフ',senzoku:'専従者',employee:'社員',officer:'役員'}[type] || type;
+  return {hourly:'時給スタッフ', senzoku:'専従者', employee:'社員', officer:'役員'}[type] || type;
 }
+
 function showToast(message, type) {
   type = type || 'success';
   var existing = document.querySelector('.toast'); if (existing) existing.remove();
@@ -70,37 +99,36 @@ function calcTax(monthlyIncome, taxRows, taxType, dependents) {
   if (!taxRows || !taxRows.length) return 0;
   taxType = taxType || 'kou';
   dependents = parseInt(dependents) || 0;
-  var sorted = taxRows.slice().sort(function(a,b){return b.income_from - a.income_from;});
+  var sorted = taxRows.slice().sort(function(a,b){ return b.income_from - a.income_from; });
   var baseTax = 0;
   for (var i=0; i<sorted.length; i++) {
     if (monthlyIncome >= sorted[i].income_from) { baseTax = sorted[i].tax_amount; break; }
   }
   if (taxType === 'otsu') return baseTax;
-  // 甲欄：扶養親族1人につき1,610円控除
   return Math.max(0, baseTax - dependents * 1610);
 }
 
 // ============================================================
-// 雇用保険料（令和8年度 一般の事業）
+// 雇用保険料（令和8年度）
 // ============================================================
-var EMP_INS_RATE_EMPLOYEE = 0.006; // 被保険者負担 6/1000
+var EMP_INS_RATE_EMPLOYEE = 0.006;
 function calcEmploymentInsurance(grossPay, isEnrolled) {
   if (!isEnrolled) return 0;
   return Math.floor(grossPay * EMP_INS_RATE_EMPLOYEE);
 }
 
 // ============================================================
-// 通勤費 非課税限度額（マイカー等距離区分）
+// 通勤費 非課税限度額
 // ============================================================
 var COMMUTE_TAX_FREE_TABLE = [
-  {minKm:0,  maxKm:2,   monthlyLimit:0    },
-  {minKm:2,  maxKm:10,  monthlyLimit:4200 },
-  {minKm:10, maxKm:15,  monthlyLimit:7100 },
-  {minKm:15, maxKm:25,  monthlyLimit:12900},
-  {minKm:25, maxKm:35,  monthlyLimit:18700},
-  {minKm:35, maxKm:45,  monthlyLimit:24400},
-  {minKm:45, maxKm:55,  monthlyLimit:28000},
-  {minKm:55, maxKm:9999,monthlyLimit:31600},
+  {minKm:0,   maxKm:2,    monthlyLimit:0    },
+  {minKm:2,   maxKm:10,   monthlyLimit:4200 },
+  {minKm:10,  maxKm:15,   monthlyLimit:7100 },
+  {minKm:15,  maxKm:25,   monthlyLimit:12900},
+  {minKm:25,  maxKm:35,   monthlyLimit:18700},
+  {minKm:35,  maxKm:45,   monthlyLimit:24400},
+  {minKm:45,  maxKm:55,   monthlyLimit:28000},
+  {minKm:55,  maxKm:9999, monthlyLimit:31600},
 ];
 function getCommuteTaxFreeLimit(distanceKm) {
   var km = parseFloat(distanceKm) || 0;
@@ -111,8 +139,8 @@ function getCommuteTaxFreeLimit(distanceKm) {
   return 31600;
 }
 function calcCommuteAllowance(dailyAmount, workDays, distanceKm) {
-  var daily = parseInt(dailyAmount)||0, days = parseInt(workDays)||0;
+  var daily = parseInt(dailyAmount) || 0, days = parseInt(workDays) || 0;
   var total = daily * days;
   var taxFreeLimit = getCommuteTaxFreeLimit(distanceKm);
-  return { total:total, taxFree:Math.min(total,taxFreeLimit), taxable:Math.max(0,total-taxFreeLimit) };
+  return { total:total, taxFree:Math.min(total, taxFreeLimit), taxable:Math.max(0, total - taxFreeLimit) };
 }

@@ -33,8 +33,9 @@ async function loadStaffTab(){
     var emp=s.employment_insurance?'<span class="badge badge-active">加入</span>':'<span class="badge badge-inactive">未加入</span>';
     var tr=document.createElement('tr');if(!s.is_active)tr.classList.add('inactive-row');
     var hireDateStr=s.hire_date?formatDateJP(s.hire_date):'-';
+    var lunchMark = s.lunch_break ? ' 🍱' : '';
     tr.innerHTML='<td style="font-size:1rem;font-weight:700;color:var(--accent);">'+(s.staff_number||'-')+'</td>'+
-      '<td>'+s.name+'</td><td><span class="badge badge-type">'+staffTypeLabel(s.type)+'</span></td>'+
+      '<td>'+s.name+lunchMark+'</td><td><span class="badge badge-type">'+staffTypeLabel(s.type)+'</span></td>'+
       '<td>'+(s.type==='hourly'?formatCurrency(s.wage)+'/時':formatCurrency(s.monthly_salary)+'/月')+'</td>'+
       '<td>'+hireDateStr+'</td><td>'+ageStr+'</td><td>'+nursing+'</td><td>'+emp+'</td>'+
       '<td><span class="badge '+(s.is_active?'badge-active':'badge-inactive')+'">'+(s.is_active?'在籍':'退職')+'</span></td>'+
@@ -68,12 +69,17 @@ async function openStaffModal(id){
       document.getElementById('staffNumber').value=editingStaff.staff_number||'';
       document.getElementById('staffName').value=editingStaff.name;
       document.getElementById('staffBirthdate').value=editingStaff.birthdate||'';
+      document.getElementById('staffLunchBreak').checked=editingStaff.lunch_break||false;
+      document.getElementById('staffLunchStart').value=editingStaff.lunch_start||'12:00';
+      document.getElementById('staffLunchEnd').value=editingStaff.lunch_end||'13:00';
+      if(editingStaff.lunch_break)document.getElementById('lunchBreakFields').style.display='block';
       document.getElementById('staffHireDate').value=editingStaff.hire_date||'';
       document.getElementById('staffType').value=editingStaff.type;
       document.getElementById('staffWage').value=editingStaff.wage||'';
       document.getElementById('staffSalary').value=editingStaff.monthly_salary||'';
       document.getElementById('staffActive').checked=editingStaff.is_active;
       document.getElementById('staffTaxType').value=editingStaff.tax_type||'kou';
+      document.getElementById('staffLunchBreak').checked=editingStaff.lunch_break||false;
       document.getElementById('staffDependents').value=editingStaff.dependents||0;
       document.getElementById('staffAddress').value=editingStaff.address||'';
       document.getElementById('staffPhone').value=editingStaff.phone||'';
@@ -178,6 +184,10 @@ async function saveStaff(){
   Object.assign(record,{
     staff_number:String(staffNumber).trim(),name:name,birthdate:birthdate,
     hire_date:document.getElementById('staffHireDate').value,
+    lunch_break:document.getElementById('staffLunchBreak').checked,
+    lunch_start:document.getElementById('staffLunchStart').value||'12:00',
+    lunch_end:document.getElementById('staffLunchEnd').value||'13:00',
+    lunch_break:document.getElementById('staffLunchBreak').checked,
     type:document.getElementById('staffType').value,
     wage:parseInt(document.getElementById('staffWage').value)||0,
     monthly_salary:parseInt(document.getElementById('staffSalary').value)||0,
@@ -223,8 +233,9 @@ async function loadAttendanceRecords(){
   var totalWage=0,totalMins=0,staffSummary={};
   records.forEach(function(r){
     var s=staffMap[r.staff_id]||{};
-    var workMins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc);
-    var dailyWage=r.clock_out_calc?calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||0,r.is_special_day):0;
+    var lunchBreak=s.lunch_break||false;
+    var workMins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,s.lunch_break,s.lunch_start,s.lunch_end);
+    var dailyWage=r.clock_out_calc?calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||0,r.is_special_day,s.lunch_break,s.lunch_start,s.lunch_end):0;
     var commuteAmt=r.clock_in_actual&&s.commute_daily_amount?s.commute_daily_amount:0;
     totalWage+=dailyWage;totalMins+=workMins;
     if(!staffSummary[r.staff_id])staffSummary[r.staff_id]={name:s.name||'不明',mins:0,wage:0,days:0,commute:0};
@@ -333,7 +344,8 @@ async function loadPayrollSummary(){
   allStaff.filter(function(s){return s.is_active;}).forEach(function(staff){
     var staffRecords=records.filter(function(r){return r.staff_id===staff.id;});
     var grossPay=0,totalMins=0,workDays=0;
-    if(staff.type==='hourly'){staffRecords.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc);totalMins+=mins;if(r.clock_in_actual)workDays++;grossPay+=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day);});}
+    var lunchBreak=staff.lunch_break||false;
+    if(staff.type==='hourly'){staffRecords.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,s.lunch_break,s.lunch_start,s.lunch_end);totalMins+=mins;if(r.clock_in_actual)workDays++;grossPay+=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end);});}
     else{grossPay=staff.monthly_salary||0;workDays=staffRecords.filter(function(r){return r.clock_in_actual;}).length;}
     var commuteData=calcCommuteAllowance(staff.commute_daily_amount||0,workDays,staff.commute_distance||0);
     var taxableIncome=grossPay+commuteData.taxable;
@@ -364,7 +376,8 @@ async function showPayslip(staffId,year,month){
   var staff=allStaff.find(function(s){return s.id===staffId;});if(!staff)return;
   var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
   var grossPay=0,totalMins=0,workDays=0,detailRows='';
-  if(staff.type==='hourly'){records.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc);totalMins+=mins;if(r.clock_in_actual)workDays++;var daily=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day);grossPay+=daily;detailRows+='<tr><td>'+formatDateJP(r.date)+'</td><td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||'-')+'</td><td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td><td>'+formatWorkTime(mins)+'</td><td>'+(r.is_special_day?'⭐':'')+' '+formatCurrency(r.wage_at_date||staff.wage)+'</td><td>'+formatCurrency(daily)+'</td></tr>';});}
+  var lunchBreakSlip=staff.lunch_break||false;
+  if(staff.type==='hourly'){records.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,staff.lunch_break,staff.lunch_start,staff.lunch_end);totalMins+=mins;if(r.clock_in_actual)workDays++;var daily=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end);grossPay+=daily;detailRows+='<tr><td>'+formatDateJP(r.date)+'</td><td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||'-')+'</td><td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td><td>'+formatWorkTime(mins)+'</td><td>'+(r.is_special_day?'⭐':'')+' '+formatCurrency(r.wage_at_date||staff.wage)+'</td><td>'+formatCurrency(daily)+'</td></tr>';});}
   else{grossPay=staff.monthly_salary||0;workDays=records.filter(function(r){return r.clock_in_actual;}).length;detailRows='<tr><td colspan="8" style="text-align:center;">月額固定給: '+formatCurrency(grossPay)+'</td></tr>';}
   var commuteData=calcCommuteAllowance(staff.commute_daily_amount||0,workDays,staff.commute_distance||0);
   var taxableIncome=grossPay+commuteData.taxable;
@@ -384,9 +397,9 @@ async function showPayslip(staffId,year,month){
     (age!==null?'<div><strong>年齢:</strong> '+age+'歳</div>':'')+
     (staff.address?'<div><strong>住所:</strong> '+staff.address+'</div>':'')+
     '<div><strong>扶養親族:</strong> '+(staff.dependents||0)+'人</div>'+
-    '<div><strong>出勤日数:</strong> '+workDays+'日</div>'+
+    '<div><strong>出勤日数:</strong> '+workDays+'日</div>'+(staff.lunch_break?'<div><strong>昼休み:</strong> '+(staff.lunch_start||'12:00')+'〜'+(staff.lunch_end||'13:00')+'（控除あり）</div>':'<div><strong>昼休み:</strong> なし</div>')+(lunchBreakSlip?'<div><strong>昼休憩:</strong> あり（1時間/日控除）</div>':'')+
     '</div>'+
-    '<div class="table-scroll"><table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>労働時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table></div>'+
+    '<div class="table-scroll"><table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>勤務時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table></div>'+
     '<div class="payslip-summary">'+
     '<div class="summary-row"><span>基本給（税引前）</span><strong>'+formatCurrency(grossPay)+'</strong></div>'+
     (commuteData.total>0?'<div class="summary-row"><span>通勤費（'+workDays+'日×'+formatCurrency(staff.commute_daily_amount||0)+'）</span><span>'+formatCurrency(commuteData.total)+'</span></div>':'')+
@@ -504,7 +517,8 @@ async function loadTodayTab() {
     inList.forEach(function(item) {
       var nowMins = now.getHours()*60 + now.getMinutes();
       var inMins = timeToMinutes(item.record.clock_in_calc || item.record.clock_in_actual);
-      var workMins = Math.max(0, nowMins - inMins);
+      var lunchB = item.staff.lunch_break || false;
+    var workMins = Math.max(0, nowMins - inMins - (lunchB ? 60 : 0));
       var tr = document.createElement('tr');
       tr.style.background = '#f0fdf4';
       tr.innerHTML =
@@ -525,7 +539,8 @@ async function loadTodayTab() {
     doneList.sort(function(a,b){ return a.record.clock_out_actual > b.record.clock_out_actual ? -1 : 1; });
     doneList.forEach(function(item) {
       var r = item.record;
-      var workMins = timeToMinutes(r.clock_out_calc||r.clock_out_actual) - timeToMinutes(r.clock_in_calc||r.clock_in_actual);
+      var lunchBDone = item.staff.lunch_break || false;
+      var workMins = timeToMinutes(r.clock_out_calc||r.clock_out_actual) - timeToMinutes(r.clock_in_calc||r.clock_in_actual) - (lunchBDone ? 60 : 0);
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td>' + item.staff.name + '</td>' +
@@ -550,6 +565,10 @@ async function loadTodayTab() {
       outBody.appendChild(tr);
     });
   }
+}
+
+function toggleLunchBreak(){
+  document.getElementById('lunchBreakFields').style.display=document.getElementById('staffLunchBreak').checked?'block':'none';
 }
 
 function _uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
