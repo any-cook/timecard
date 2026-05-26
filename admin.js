@@ -234,8 +234,8 @@ async function loadAttendanceRecords(){
   records.forEach(function(r){
     var s=staffMap[r.staff_id]||{};
     var lunchBreak=s.lunch_break||false;
-    var workMins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,s.lunch_break,s.lunch_start,s.lunch_end);
-    var dailyWage=r.clock_out_calc?calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||0,r.is_special_day,s.lunch_break,s.lunch_start,s.lunch_end):0;
+    var workMins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,(s&&s.lunch_break),(s&&s.lunch_start),(s&&s.lunch_end));
+    var dailyWage=r.clock_out_calc?calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||0,r.is_special_day,(s&&s.lunch_break),(s&&s.lunch_start),(s&&s.lunch_end)):0;
     var commuteAmt=r.clock_in_actual&&s.commute_daily_amount?s.commute_daily_amount:0;
     totalWage+=dailyWage;totalMins+=workMins;
     if(!staffSummary[r.staff_id])staffSummary[r.staff_id]={name:s.name||'不明',mins:0,wage:0,days:0,commute:0};
@@ -345,7 +345,7 @@ async function loadPayrollSummary(){
     var staffRecords=records.filter(function(r){return r.staff_id===staff.id;});
     var grossPay=0,totalMins=0,workDays=0;
     var lunchBreak=staff.lunch_break||false;
-    if(staff.type==='hourly'){staffRecords.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,s.lunch_break,s.lunch_start,s.lunch_end);totalMins+=mins;if(r.clock_in_actual)workDays++;grossPay+=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end);});}
+    if(staff.type==='hourly'){staffRecords.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,staff.lunch_break,staff.lunch_start,staff.lunch_end);totalMins+=mins;if(r.clock_in_actual)workDays++;grossPay+=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end);});}
     else{grossPay=staff.monthly_salary||0;workDays=staffRecords.filter(function(r){return r.clock_in_actual;}).length;}
     var commuteData=calcCommuteAllowance(staff.commute_daily_amount||0,workDays,staff.commute_distance||0);
     var taxableIncome=grossPay+commuteData.taxable;
