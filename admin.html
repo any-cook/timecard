@@ -58,6 +58,7 @@
       <button class="tab-btn"        data-tab="tax"        onclick="switchTab('tax')">📋 税額表・保険料</button>
       <button class="tab-btn"        data-tab="leave"      onclick="switchTab('leave')">🏖️ 有休管理</button>
       <button class="tab-btn"        data-tab="today"      onclick="switchTab('today')">📍 本日の出勤状況</button>
+      <button class="tab-btn"        data-tab="monthly"    onclick="switchTab('monthly')">📅 月別出勤表</button>
     </nav>
 
     <!-- タブ1: スタッフ管理 -->
@@ -267,6 +268,26 @@
           </table>
         </div>
       </div>
+    </div>
+
+    <!-- タブ: 月別出勤表 -->
+    <div class="tab-panel" id="tab-monthly">
+      <div class="section-header">
+        <h2 class="section-title">📅 月別出勤表</h2>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <select id="monthlyYear" onchange="loadMonthlyTab()">
+            <option value="2024">2024年</option><option value="2025">2025年</option><option value="2026" selected>2026年</option>
+          </select>
+          <select id="monthlyMonth" onchange="loadMonthlyTab()">
+            <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+            <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+            <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+            <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+          </select>
+          <button class="btn btn-secondary" onclick="printMonthly()">🖨️ 印刷</button>
+        </div>
+      </div>
+      <div id="monthlyTableWrap" class="table-scroll" style="overflow-x:auto;"></div>
     </div>
 
   <!-- モーダル: スタッフ -->

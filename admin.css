@@ -602,3 +602,110 @@ select:focus, input:focus, textarea:focus {
 .insurance-preview-row.total { border-top:1px solid var(--border); margin-top:6px; padding-top:8px; font-weight:700; color:var(--accent); font-size:1rem; }
 .btn-danger { background:var(--danger); color:#fff; border:none; }
 .btn-danger:hover { background:#b91c1c; }
+
+/* ============================================================
+   月別出勤表
+   ============================================================ */
+.monthly-table {
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  min-width: 100%;
+}
+.monthly-table th,
+.monthly-table td {
+  border: 1px solid var(--border);
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+.monthly-name-col {
+  min-width: 80px;
+  background: var(--surface2);
+  font-weight: 700;
+  font-size: 0.78rem;
+  padding: 6px 8px;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+.monthly-day-col {
+  min-width: 52px;
+  width: 52px;
+  padding: 4px 2px;
+  background: var(--surface2);
+  font-weight: 700;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.monthly-dow {
+  font-size: 0.68rem;
+  font-weight: 400;
+}
+.monthly-total-col {
+  min-width: 52px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  padding: 4px 6px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.monthly-name-cell {
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 6px 10px;
+  text-align: left;
+  background: var(--surface);
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  border-right: 2px solid var(--border);
+}
+.monthly-cell {
+  padding: 3px 2px;
+  line-height: 1.5;
+  background: #fff;
+}
+.monthly-cell.monthly-empty {
+  color: var(--text-muted);
+  background: #fafafa;
+}
+.monthly-in {
+  display: block;
+  color: #16a34a;
+  font-weight: 700;
+  font-size: 0.72rem;
+}
+.monthly-out {
+  display: block;
+  color: #dc2626;
+  font-size: 0.72rem;
+}
+.monthly-out.monthly-missing {
+  color: #f59e0b;
+  font-weight: 700;
+}
+.monthly-total-cell {
+  font-weight: 700;
+  color: #1d4ed8;
+  background: #eff6ff;
+  padding: 4px 6px;
+  font-size: 0.82rem;
+}
+/* 土日カラー */
+.monthly-sat,
+.monthly-table td.monthly-sat { background: #eff6ff !important; }
+.monthly-sun,
+.monthly-table td.monthly-sun { background: #fff0f0 !important; }
+.monthly-table th.monthly-sat { color: #1d4ed8; }
+.monthly-table th.monthly-sun { color: #dc2626; }
+
+/* 印刷時 */
+@media print {
+  .tab-nav, .section-header, .admin-header, nav, .btn { display: none !important; }
+  .tab-panel { display: block !important; }
+  #tab-monthly { display: block !important; }
+  .monthly-table { font-size: 0.6rem; }
+  .monthly-name-col, .monthly-name-cell { position: static; }
+}

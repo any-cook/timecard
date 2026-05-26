@@ -11,7 +11,7 @@ function initAdminTabs(){switchTab('staff');}
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===tab);});
   document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.toggle('active',p.id==='tab-'+tab);});
-  ({staff:loadStaffTab,attendance:loadAttendanceTab,special:loadSpecialTab,payroll:loadPayrollTab,tax:loadTaxTab,leave:loadLeaveTab,today:loadTodayTab})[tab]();
+  ({staff:loadStaffTab,attendance:loadAttendanceTab,special:loadSpecialTab,payroll:loadPayrollTab,tax:loadTaxTab,leave:loadLeaveTab,today:loadTodayTab,monthly:loadMonthlyTab})[tab]();
 }
 function toggleCollapsible(id){var b=document.getElementById(id),a=document.getElementById(id+'Arrow');if(!b)return;var o=b.classList.contains('open');b.classList.toggle('open',!o);if(a)a.classList.toggle('open',!o);}
 function openCollapsible(id){var b=document.getElementById(id),a=document.getElementById(id+'Arrow');if(b)b.classList.add('open');if(a)a.classList.add('open');}
@@ -565,6 +565,101 @@ async function loadTodayTab() {
       outBody.appendChild(tr);
     });
   }
+}
+
+// ============================================================
+// タブ: 月別出勤表
+// ============================================================
+async function loadMonthlyTab() {
+  // 初回は現在の年月をデフォルトにセット
+  var yearEl  = document.getElementById('monthlyYear');
+  var monthEl = document.getElementById('monthlyMonth');
+  if (!yearEl.dataset.initialized) {
+    yearEl.value  = currentYear();
+    monthEl.value = currentMonth();
+    yearEl.dataset.initialized = '1';
+  }
+  var year  = parseInt(yearEl.value);
+  var month = parseInt(monthEl.value);
+  var wrap  = document.getElementById('monthlyTableWrap');
+  wrap.innerHTML = '<p style="padding:20px;color:var(--text-muted);">読み込み中...</p>';
+
+  var staff   = await DB.getStaff();
+  var active  = staff.filter(function(s){ return s.is_active && s.type !== 'officer'; });
+  var records = await DB.getAttendance({ year: year, month: month });
+
+  // 月の日数を取得
+  var daysInMonth = new Date(year, month, 0).getDate();
+  var days = [];
+  for (var d = 1; d <= daysInMonth; d++) days.push(d);
+
+  var dayNames = ['日','月','火','水','木','金','土'];
+
+  // テーブル構築
+  var html = '<table class="monthly-table">';
+
+  // ヘッダー行1: 月名
+  html += '<thead>';
+  html += '<tr><th class="monthly-name-col" rowspan="2">氏名</th>';
+  days.forEach(function(d) {
+    var date = new Date(year, month-1, d);
+    var dow  = date.getDay();
+    var cls  = dow===0?'monthly-sun':dow===6?'monthly-sat':'';
+    html += '<th class="monthly-day-col '+cls+'">' + d + '<br><span class="monthly-dow">'+dayNames[dow]+'</span></th>';
+  });
+  html += '<th class="monthly-total-col">出勤<br>日数</th><th class="monthly-total-col">出勤<br>時間</th></tr>';
+  html += '</thead>';
+
+  // スタッフ行
+  html += '<tbody>';
+  active.forEach(function(s) {
+    var staffRecords = records.filter(function(r){ return r.staff_id === s.id; });
+    var totalDays = 0, totalMins = 0;
+
+    html += '<tr><td class="monthly-name-cell">' + s.name + '</td>';
+
+    days.forEach(function(d) {
+      var dateStr = year + '-' + String(month).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+      var date    = new Date(year, month-1, d);
+      var dow     = date.getDay();
+      var r = staffRecords.find(function(x){ return x.date === dateStr; });
+      var cls = dow===0?'monthly-sun':dow===6?'monthly-sat':'';
+
+      if (r && r.clock_in_actual) {
+        var mins = calcWorkMinutes(r.clock_in_calc, r.clock_out_calc, s.lunch_break, s.lunch_start, s.lunch_end);
+        totalDays++;
+        totalMins += mins;
+        var inTime  = r.clock_in_actual  || '-';
+        var outTime = r.clock_out_actual || '未退勤';
+        var outCls  = r.clock_out_actual ? '' : 'monthly-missing';
+        html += '<td class="monthly-cell '+cls+'">' +
+          '<span class="monthly-in">'  + inTime  + '</span><br>' +
+          '<span class="monthly-out '+outCls+'">' + outTime + '</span>' +
+          '</td>';
+      } else {
+        html += '<td class="monthly-cell monthly-empty '+cls+'">－</td>';
+      }
+    });
+
+    // 合計
+    var totalH = Math.floor(totalMins/60), totalM = totalMins%60;
+    var totalStr = totalH + ':' + String(totalM).padStart(2,'0');
+    html += '<td class="monthly-total-cell">' + totalDays + '日</td>';
+    html += '<td class="monthly-total-cell">' + totalStr  + '</td>';
+    html += '</tr>';
+  });
+
+  html += '</tbody></table>';
+
+  wrap.innerHTML = html;
+
+  // 現在の月のデフォルト選択
+  document.getElementById('monthlyMonth').value = month;
+  document.getElementById('monthlyYear').value  = year;
+}
+
+function printMonthly() {
+  window.print();
 }
 
 function toggleLunchBreak(){
