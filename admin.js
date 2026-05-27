@@ -458,9 +458,14 @@ async function loadPayrollSummary(){
     var grossPay=0,totalMins=0,workDays=0;
     if(staff.type==='hourly'){staffRecords.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,staff.lunch_break,staff.lunch_start,staff.lunch_end);totalMins+=mins;if(r.clock_in_actual)workDays++;grossPay+=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end);});}
     else{grossPay=staff.monthly_salary||0;workDays=staffRecords.filter(function(r){return r.clock_in_actual;}).length;}
-    // 月次入力から出勤日数を取得
+    // 月次入力から出勤日数・時間数を取得
     var monthlyData=await getMonthlyInput(year,month,staff.id);
     if(monthlyData.work_days!==null) workDays=monthlyData.work_days;
+    // 時給スタッフ：時間数が月次入力されていれば上書き
+    if(staff.type==='hourly' && monthlyData.work_hours!==null && monthlyData.work_hours!==undefined) {
+      totalMins = Math.round(monthlyData.work_hours * 60);
+      grossPay  = Math.floor(monthlyData.work_hours * (staff.wage||0));
+    }
     // 役員は通勤費固定支給
     var commuteWorkDays=(staff.payslip_type==='officer'||staff.type==='officer')?20:workDays;
     var commuteData=calcCommuteAllowance(staff.commute_daily_amount||0,commuteWorkDays,staff.commute_distance||0);
@@ -507,9 +512,15 @@ async function showPayslip(staffId,year,month){
   var lunchBreakSlip=staff.lunch_break||false;
   if(staff.type==='hourly'){records.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,staff.lunch_break,staff.lunch_start,staff.lunch_end);totalMins+=mins;if(r.clock_in_actual)workDays++;var daily=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end);grossPay+=daily;detailRows+='<tr><td>'+formatDateJP(r.date)+'</td><td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||'-')+'</td><td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td><td>'+formatWorkTime(mins)+'</td><td>'+(r.is_special_day?'⭐':'')+' '+formatCurrency(r.wage_at_date||staff.wage)+'</td><td>'+formatCurrency(daily)+'</td></tr>';});}
   else{grossPay=staff.monthly_salary||0;workDays=records.filter(function(r){return r.clock_in_actual;}).length;detailRows='<tr><td colspan="8" style="text-align:center;">月額固定給: '+formatCurrency(grossPay)+'</td></tr>';}
-  // 月次入力から出勤日数・変動項目・備考を取得
+  // 月次入力から出勤日数・時間数・変動項目・備考を取得
   var monthlyData = await getMonthlyInput(year,month,staff.id);
   if(monthlyData.work_days!==null) workDays=monthlyData.work_days;
+  // 時給スタッフ：時間数が月次入力されていれば上書き
+  if(staff.type==='hourly' && monthlyData.work_hours!==null && monthlyData.work_hours!==undefined) {
+    totalMins = Math.round(monthlyData.work_hours * 60);
+    grossPay  = Math.floor(monthlyData.work_hours * (staff.wage||0));
+    detailRows = '<tr><td colspan="8" style="text-align:center;color:var(--accent);">月次入力：'+monthlyData.work_hours+'時間（自動計算を上書き）</td></tr>';
+  }
   var monthlyVarItems = monthlyData.variable_items||[];
   var monthlyNote = monthlyData.note||'';
   // 役員は通勤費固定支給（日額×月固定日数20日換算）、それ以外は出勤日数×日額
@@ -1183,62 +1194,79 @@ async function openMonthlyInputModal() {
   var staff = await DB.getStaff();
   var settings = await getPayslipSettings();
 
-  var html = '<div style="overflow-y:auto;max-height:60vh;">';
-  html += '<table class="data-table">';
-  html += '<thead><tr><th>スタッフ</th><th>種別</th><th>出勤日数<br><span style="font-size:.7rem;font-weight:400;">（役員・社員）</span></th>';
+  // 変動賃金項目を種別ごとに収集
+  function getVarItems(psType) {
+    var key = psType==='officer'?'pay_items_officer':psType==='employee'?'pay_items_employee':'pay_items_hourly';
+    return (settings[key]||[]).filter(function(item){ return item.salary_type==='variable'; });
+  }
 
-  // 変動項目の列ヘッダー（設定から）
-  var allVarItems = [];
-  ['hourly','employee','officer'].forEach(function(t) {
-    (settings['pay_items_'+t]||[]).forEach(function(item) {
-      if (item.auto && !allVarItems.find(function(x){return x.name===item.name;})) {
-        allVarItems.push(item);
-      }
-    });
-  });
-  allVarItems.forEach(function(item) {
-    html += '<th>' + item.name + '<br><span style="font-size:.7rem;font-weight:400;">（円）</span></th>';
-  });
+  var html = '<div style="overflow-y:auto;max-height:62vh;"><table class="data-table" style="font-size:.78rem;">';
+  html += '<thead><tr style="background:var(--surface2);">';
+  html += '<th style="min-width:80px;">氏名</th><th>種別</th>';
+  html += '<th>出勤日数</th>';
+  html += '<th>時間数<br><span style="font-size:.68rem;font-weight:400;">（時給のみ・空白=自動）</span></th>';
+  html += '<th>変動手当（円）</th>';
   html += '<th>備考</th></tr></thead><tbody>';
 
-  for (var i = 0; i < staff.length; i++) {
+  for (var i=0; i<staff.length; i++) {
     var s = staff[i];
     if (!s.is_active) continue;
     var psType = s.payslip_type || s.type;
     var monthly = await getMonthlyInput(year, month, s.id);
-    var rowStyle = psType === 'officer' ? 'background:#fffbe6;' : '';
+    var varItems = getVarItems(psType);
+    var rowBg = psType==='officer'?'#fffbe6':psType==='employee'?'#f0f8ff':'#fff';
 
-    html += '<tr style="' + rowStyle + '">';
-    html += '<td><strong>' + s.name + '</strong></td>';
-    html += '<td><span class="badge badge-type">' + staffTypeLabel(s.type) + '</span></td>';
+    html += '<tr style="background:'+rowBg+';">';
+    html += '<td><strong>'+s.name+'</strong></td>';
+    html += '<td><span class="badge badge-type">'+staffTypeLabel(s.type)+'</span></td>';
 
-    // 出勤日数（役員・社員のみ入力可）
-    if (psType === 'officer' || psType === 'employee') {
-      html += '<td><input type="number" class="form-input mi-workdays" data-staff="' + s.id + '" ' +
-        'placeholder="例: 20" min="0" max="31" value="' + (monthly.work_days !== null ? monthly.work_days : '') + '" ' +
-        'style="margin:0;width:80px;text-align:center;"></td>';
+    // 出勤日数：役員のみ入力可、それ以外は自動
+    if (psType==='officer') {
+      html += '<td><input type="number" class="form-input mi-workdays" data-staff="'+s.id+'" '+
+        'placeholder="例:20" min="0" max="31" value="'+(monthly.work_days!==null?monthly.work_days:'')+'" '+
+        'style="margin:0;width:72px;text-align:center;"></td>';
     } else {
-      html += '<td style="color:var(--text-muted);text-align:center;">自動</td>';
+      html += '<td style="text-align:center;color:var(--text-muted);font-size:.75rem;">自動</td>';
     }
 
-    // 変動項目
-    allVarItems.forEach(function(item) {
-      var found = (monthly.variable_items||[]).find(function(x){return x.name===item.name;});
-      html += '<td><input type="number" class="form-input mi-varitem" ' +
-        'data-staff="' + s.id + '" data-item="' + item.name + '" ' +
-        'placeholder="0" min="0" value="' + (found ? found.amount : '') + '" ' +
-        'style="margin:0;width:90px;text-align:right;"></td>';
-    });
+    // 時間数：時給スタッフのみ入力可
+    if (s.type==='hourly') {
+      var hVal = monthly.work_hours!==null&&monthly.work_hours!==undefined ? monthly.work_hours : '';
+      html += '<td><input type="number" class="form-input mi-workhours" data-staff="'+s.id+'" '+
+        'placeholder="空白=自動" min="0" step="0.5" value="'+hVal+'" '+
+        'style="margin:0;width:88px;text-align:center;"></td>';
+    } else {
+      html += '<td style="text-align:center;color:var(--text-muted);font-size:.75rem;">-</td>';
+    }
+
+    // 変動賃金項目
+    if (varItems.length > 0) {
+      var varHtml = '';
+      varItems.forEach(function(item) {
+        var found = (monthly.variable_items||[]).find(function(x){return x.name===item.name;});
+        varHtml += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'+
+          '<span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;">'+item.name+'</span>'+
+          '<input type="number" class="form-input mi-varitem" '+
+          'data-staff="'+s.id+'" data-item="'+item.name+'" '+
+          'placeholder="0" min="0" value="'+(found?found.amount:'')+'" '+
+          'style="margin:0;width:90px;text-align:right;"></div>';
+      });
+      html += '<td>'+varHtml+'</td>';
+    } else {
+      html += '<td style="text-align:center;color:var(--text-muted);font-size:.75rem;">設定なし</td>';
+    }
 
     // 備考
-    html += '<td><input type="text" class="form-input mi-note" data-staff="' + s.id + '" ' +
-      'placeholder="備考" value="' + (monthly.note||'') + '" style="margin:0;min-width:120px;"></td>';
+    html += '<td><input type="text" class="form-input mi-note" data-staff="'+s.id+'" '+
+      'placeholder="備考" value="'+(monthly.note||'')+'" style="margin:0;min-width:100px;"></td>';
     html += '</tr>';
   }
 
   html += '</tbody></table></div>';
-  html += '<div style="margin-top:12px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:.78rem;">';
-  html += '💡 <strong>変動項目</strong>は⚙️明細設定で「スタッフ個別入力」をチェックした項目が表示されます。';
+  html += '<div style="margin-top:10px;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;font-size:.75rem;line-height:1.7;">';
+  html += '💡 <strong>出勤日数</strong>：役員のみ手動入力（他は打刻データから自動）<br>';
+  html += '💡 <strong>時間数</strong>：時給スタッフのみ。入力すると打刻の代わりにこの時間で計算<br>';
+  html += '💡 <strong>変動手当</strong>：⚙️明細設定で「固定賃金」を「変動賃金」にした項目が表示';
   html += '</div>';
 
   document.getElementById('monthlyInputContent').innerHTML = html;
@@ -1260,6 +1288,8 @@ async function saveMonthlyInput() {
   for (var staffId of staffIds) {
     var workDaysEl = modal.querySelector('.mi-workdays[data-staff="'+staffId+'"]');
     var workDays = workDaysEl ? (workDaysEl.value !== '' ? parseInt(workDaysEl.value) : null) : null;
+    var workHoursEl = modal.querySelector('.mi-workhours[data-staff="'+staffId+'"]');
+    var workHours = workHoursEl ? (workHoursEl.value !== '' ? parseFloat(workHoursEl.value) : null) : null;
 
     var varItems = [];
     modal.querySelectorAll('.mi-varitem[data-staff="'+staffId+'"]').forEach(function(el){
@@ -1271,6 +1301,7 @@ async function saveMonthlyInput() {
 
     await saveMonthlyInputData(year, month, staffId, {
       work_days: workDays,
+      work_hours: workHours,
       variable_items: varItems,
       note: note
     });
