@@ -173,12 +173,13 @@
     <div class="tab-panel" id="tab-payroll">
       <div class="section-header">
         <h2 class="section-title">💰 月次給与集計</h2>
-        <div style="display:flex;gap:10px;align-items:center;">
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
           <select id="payrollYear" onchange="loadPayrollSummary()"><option value="2024">2024年</option><option value="2025">2025年</option><option value="2026" selected>2026年</option></select>
           <select id="payrollMonth" onchange="loadPayrollSummary()">
             <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option><option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
             <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option><option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
           </select>
+          <button class="btn btn-secondary" onclick="openMonthlyInputModal()">✏️ 月次入力</button>
         </div>
       </div>
       <div class="table-scroll">
@@ -661,6 +662,27 @@
         <div class="form-group full"><label class="form-label">理由・メモ</label><input type="text" id="leaveReason" class="form-input" placeholder="例: 法定付与、私用など"></div>
       </div>
       <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('leaveModal')">キャンセル</button><button class="btn btn-success" onclick="saveLeave()">💾 保存</button></div>
+    </div>
+  </div>
+
+  <!-- モーダル: 月次変動入力 -->
+  <div class="modal-overlay" id="monthlyInputModal">
+    <div class="modal-card modal-wide">
+      <div class="modal-header">
+        <h3 class="modal-title">✏️ 月次変動入力</h3>
+        <button class="modal-close" onclick="closeModal('monthlyInputModal')">✕</button>
+      </div>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:16px;">
+        役員の出勤日数・変動手当など、月ごとに変わる数値を入力します。<br>
+        入力した値は給与明細書に自動反映されます。
+      </p>
+      <div id="monthlyInputContent">
+        <div style="text-align:center;padding:20px;color:var(--text-muted);">読み込み中...</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('monthlyInputModal')">キャンセル</button>
+        <button class="btn btn-success" onclick="saveMonthlyInput()">💾 保存</button>
+      </div>
     </div>
   </div>
 
