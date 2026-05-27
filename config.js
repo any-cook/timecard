@@ -103,9 +103,11 @@ const DB = {
       const ym = `${filters.year}-${String(filters.month).padStart(2,'0')}`;
       q = q.where('date', '>=', `${ym}-01`).where('date', '<=', `${ym}-31`);
     }
-    if (filters.staff_id) q = q.where('staff_id', '==', filters.staff_id);
+    // staff_idフィルターはJS側で行う（Firestoreの複合インデックス不要）
     const snap = await q.orderBy('date', 'desc').get();
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    let results = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (filters.staff_id) results = results.filter(r => r.staff_id === filters.staff_id);
+    return results;
   },
 
   async saveAttendance(record) {
