@@ -204,7 +204,7 @@ async function clockIn() {
     // 保存結果（IDつき）をキャッシュ
     cachedRecord = saved || newRecord;
 
-    showPunchMessage('✅ 出勤しました！', now, '#16a34a');
+    showPunchMessage('✅ 出勤しました！', now, '#16a34a', '本日もよろしくお願い致します。😊');
     await updateClockStatus();
 
   } catch(e) {
@@ -256,7 +256,7 @@ async function clockOut() {
     await DB.saveAttendance(updated);
     cachedRecord = updated;
 
-    showPunchMessage('✅ 退勤しました！', now, '#dc2626');
+    showPunchMessage('✅ 退勤しました！', now, '#dc2626', '本日もご苦労様でした。🌸');
     await updateClockStatus();
 
     // 3秒後に番号入力画面へ戻る
@@ -273,11 +273,12 @@ async function clockOut() {
 // ============================================================
 // メッセージ表示
 // ============================================================
-function showPunchMessage(msg, time, color) {
+function showPunchMessage(msg, time, color, subMsg) {
   document.getElementById('clockStatus').innerHTML =
     '<div style="text-align:center;">' +
-    '<div style="font-size:1.4rem;font-weight:900;color:' + color + ';margin-bottom:4px;">' + msg + '</div>' +
-    (time ? '<div style="font-size:1.1rem;color:var(--text-muted);">' + time + '</div>' : '') +
+    '<div style="font-size:1.4rem;font-weight:900;color:' + color + ';margin-bottom:6px;">' + msg + '</div>' +
+    (time ? '<div style="font-size:1.1rem;color:var(--text-muted);margin-bottom:10px;">' + time + '</div>' : '') +
+    (subMsg ? '<div style="font-size:1.05rem;font-weight:700;color:' + color + ';background:rgba(0,0,0,0.04);border-radius:12px;padding:10px 18px;display:inline-block;">' + subMsg + '</div>' : '') +
     '</div>';
 }
 
