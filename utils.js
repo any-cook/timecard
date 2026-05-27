@@ -120,15 +120,16 @@ function calcEmploymentInsurance(grossPay, isEnrolled) {
 // ============================================================
 // 通勤費 非課税限度額
 // ============================================================
+// 令和7年11月改正後（令和7年4月1日以後支払分より適用）国税庁 No.2585 準拠
 var COMMUTE_TAX_FREE_TABLE = [
-  {minKm:0,   maxKm:2,    monthlyLimit:0    },
+  {minKm:0,   maxKm:2,    monthlyLimit:0    }, // 全額課税
   {minKm:2,   maxKm:10,   monthlyLimit:4200 },
-  {minKm:10,  maxKm:15,   monthlyLimit:7100 },
-  {minKm:15,  maxKm:25,   monthlyLimit:12900},
-  {minKm:25,  maxKm:35,   monthlyLimit:18700},
-  {minKm:35,  maxKm:45,   monthlyLimit:24400},
-  {minKm:45,  maxKm:55,   monthlyLimit:28000},
-  {minKm:55,  maxKm:9999, monthlyLimit:31600},
+  {minKm:10,  maxKm:15,   monthlyLimit:7300 },
+  {minKm:15,  maxKm:25,   monthlyLimit:13500},
+  {minKm:25,  maxKm:35,   monthlyLimit:19700},
+  {minKm:35,  maxKm:45,   monthlyLimit:25900},
+  {minKm:45,  maxKm:55,   monthlyLimit:32300},
+  {minKm:55,  maxKm:9999, monthlyLimit:38700},
 ];
 function getCommuteTaxFreeLimit(distanceKm) {
   var km = parseFloat(distanceKm) || 0;
