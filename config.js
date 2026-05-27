@@ -12,13 +12,12 @@
 // ============================================================
 
 const FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyDcZlJdZJKeW3FILKMz7x_a5tXExFpcgao",
-  authDomain:        "timecard-web-aac6e.firebaseapp.com",
-  databaseURL:       "https://timecard-web-aac6e-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:         "timecard-web-aac6e",
-  storageBucket:     "timecard-web-aac6e.firebasestorage.app",
-  messagingSenderId: "275551647409",
-  appId:             "1:275551647409:web:a1348e6ab28ae060f15490"
+  apiKey:            "YOUR_API_KEY",
+  authDomain:        "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId:         "YOUR_PROJECT_ID",
+  storageBucket:     "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+  appId:             "YOUR_APP_ID"
 };
 
 // 管理者PINコード（初期値: 1234 — 必ず変更してください）
