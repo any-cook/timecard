@@ -59,6 +59,7 @@
       <button class="tab-btn"        data-tab="leave"      onclick="switchTab('leave')">🏖️ 有休管理</button>
       <button class="tab-btn"        data-tab="today"      onclick="switchTab('today')">📍 本日の出勤状況</button>
       <button class="tab-btn"        data-tab="monthly"    onclick="switchTab('monthly')">📅 月別出勤表</button>
+      <button class="tab-btn"        data-tab="payslip_setting" onclick="switchTab('payslip_setting')">⚙️ 明細設定</button>
     </nav>
 
     <!-- タブ1: スタッフ管理 -->
@@ -322,6 +323,38 @@
       <div id="monthlyTableWrap" class="table-scroll" style="overflow-x:auto;"></div>
     </div>
 
+    <!-- タブ: 給与明細設定 -->
+    <div class="tab-panel" id="tab-payslip_setting">
+      <div class="section-header">
+        <h2 class="section-title">⚙️ 給与明細書 項目設定</h2>
+        <button class="btn btn-success" onclick="savePayslipSettings()">💾 保存</button>
+      </div>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:20px;">給与明細書（PDF形式）に表示する項目を設定します。空欄の項目は非表示になります。</p>
+
+      <div class="form-section-title">🏢 会社情報</div>
+      <div class="form-grid">
+        <div class="form-group full"><label class="form-label">会社名</label><input type="text" id="ps_company" class="form-input" placeholder="例: 合同会社エニクック"></div>
+        <div class="form-group"><label class="form-label">支給日（毎月何日）</label><input type="number" id="ps_pay_day" class="form-input" placeholder="10" min="1" max="31"></div>
+      </div>
+
+      <div class="form-section-title">💴 支給項目（最大6項目）</div>
+      <p style="font-size:.78rem;color:var(--text-muted);margin-bottom:12px;">「基本給」は自動計算されます。追加の手当を設定してください。</p>
+      <div id="payItemsWrap"></div>
+      <button class="btn btn-secondary" onclick="addPayItem()" style="margin-top:8px;">➕ 支給項目を追加</button>
+
+      <div class="form-section-title">📝 備考欄</div>
+      <div class="form-grid">
+        <div class="form-group full"><label class="form-label">備考テキスト（全員共通）</label><input type="text" id="ps_note" class="form-input" placeholder="例: 健康保険料に子ども・子育て支援金が加算されております。"></div>
+      </div>
+
+      <div style="margin-top:24px;padding:16px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;">
+        <h3 style="font-size:.85rem;font-weight:700;margin-bottom:8px;">✅ 自動計算される項目（設定不要）</h3>
+        <p style="font-size:.78rem;color:var(--text-muted);line-height:1.8;">
+          基本給 / 非課税通勤費 / 課税通勤費 / 健康保険料 / 介護保険料 / 厚生年金保険 / 子ども・子育て支援金 / 所得税 / 雇用保険料 / 差引支給額 / 振込支給額
+        </p>
+      </div>
+    </div>
+
   <!-- モーダル: スタッフ -->
   <div class="modal-overlay" id="staffModal">
     <div class="modal-card" style="max-width:700px;">
@@ -528,8 +561,8 @@
         <h3 class="modal-title">📄 給与明細書</h3>
         <div style="display:flex;gap:8px;align-items:center;">
           <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
-            <button id="btnPayslipNew" class="btn" style="padding:6px 14px;font-size:.8rem;background:var(--accent);color:#fff;border:none;border-radius:0;cursor:pointer;" onclick="switchPayslip('new')">📋 新フォーマット</button>
-            <button id="btnPayslipOld" class="btn" style="padding:6px 14px;font-size:.8rem;background:var(--surface2);color:var(--text);border:none;border-radius:0;cursor:pointer;" onclick="switchPayslip('old')">📄 詳細フォーマット</button>
+            <button id="btnPayslipNew" class="btn" style="padding:6px 14px;font-size:.8rem;background:var(--accent);color:#fff;border:none;border-radius:0;cursor:pointer;" onclick="switchPayslip('new')">📋 給与明細書</button>
+            <button id="btnPayslipOld" class="btn" style="padding:6px 14px;font-size:.8rem;background:var(--surface2);color:var(--text);border:none;border-radius:0;cursor:pointer;" onclick="switchPayslip('old')">📄 勤務時間</button>
           </div>
           <button class="btn btn-secondary" onclick="printPayslip()">🖨️ 印刷</button>
           <button class="modal-close" onclick="closeModal('payslipModal')">✕</button>

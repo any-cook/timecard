@@ -11,7 +11,7 @@ function initAdminTabs(){switchTab('staff');}
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===tab);});
   document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.toggle('active',p.id==='tab-'+tab);});
-  ({staff:loadStaffTab,attendance:loadAttendanceTab,special:loadSpecialTab,payroll:loadPayrollTab,tax:loadTaxTab,leave:loadLeaveTab,today:loadTodayTab,monthly:loadMonthlyTab})[tab]();
+  ({staff:loadStaffTab,attendance:loadAttendanceTab,special:loadSpecialTab,payroll:loadPayrollTab,tax:loadTaxTab,leave:loadLeaveTab,today:loadTodayTab,monthly:loadMonthlyTab,payslip_setting:loadPayslipSettingTab})[tab]();
 }
 function toggleCollapsible(id){var b=document.getElementById(id),a=document.getElementById(id+'Arrow');if(!b)return;var o=b.classList.contains('open');b.classList.toggle('open',!o);if(a)a.classList.toggle('open',!o);}
 function openCollapsible(id){var b=document.getElementById(id),a=document.getElementById(id+'Arrow');if(b)b.classList.add('open');if(a)a.classList.add('open');}
@@ -477,6 +477,7 @@ async function loadPayrollSummary(){
   document.getElementById('payrollGrandTotal').textContent='支給合計: '+formatCurrency(grandTotal);
 }
 async function showPayslip(staffId,year,month){
+  var settings = await getPayslipSettings();
   var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support')]);
   var allStaff=res[0],records=res[1].filter(function(r){return r.staff_id===staffId;}),taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7];
   var staff=allStaff.find(function(s){return s.id===staffId;});if(!staff)return;
@@ -504,13 +505,13 @@ async function showPayslip(staffId,year,month){
   var html = '';
   html += '<div class="ps-wrap">';
   // ヘッダー
-  html += '<div class="ps-company">合同会社エニクック</div>';
+  html += '<div class="ps-company">'+(settings.company||'合同会社エニクック')+'</div>';
   html += '<div class="ps-title">' + year + '年' + month + '月分　給与明細書</div>';
   html += '<div class="ps-meta">';
   html += '<div class="ps-meta-left">';
   html += '<span class="ps-emp">（' + (staff.staff_number||'-') + '）' + staff.name + '　様</span>';
   html += '</div>';
-  html += '<div class="ps-meta-right">支給日：令和' + (year-2018) + '年' + month + '月10日</div>';
+  html += '<div class="ps-meta-right">支給日：令和' + (year-2018) + '年' + month + '月'+(settings.pay_day||10)+'日</div>';
   html += '</div>';
 
   // メインテーブル
@@ -525,15 +526,29 @@ async function showPayslip(staffId,year,month){
   html += '</tr>';
 
   // データ行
+  // 追加支給項目（設定から）
+  var extraPayItems = settings.pay_items || [];
+  var extraTotalPay = extraPayItems.reduce(function(s,i){return s+(i.amount||0);},0);
+  totalPay += extraTotalPay;
+  netPayFinal += extraTotalPay;
+
   var rows2 = [
-    // [勤怠ラベル, 勤怠値, 支給ラベル, 支給値, 控除ラベル, 控除値, その他ラベル, その他値]
     ['労働日数', workDays + '.00', '基本給', numFmt(grossPay), '健康保険料', numFmt(health), '年末調整還付', '0'],
-    ['', '', '非課税通勤費', numFmt(commuteData.taxFree), '介護保険料', '', '年末調整徴収', '0'],
+    ['', '', '非課税通勤費', numFmt(commuteData.taxFree), '介護保険料', numFmt(0), '年末調整徴収', '0'],
     ['', '', (commuteData.taxable>0?'課税通勤費':''), (commuteData.taxable>0?numFmt(commuteData.taxable):''), '厚生年金保険', numFmt(pension), '', ''],
     ['', '', '', '', '子育て支援金', numFmt(childSupport), '', ''],
     ['', '', '', '', '所得税', numFmt(tax), '', ''],
     ['', '', '', '', (empIns>0?'雇用保険料':''), (empIns>0?numFmt(empIns):''), '', ''],
   ];
+  // 追加支給項目を行に挿入
+  extraPayItems.forEach(function(item, idx) {
+    if (rows2[idx]) {
+      rows2[idx][2] = item.name;
+      rows2[idx][3] = numFmt(item.amount);
+    } else {
+      rows2.push(['','',item.name,numFmt(item.amount),'','','','']);
+    }
+  });
 
   rows2.forEach(function(r) {
     html += '<tr class="ps-row">';
@@ -575,8 +590,9 @@ async function showPayslip(staffId,year,month){
   html += '</div>';
 
   // 備考
-  if (childSupport > 0) {
-    html += '<div class="ps-note">※ 健康保険料に子ども・子育て支援金が加算されております。</div>';
+  var noteText = settings.note || (childSupport>0?'健康保険料に子ども・子育て支援金が加算されております。':'');
+  if (noteText) {
+    html += '<div class="ps-note">※ ' + noteText + '</div>';
   }
 
   // 打刻明細（折りたたみ）
@@ -877,6 +893,73 @@ async function loadMonthlyTab() {
 
 function printMonthly() {
   window.print();
+}
+
+// ============================================================
+// 給与明細設定
+// ============================================================
+var _payslipSettings = null;
+
+async function getPayslipSettings() {
+  if (_payslipSettings) return _payslipSettings;
+  var stored = localStorage.getItem('payslip_settings');
+  if (stored) { _payslipSettings = JSON.parse(stored); return _payslipSettings; }
+  // Firestoreからも取得試行
+  try {
+    var snap = await getDB().collection('payslip_settings').doc('main').get();
+    if (snap.exists) { _payslipSettings = snap.data(); localStorage.setItem('payslip_settings', JSON.stringify(_payslipSettings)); return _payslipSettings; }
+  } catch(e) {}
+  // デフォルト
+  _payslipSettings = {
+    company: '合同会社エニクック',
+    pay_day: 10,
+    note: '健康保険料に子ども・子育て支援金が加算されております。',
+    pay_items: []
+  };
+  return _payslipSettings;
+}
+
+async function savePayslipSettings() {
+  var company  = document.getElementById('ps_company').value.trim();
+  var pay_day  = parseInt(document.getElementById('ps_pay_day').value) || 10;
+  var note     = document.getElementById('ps_note').value.trim();
+  var pay_items = [];
+  document.querySelectorAll('.pay-item-row').forEach(function(row) {
+    var name = row.querySelector('.pay-item-name').value.trim();
+    var amt  = parseInt(row.querySelector('.pay-item-amount').value) || 0;
+    if (name) pay_items.push({ name: name, amount: amt });
+  });
+  _payslipSettings = { company: company, pay_day: pay_day, note: note, pay_items: pay_items };
+  localStorage.setItem('payslip_settings', JSON.stringify(_payslipSettings));
+  try {
+    await getDB().collection('payslip_settings').doc('main').set(_payslipSettings);
+  } catch(e) { console.warn('Firestore save failed:', e); }
+  showToast('給与明細設定を保存しました');
+}
+
+async function loadPayslipSettingTab() {
+  var s = await getPayslipSettings();
+  document.getElementById('ps_company').value = s.company || '';
+  document.getElementById('ps_pay_day').value  = s.pay_day || 10;
+  document.getElementById('ps_note').value     = s.note || '';
+  // 支給項目を描画
+  var wrap = document.getElementById('payItemsWrap');
+  wrap.innerHTML = '';
+  (s.pay_items || []).forEach(function(item) { addPayItem(item.name, item.amount); });
+}
+
+function addPayItem(name, amount) {
+  var wrap = document.getElementById('payItemsWrap');
+  var rows = wrap.querySelectorAll('.pay-item-row');
+  if (rows.length >= 6) { showToast('支給項目は最大6項目です', 'error'); return; }
+  var div = document.createElement('div');
+  div.className = 'pay-item-row form-grid';
+  div.style.cssText = 'margin-bottom:8px;display:flex;gap:10px;align-items:center;';
+  div.innerHTML =
+    '<div class="form-group" style="flex:2;margin:0;"><input type="text" class="form-input pay-item-name" placeholder="項目名（例: 役員報酬）" value="'+(name||'')+'"></div>'+
+    '<div class="form-group" style="flex:1;margin:0;"><input type="number" class="form-input pay-item-amount" placeholder="金額（円）" value="'+(amount||0)+'" min="0"></div>'+
+    '<button class="btn btn-secondary" onclick="this.parentNode.remove()" style="white-space:nowrap;padding:8px 12px;">🗑️</button>';
+  wrap.appendChild(div);
 }
 
 function toggleLunchBreak(){
