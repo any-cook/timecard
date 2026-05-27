@@ -524,8 +524,19 @@
   <!-- モーダル: 給与明細 -->
   <div class="modal-overlay" id="payslipModal">
     <div class="modal-card modal-wide">
-      <div class="modal-header"><h3 class="modal-title">📄 給与明細書</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary" onclick="printPayslip()">🖨️ 印刷</button><button class="modal-close" onclick="closeModal('payslipModal')">✕</button></div></div>
-      <div id="payslipContent"></div>
+      <div class="modal-header">
+        <h3 class="modal-title">📄 給与明細書</h3>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <div style="display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+            <button id="btnPayslipNew" class="btn" style="padding:6px 14px;font-size:.8rem;background:var(--accent);color:#fff;border:none;border-radius:0;cursor:pointer;" onclick="switchPayslip('new')">📋 新フォーマット</button>
+            <button id="btnPayslipOld" class="btn" style="padding:6px 14px;font-size:.8rem;background:var(--surface2);color:var(--text);border:none;border-radius:0;cursor:pointer;" onclick="switchPayslip('old')">📄 詳細フォーマット</button>
+          </div>
+          <button class="btn btn-secondary" onclick="printPayslip()">🖨️ 印刷</button>
+          <button class="modal-close" onclick="closeModal('payslipModal')">✕</button>
+        </div>
+      </div>
+      <div id="payslipNew"></div>
+      <div id="payslipOld" style="display:none;"></div>
     </div>
   </div>
 

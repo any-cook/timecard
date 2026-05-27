@@ -495,29 +495,140 @@ async function showPayslip(staffId,year,month){
   var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
   var netPay=grossPay+commuteData.taxFree-tax-pension-health-childSupport-empIns;
   var age=calcAge(staff.birthdate);
-  document.getElementById('payslipContent').innerHTML=
-    '<div class="payslip"><div class="payslip-header"><h2>給与明細書</h2><p>'+year+'年'+month+'月分</p></div>'+
-    '<div class="payslip-info">'+
-    '<div><strong>氏名:</strong> '+staff.name+'</div>'+
-    (staff.staff_number?'<div><strong>登録番号:</strong> '+staff.staff_number+'</div>':'')+
-    (age!==null?'<div><strong>年齢:</strong> '+age+'歳</div>':'')+
-    (staff.address?'<div><strong>住所:</strong> '+staff.address+'</div>':'')+
-    '<div><strong>扶養親族:</strong> '+(staff.dependents||0)+'人</div>'+
-    '<div><strong>出勤日数:</strong> '+workDays+'日</div>'+(staff.lunch_break?'<div><strong>昼休み:</strong> '+(staff.lunch_start||'12:00')+'〜'+(staff.lunch_end||'13:00')+'（控除あり）</div>':'<div><strong>昼休み:</strong> なし</div>')+(lunchBreakSlip?'<div><strong>昼休憩:</strong> あり（1時間/日控除）</div>':'')+
-    '</div>'+
-    '<div class="table-scroll"><table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>勤務時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table></div>'+
-    '<div class="payslip-summary">'+
-    '<div class="summary-row"><span>基本給（税引前）</span><strong>'+formatCurrency(grossPay)+'</strong></div>'+
-    (commuteData.total>0?'<div class="summary-row"><span>通勤費（'+workDays+'日×'+formatCurrency(staff.commute_daily_amount||0)+'）</span><span>'+formatCurrency(commuteData.total)+'</span></div>':'')+
-    (commuteData.taxable>0?'<div class="summary-row" style="font-size:.8rem;color:#dc2626;"><span>　うち課税分</span><span>'+formatCurrency(commuteData.taxable)+'</span></div>':'')+
-    '<div class="summary-row deduction"><span>源泉徴収税</span><span>- '+formatCurrency(tax)+'</span></div>'+
-    (pension>0?'<div class="summary-row deduction"><span>厚生年金保険料</span><span>- '+formatCurrency(pension)+'</span></div>':'')+
-    (health>0?'<div class="summary-row deduction"><span>健康保険料'+(staff.health_table_type==='health_nursing'?'（介護込み）':'')+'</span><span>- '+formatCurrency(health)+'</span></div>':'')+
-    (childSupport>0?'<div class="summary-row deduction"><span>子ども・子育て支援金</span><span>- '+formatCurrency(childSupport)+'</span></div>':'')+
-    (empIns>0?'<div class="summary-row deduction"><span>雇用保険料</span><span>- '+formatCurrency(empIns)+'</span></div>':'')+
-    '<div class="summary-row total"><span>差引支給額</span><strong class="net-pay">'+formatCurrency(netPay)+'</strong></div>'+
-    '</div></div>';
+  // 合計支給額（非課税通勤費含む）
+  var totalPay = grossPay + commuteData.taxFree + commuteData.taxable;
+  var totalDeduction = tax + pension + health + childSupport + empIns;
+  var netPayFinal = totalPay - totalDeduction;
+  var monthStr = year + '年' + month + '月';
+
+  var html = '';
+  html += '<div class="ps-wrap">';
+  // ヘッダー
+  html += '<div class="ps-company">合同会社エニクック</div>';
+  html += '<div class="ps-title">' + year + '年' + month + '月分　給与明細書</div>';
+  html += '<div class="ps-meta">';
+  html += '<div class="ps-meta-left">';
+  html += '<span class="ps-emp">（' + (staff.staff_number||'-') + '）' + staff.name + '　様</span>';
+  html += '</div>';
+  html += '<div class="ps-meta-right">支給日：令和' + (year-2018) + '年' + month + '月10日</div>';
+  html += '</div>';
+
+  // メインテーブル
+  html += '<table class="ps-table">';
+
+  // 勤怠行
+  html += '<tr class="ps-section-header">';
+  html += '<th colspan="2">勤　怠</th>';
+  html += '<th colspan="2">支　給</th>';
+  html += '<th colspan="2">控　除</th>';
+  html += '<th colspan="2">その他</th>';
+  html += '</tr>';
+
+  // データ行
+  var rows2 = [
+    // [勤怠ラベル, 勤怠値, 支給ラベル, 支給値, 控除ラベル, 控除値, その他ラベル, その他値]
+    ['労働日数', workDays + '.00', '基本給', numFmt(grossPay), '健康保険料', numFmt(health), '年末調整還付', '0'],
+    ['', '', '非課税通勤費', numFmt(commuteData.taxFree), '介護保険料', '', '年末調整徴収', '0'],
+    ['', '', (commuteData.taxable>0?'課税通勤費':''), (commuteData.taxable>0?numFmt(commuteData.taxable):''), '厚生年金保険', numFmt(pension), '', ''],
+    ['', '', '', '', '子育て支援金', numFmt(childSupport), '', ''],
+    ['', '', '', '', '所得税', numFmt(tax), '', ''],
+    ['', '', '', '', (empIns>0?'雇用保険料':''), (empIns>0?numFmt(empIns):''), '', ''],
+  ];
+
+  rows2.forEach(function(r) {
+    html += '<tr class="ps-row">';
+    html += '<td class="ps-label">' + r[0] + '</td><td class="ps-val">' + r[1] + '</td>';
+    html += '<td class="ps-label">' + r[2] + '</td><td class="ps-val">' + r[3] + '</td>';
+    html += '<td class="ps-label">' + r[4] + '</td><td class="ps-val">' + r[5] + '</td>';
+    html += '<td class="ps-label">' + r[6] + '</td><td class="ps-val">' + r[7] + '</td>';
+    html += '</tr>';
+  });
+
+  // 合計行
+  html += '<tr class="ps-total-row">';
+  html += '<td class="ps-label">扶養人数</td><td class="ps-val">' + (staff.dependents||0) + '</td>';
+  html += '<td class="ps-label ps-total-label">合　計</td><td class="ps-val ps-total-val">' + numFmt(totalPay) + '</td>';
+  html += '<td class="ps-label ps-total-label">合　計</td><td class="ps-val ps-total-val">' + numFmt(totalDeduction) + '</td>';
+  html += '<td class="ps-label">税額表</td><td class="ps-val">' + (staff.tax_type==='otsu'?'乙欄':'甲欄') + '</td>';
+  html += '</tr>';
+
+  html += '</table>';
+
+  // 差引支給額ブロック
+  html += '<div class="ps-bottom">';
+  html += '<div class="ps-bottom-block">';
+  html += '<div class="ps-bottom-label">現金支給額</div><div class="ps-bottom-val">0</div>';
+  html += '</div>';
+  html += '<div class="ps-bottom-block ps-net">';
+  html += '<div class="ps-bottom-label">差引支給額</div><div class="ps-bottom-val ps-net-val">' + numFmt(netPayFinal) + '</div>';
+  html += '</div>';
+  html += '<div class="ps-bottom-block">';
+  html += '<div class="ps-bottom-label">振込支給額</div><div class="ps-bottom-val">' + numFmt(netPayFinal) + '</div>';
+  html += '</div>';
+  html += '</div>';
+
+  // 累計・備考
+  html += '<div class="ps-footer">';
+  html += '<div class="ps-footer-item"><span>課税支給累計</span></div>';
+  html += '<div class="ps-footer-item"><span>社会保険累計</span></div>';
+  html += '<div class="ps-footer-item"><span>所得税累計</span></div>';
+  html += '</div>';
+
+  // 備考
+  if (childSupport > 0) {
+    html += '<div class="ps-note">※ 健康保険料に子ども・子育て支援金が加算されております。</div>';
+  }
+
+  // 打刻明細（折りたたみ）
+  html += '<details class="ps-detail-toggle"><summary>▼ 打刻明細を表示</summary>';
+  html += '<div class="table-scroll" style="margin-top:12px;"><table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>時給</th><th>日給</th></tr></thead><tbody>' + detailRows + '</tbody></table></div>';
+  html += '</details>';
+
+  html += '</div>'; // ps-wrap
+
+  // 新フォーマット（PDF準拠）
+  document.getElementById('payslipNew').innerHTML = html;
+
+  // 旧フォーマット（詳細）
+  var oldHtml = '';
+  oldHtml += '<div class="payslip">';
+  oldHtml += '<div class="payslip-header"><h2>給与明細書</h2><p>'+year+'年'+month+'月分</p></div>';
+  oldHtml += '<div class="payslip-info">';
+  oldHtml += '<div><strong>氏名:</strong> '+staff.name+'</div>';
+  oldHtml += (staff.staff_number?'<div><strong>登録番号:</strong> '+staff.staff_number+'</div>':'');
+  oldHtml += (age!==null?'<div><strong>年齢:</strong> '+age+'歳</div>':'');
+  oldHtml += (staff.address?'<div><strong>住所:</strong> '+staff.address+'</div>':'');
+  oldHtml += '<div><strong>扶養親族:</strong> '+(staff.dependents||0)+'人</div>';
+  oldHtml += '<div><strong>出勤日数:</strong> '+workDays+'日</div>';
+  oldHtml += (staff.lunch_break?'<div><strong>昼休み:</strong> '+(staff.lunch_start||'12:00')+'〜'+(staff.lunch_end||'13:00')+'（控除あり）</div>':'');
+  oldHtml += '</div>';
+  oldHtml += '<div class="table-scroll"><table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table></div>';
+  oldHtml += '<div class="payslip-summary">';
+  oldHtml += '<div class="summary-row"><span>基本給（税引前）</span><strong>'+formatCurrency(grossPay)+'</strong></div>';
+  oldHtml += (commuteData.total>0?'<div class="summary-row"><span>通勤費（'+workDays+'日×'+formatCurrency(staff.commute_daily_amount||0)+'）</span><span>'+formatCurrency(commuteData.total)+'</span></div>':'');
+  oldHtml += (commuteData.taxable>0?'<div class="summary-row" style="font-size:.8rem;color:#dc2626;"><span>　うち課税分</span><span>'+formatCurrency(commuteData.taxable)+'</span></div>':'');
+  oldHtml += '<div class="summary-row deduction"><span>源泉徴収税（'+(staff.tax_type==='otsu'?'乙欄':'甲欄・扶養'+(staff.dependents||0)+'人')+'）</span><span>- '+formatCurrency(tax)+'</span></div>';
+  oldHtml += (pension>0?'<div class="summary-row deduction"><span>厚生年金保険料</span><span>- '+formatCurrency(pension)+'</span></div>':'');
+  oldHtml += (health>0?'<div class="summary-row deduction"><span>健康保険料'+(staff.health_table_type==='health_nursing'?'（介護込み）':'')+'</span><span>- '+formatCurrency(health)+'</span></div>':'');
+  oldHtml += (childSupport>0?'<div class="summary-row deduction"><span>子ども・子育て支援金</span><span>- '+formatCurrency(childSupport)+'</span></div>':'');
+  oldHtml += (empIns>0?'<div class="summary-row deduction"><span>雇用保険料</span><span>- '+formatCurrency(empIns)+'</span></div>':'');
+  oldHtml += '<div class="summary-row total"><span>差引支給額</span><strong class="net-pay">'+formatCurrency(netPayFinal)+'</strong></div>';
+  oldHtml += '</div></div>';
+  document.getElementById('payslipOld').innerHTML = oldHtml;
+
+  // デフォルトは新フォーマット
+  switchPayslip('new');
   openModal('payslipModal');
+}
+function numFmt(n){ return Number(n||0).toLocaleString(); }
+function switchPayslip(mode) {
+  var isNew = mode === 'new';
+  document.getElementById('payslipNew').style.display = isNew ? 'block' : 'none';
+  document.getElementById('payslipOld').style.display = isNew ? 'none' : 'block';
+  document.getElementById('btnPayslipNew').style.background = isNew ? 'var(--accent)' : 'var(--surface2)';
+  document.getElementById('btnPayslipNew').style.color = isNew ? '#fff' : 'var(--text)';
+  document.getElementById('btnPayslipOld').style.background = isNew ? 'var(--surface2)' : 'var(--accent)';
+  document.getElementById('btnPayslipOld').style.color = isNew ? 'var(--text)' : '#fff';
 }
 function printPayslip(){window.print();}
 
