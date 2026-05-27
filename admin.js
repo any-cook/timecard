@@ -590,7 +590,10 @@ async function showPayslip(staffId,year,month){
     }
     return item;
   });
-  var extraTotalPay = extraPayItems.reduce(function(acc,i){return acc+(i.amount||0);},0);
+  var extraTotalPay = extraPayItems.reduce(function(acc,i){
+    // 加算項目のみ totalPay に加算、減算項目は後で netPayFinal から引く
+    return acc + (i.calc_add==='sub' ? 0 : (i.amount||0));
+  }, 0);
   totalPay += extraTotalPay;
   netPayFinal += extraTotalPay;
 
@@ -600,11 +603,12 @@ async function showPayslip(staffId,year,month){
   extraPayItems.forEach(function(item){
     var cat=item.category||'pay';
     var isSubtract = item.calc_add === 'sub';
+    // 減算項目：支給欄に表示して差引支給額から控除
     if(isSubtract){ extraTotalDeductExtra += (item.amount||0); }
     if(cat==='attendance') extraAttendance.push(item);
     else if(cat==='deduction') extraDeduction.push(item);
     else if(cat==='other') extraOther.push(item);
-    else extraPay.push(item);
+    else extraPay.push(item); // 減算でも支給欄に表示
   });
   netPayFinal -= extraTotalDeductExtra;
 
@@ -617,7 +621,13 @@ async function showPayslip(staffId,year,month){
     ['非課税通勤費', numFmt(commuteData.taxFree)],
   ];
   if(commuteData.taxable>0) payRows.push(['課税通勤費', numFmt(commuteData.taxable)]);
-  extraPay.forEach(function(i){payRows.push([i.name, numFmt(i.amount)]);});
+  extraPay.forEach(function(i){
+    var isSubtract = i.calc_add === 'sub';
+    payRows.push([
+      i.name + (isSubtract ? '<span style="color:#dc2626;font-size:.72rem;margin-left:4px;">（減算）</span>' : ''),
+      (isSubtract ? '<span style="color:#dc2626;">▲ ' + numFmt(i.amount) + '</span>' : numFmt(i.amount))
+    ]);
+  });
   // 控除列
   var dedRows = [
     ['健康保険料', numFmt(health)],
