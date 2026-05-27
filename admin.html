@@ -433,6 +433,16 @@
           <div class="form-group"><label class="form-label">源泉徴収区分</label>
             <select id="staffTaxType" class="form-input"><option value="kou">甲欄</option><option value="otsu">乙欄</option></select>
           </div>
+          <div class="form-group"><label class="form-label">給与明細書の種類</label>
+            <select id="staffPayslipType" class="form-input">
+              <option value="hourly">パート・時給フォーマット</option>
+              <option value="employee">社員フォーマット</option>
+              <option value="officer">役員フォーマット</option>
+            </select>
+          </div>
+          <div class="form-group full"><label class="form-label">個別備考（この方の明細書のみに表示）</label>
+            <input type="text" id="staffPayslipNote" class="form-input" placeholder="例: 試用期間中のため時給900円">
+          </div>
           <div class="form-group" style="align-self:flex-end;">
             <label class="form-check"><input type="checkbox" id="staffLunchBreak"> 🍱 昼休憩あり（1時間控除）</label>
             <p style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">勤務時間から昼休憩1時間を差し引きます</p>

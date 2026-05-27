@@ -73,6 +73,8 @@ async function openStaffModal(id){
     var staff=await DB.getStaff();editingStaff=staff.find(function(s){return s.id===id;});
     if(editingStaff){
       document.getElementById('staffNumber').value=editingStaff.staff_number||'';
+      document.getElementById('staffPayslipType').value=editingStaff.payslip_type||editingStaff.type||'hourly';
+      document.getElementById('staffPayslipNote').value=editingStaff.payslip_note||'';
       document.getElementById('staffName').value=editingStaff.name;
       document.getElementById('staffBirthdate').value=editingStaff.birthdate||'';
       document.getElementById('staffLunchBreak').checked=editingStaff.lunch_break||false;
@@ -190,6 +192,8 @@ async function saveStaff(){
   Object.assign(record,{
     staff_number:String(staffNumber).trim(),name:name,birthdate:birthdate,
     hire_date:document.getElementById('staffHireDate').value,
+    payslip_type:document.getElementById('staffPayslipType').value,
+    payslip_note:document.getElementById('staffPayslipNote').value.trim(),
     lunch_break:document.getElementById('staffLunchBreak').checked,
     lunch_start:document.getElementById('staffLunchStart').value||'12:00',
     lunch_end:document.getElementById('staffLunchEnd').value||'13:00',
@@ -538,32 +542,63 @@ async function showPayslip(staffId,year,month){
   html += '</tr>';
 
   // データ行
-  // 追加支給項目（種別ごとに設定から取得）
-  var typeKey = staff.type === 'officer' ? 'pay_items_officer'
-              : staff.type === 'employee' ? 'pay_items_employee'
+  // 追加支給項目（スタッフの明細書種別から取得）
+  var psType = staff.payslip_type || staff.type || 'hourly';
+  var typeKey = psType === 'officer' ? 'pay_items_officer'
+              : psType === 'employee' ? 'pay_items_employee'
               : 'pay_items_hourly';
   var extraPayItems = (settings[typeKey] || settings.pay_items || []);
   var extraTotalPay = extraPayItems.reduce(function(acc,i){return acc+(i.amount||0);},0);
   totalPay += extraTotalPay;
   netPayFinal += extraTotalPay;
 
-  var rows2 = [
-    ['労働日数', workDays + '.00', '基本給', numFmt(grossPay), '健康保険料', numFmt(health), '年末調整還付', '0'],
-    ['', '', '非課税通勤費', numFmt(commuteData.taxFree), '介護保険料', numFmt(0), '年末調整徴収', '0'],
-    ['', '', (commuteData.taxable>0?'課税通勤費':''), (commuteData.taxable>0?numFmt(commuteData.taxable):''), '厚生年金保険', numFmt(pension), '', ''],
-    ['', '', '', '', '子育て支援金', numFmt(childSupport), '', ''],
-    ['', '', '', '', '所得税', numFmt(tax), '', ''],
-    ['', '', '', '', (empIns>0?'雇用保険料':''), (empIns>0?numFmt(empIns):''), '', ''],
-  ];
-  // 追加支給項目を行に挿入
-  extraPayItems.forEach(function(item, idx) {
-    if (rows2[idx]) {
-      rows2[idx][2] = item.name;
-      rows2[idx][3] = numFmt(item.amount);
-    } else {
-      rows2.push(['','',item.name,numFmt(item.amount),'','','','']);
-    }
+  // カテゴリ別に追加項目を仕分け
+  var extraAttendance=[], extraPay=[], extraDeduction=[], extraOther=[];
+  extraPayItems.forEach(function(item){
+    var cat=item.category||'pay';
+    if(cat==='attendance') extraAttendance.push(item);
+    else if(cat==='deduction') extraDeduction.push(item);
+    else if(cat==='other') extraOther.push(item);
+    else extraPay.push(item);
   });
+
+  // 勤怠列
+  var attRows = [workDays+'.00'].concat(extraAttendance.map(function(i){return i.name+'：'+numFmt(i.amount);}));
+  // 支給列
+  var payRows = [
+    ['基本給', numFmt(grossPay)],
+    ['非課税通勤費', numFmt(commuteData.taxFree)],
+  ];
+  if(commuteData.taxable>0) payRows.push(['課税通勤費', numFmt(commuteData.taxable)]);
+  extraPay.forEach(function(i){payRows.push([i.name, numFmt(i.amount)]);});
+  // 控除列
+  var dedRows = [
+    ['健康保険料', numFmt(health)],
+    ['介護保険料', ''],
+    ['厚生年金保険', numFmt(pension)],
+    ['子育て支援金', numFmt(childSupport)],
+    ['所得税', numFmt(tax)],
+  ];
+  if(empIns>0) dedRows.push(['雇用保険料', numFmt(empIns)]);
+  extraDeduction.forEach(function(i){dedRows.push([i.name, numFmt(i.amount)]);});
+  // その他列
+  var otherRows = [['年末調整還付','0'],['年末調整徴収','0']];
+  extraOther.forEach(function(i){otherRows.push([i.name, numFmt(i.amount)]);});
+
+  // 最大行数
+  var maxRows = Math.max(attRows.length, payRows.length, dedRows.length, otherRows.length);
+  var rows2 = [];
+  for(var ri=0; ri<maxRows; ri++){
+    var att  = ri===0 ? '労働日数' : (extraAttendance[ri-1]?extraAttendance[ri-1].name:'');
+    var attV = ri<attRows.length ? attRows[ri] : '';
+    var pay  = payRows[ri]  ? payRows[ri][0]  : '';
+    var payV = payRows[ri]  ? payRows[ri][1]  : '';
+    var ded  = dedRows[ri]  ? dedRows[ri][0]  : '';
+    var dedV = dedRows[ri]  ? dedRows[ri][1]  : '';
+    var oth  = otherRows[ri]? otherRows[ri][0]: '';
+    var othV = otherRows[ri]? otherRows[ri][1]: '';
+    rows2.push([att,attV,pay,payV,ded,dedV,oth,othV]);
+  }
 
   rows2.forEach(function(r) {
     html += '<tr class="ps-row">';
@@ -605,10 +640,11 @@ async function showPayslip(staffId,year,month){
   html += '</div>';
 
   // 備考
-  var noteText = settings.note || (childSupport>0?'健康保険料に子ども・子育て支援金が加算されております。':'');
-  if (noteText) {
-    html += '<div class="ps-note">※ ' + noteText + '</div>';
-  }
+  // 共通備考＋個別備考
+  var noteText = settings.note || 'いつも有難うございます。';
+  var personalNote = staff.payslip_note || '';
+  if (noteText) html += '<div class="ps-note">※ ' + noteText + '</div>';
+  if (personalNote) html += '<div class="ps-note" style="margin-top:6px;background:#fff4e6;border-color:#f0a040;">📝 ' + personalNote + '</div>';
 
   // 打刻明細（設定に応じて表示）
   var showDetail = settings.show_detail || 'collapse';
@@ -941,7 +977,7 @@ async function getPayslipSettings() {
   _payslipSettings = {
     company:'合同会社エニクック', pay_day:10,
     font_size:'medium', orientation:'portrait', color:'blue', show_detail:'collapse',
-    note:'健康保険料に子ども・子育て支援金が加算されております。',
+    note:'いつも有難うございます。',
     pay_items_hourly:[], pay_items_employee:[], pay_items_officer:[]
   };
   return _payslipSettings;
@@ -966,7 +1002,7 @@ async function loadPayslipSettingTab() {
   ['hourly','employee','officer'].forEach(function(t){
     var wrap = document.getElementById('payItemsWrap_'+t);
     wrap.innerHTML = '';
-    (s['pay_items_'+t]||[]).forEach(function(item){addPayItem(t,item.name,item.amount,item.auto);});
+    (s['pay_items_'+t]||[]).forEach(function(item){addPayItem(t,item.name,item.amount,false,item.category||'pay');});
   });
   switchPsTab('common');
 }
@@ -986,8 +1022,8 @@ async function savePayslipSettings() {
     document.querySelectorAll('#payItemsWrap_'+t+' .pay-item-row').forEach(function(row){
       var name = row.querySelector('.pay-item-name').value.trim();
       var amt  = parseInt(row.querySelector('.pay-item-amount').value)||0;
-      var isAuto = row.querySelector('.pay-item-auto').checked;
-      if(name) s['pay_items_'+t].push({name:name, amount:amt, auto:isAuto});
+      var cat  = row.querySelector('.pay-item-category') ? row.querySelector('.pay-item-category').value : 'pay';
+      if(name) s['pay_items_'+t].push({name:name, amount:amt, category:cat});
     });
   });
   _payslipSettings = s;
@@ -999,22 +1035,28 @@ async function savePayslipSettings() {
   showToast('給与明細設定を保存しました');
 }
 
-function addPayItem(type, name, amount, isAuto) {
+function addPayItem(type, name, amount, isAuto, category) {
   var wrap = document.getElementById('payItemsWrap_'+type);
   if (!wrap) return;
   var rows = wrap.querySelectorAll('.pay-item-row');
   if (rows.length >= 8) { showToast('支給項目は最大8項目です', 'error'); return; }
+  var cat = category || 'pay';
   var div = document.createElement('div');
   div.className = 'pay-item-row';
-  div.style.cssText = 'margin-bottom:8px;display:flex;gap:10px;align-items:center;background:#f8fafc;padding:10px;border-radius:10px;border:1px solid var(--border);';
+  div.style.cssText = 'margin-bottom:10px;display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end;background:#f8fafc;padding:12px;border-radius:10px;border:1px solid var(--border);';
   div.innerHTML =
-    '<div style="flex:2;"><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:2px;">項目名</label>'+
+    '<div><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:2px;">項目名</label>'+
     '<input type="text" class="form-input pay-item-name" placeholder="例: 役員報酬" value="'+(name||'')+'" style="margin:0;"></div>'+
-    '<div style="flex:1;"><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:2px;">金額（円）</label>'+
+    '<div><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:2px;">金額（円）</label>'+
     '<input type="number" class="form-input pay-item-amount" placeholder="0" value="'+(amount||0)+'" min="0" style="margin:0;"></div>'+
-    '<div style="white-space:nowrap;padding-top:18px;">'+
-    '<label style="font-size:.72rem;cursor:pointer;"><input type="checkbox" class="pay-item-auto"'+(isAuto?' checked':'')+'>スタッフ個別入力</label></div>'+
-    '<button class="btn btn-secondary" onclick="this.parentNode.remove()" style="white-space:nowrap;padding:6px 10px;margin-top:16px;">🗑️</button>';
+    '<div><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:2px;">表示区分</label>'+
+    '<select class="form-input pay-item-category" style="margin:0;">'+
+    '<option value="attendance"'+(cat==='attendance'?' selected':'')+'>勤怠</option>'+
+    '<option value="pay"'+(cat==='pay'?' selected':'')+'>支給</option>'+
+    '<option value="deduction"'+(cat==='deduction'?' selected':'')+'>控除</option>'+
+    '<option value="other"'+(cat==='other'?' selected':'')+'>その他</option>'+
+    '</select></div>'+
+    '<button class="btn btn-secondary" onclick="this.parentNode.remove()" style="padding:8px 10px;">🗑️</button>';
   wrap.appendChild(div);
 }
 
