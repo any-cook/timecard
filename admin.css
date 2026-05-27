@@ -732,3 +732,192 @@ select:focus, input:focus, textarea:focus {
   border: 1px solid var(--border);
   margin-bottom: 12px;
 }
+
+/* ============================================================
+   給与明細書（PDFフォーマット準拠）
+   ============================================================ */
+.ps-wrap {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 0.82rem;
+  color: #222;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 8px;
+}
+.ps-company {
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-align: right;
+  margin-bottom: 4px;
+}
+.ps-title {
+  font-size: 1.1rem;
+  font-weight: 900;
+  text-align: center;
+  margin-bottom: 10px;
+  letter-spacing: 0.05em;
+}
+.ps-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #222;
+}
+.ps-emp {
+  font-size: 1rem;
+  font-weight: 700;
+}
+.ps-meta-right {
+  font-size: 0.82rem;
+  color: #555;
+}
+.ps-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0;
+}
+.ps-table th,
+.ps-table td {
+  border: 1px solid #999;
+  padding: 5px 6px;
+  font-size: 0.78rem;
+}
+.ps-section-header th {
+  background: #e8e8e8;
+  font-weight: 700;
+  text-align: center;
+  font-size: 0.8rem;
+  padding: 6px;
+}
+.ps-label {
+  background: #f5f5f5;
+  color: #444;
+  width: 10%;
+  white-space: nowrap;
+}
+.ps-val {
+  text-align: right;
+  font-weight: 600;
+  width: 12%;
+  padding-right: 8px !important;
+}
+.ps-total-label {
+  background: #dde4f0;
+  font-weight: 700;
+  color: #1a3a6b;
+}
+.ps-total-val {
+  background: #eef2fa;
+  font-weight: 700;
+  color: #1a3a6b;
+  font-size: 0.88rem;
+}
+.ps-total-row td {
+  border-top: 2px solid #666;
+}
+.ps-bottom {
+  display: flex;
+  border: 1px solid #999;
+  border-top: none;
+}
+.ps-bottom-block {
+  flex: 1;
+  border-right: 1px solid #999;
+  padding: 0;
+}
+.ps-bottom-block:last-child { border-right: none; }
+.ps-bottom-label {
+  background: #e8e8e8;
+  font-weight: 700;
+  text-align: center;
+  font-size: 0.78rem;
+  padding: 4px;
+  border-bottom: 1px solid #999;
+}
+.ps-bottom-val {
+  text-align: right;
+  font-weight: 600;
+  padding: 6px 10px;
+  font-size: 0.88rem;
+}
+.ps-net { background: #fef9e7; }
+.ps-net-val {
+  font-size: 1.1rem;
+  font-weight: 900;
+  color: #c0392b;
+}
+.ps-footer {
+  display: flex;
+  border: 1px solid #999;
+  border-top: none;
+}
+.ps-footer-item {
+  flex: 1;
+  border-right: 1px solid #999;
+  padding: 5px 8px;
+  font-size: 0.75rem;
+  color: #666;
+}
+.ps-footer-item:last-child { border-right: none; }
+.ps-note {
+  font-size: 0.75rem;
+  color: #555;
+  margin-top: 8px;
+  padding: 6px 10px;
+  background: #fffbe6;
+  border: 1px solid #f0d060;
+  border-radius: 4px;
+}
+.ps-detail-toggle {
+  margin-top: 16px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.ps-detail-toggle summary {
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+
+/* 印刷時 */
+@media print {
+  .ps-detail-toggle { display: none; }
+  .modal-header .btn, .modal-header button { display: none; }
+  .modal-overlay {
+    position: static;
+    background: none;
+  }
+  .modal-card {
+    box-shadow: none;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  .ps-wrap { max-width: 100%; }
+}
+
+/* ============================================================
+   給与明細設定タブ
+   ============================================================ */
+.ps-set-tab {
+  padding: 8px 18px;
+  border: none;
+  background: var(--surface2);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  margin-right: 6px;
+  margin-bottom: 6px;
+  transition: all 0.15s;
+  font-family: 'Noto Sans JP', sans-serif;
+}
+.ps-set-tab.active {
+  background: var(--accent);
+  color: #fff;
+}

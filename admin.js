@@ -502,8 +502,19 @@ async function showPayslip(staffId,year,month){
   var netPayFinal = totalPay - totalDeduction;
   var monthStr = year + '年' + month + '月';
 
+  // レイアウト設定適用
+  var fsMap = {small:'0.72rem', medium:'0.82rem', large:'0.92rem'};
+  var colorMap = {
+    blue: {header:'#dde4f0', total:'#1a3a6b', totalBg:'#eef2fa'},
+    green:{header:'#d4edda', total:'#155724', totalBg:'#e8f5e9'},
+    gray: {header:'#e8e8e8', total:'#333',    totalBg:'#f5f5f5'},
+    mono: {header:'#ccc',    total:'#000',    totalBg:'#eee'}
+  };
+  var clr = colorMap[settings.color||'blue'];
+  var fs  = fsMap[settings.font_size||'medium'];
+
   var html = '';
-  html += '<div class="ps-wrap">';
+  html += '<div class="ps-wrap" style="font-size:'+fs+'">';
   // ヘッダー
   html += '<div class="ps-company">'+(settings.company||'合同会社エニクック')+'</div>';
   html += '<div class="ps-title">' + year + '年' + month + '月分　給与明細書</div>';
@@ -518,6 +529,7 @@ async function showPayslip(staffId,year,month){
   html += '<table class="ps-table">';
 
   // 勤怠行
+  html += '<style>.ps-section-header th{background:'+clr.header+'!important;}.ps-total-label{color:'+clr.total+'!important;}.ps-total-val{color:'+clr.total+'!important;background:'+clr.totalBg+'!important;}.ps-total-row td{border-top:2px solid '+clr.total+'!important;}</style>';
   html += '<tr class="ps-section-header">';
   html += '<th colspan="2">勤　怠</th>';
   html += '<th colspan="2">支　給</th>';
@@ -526,9 +538,12 @@ async function showPayslip(staffId,year,month){
   html += '</tr>';
 
   // データ行
-  // 追加支給項目（設定から）
-  var extraPayItems = settings.pay_items || [];
-  var extraTotalPay = extraPayItems.reduce(function(s,i){return s+(i.amount||0);},0);
+  // 追加支給項目（種別ごとに設定から取得）
+  var typeKey = staff.type === 'officer' ? 'pay_items_officer'
+              : staff.type === 'employee' ? 'pay_items_employee'
+              : 'pay_items_hourly';
+  var extraPayItems = (settings[typeKey] || settings.pay_items || []);
+  var extraTotalPay = extraPayItems.reduce(function(acc,i){return acc+(i.amount||0);},0);
   totalPay += extraTotalPay;
   netPayFinal += extraTotalPay;
 
@@ -595,10 +610,17 @@ async function showPayslip(staffId,year,month){
     html += '<div class="ps-note">※ ' + noteText + '</div>';
   }
 
-  // 打刻明細（折りたたみ）
-  html += '<details class="ps-detail-toggle"><summary>▼ 打刻明細を表示</summary>';
-  html += '<div class="table-scroll" style="margin-top:12px;"><table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>時給</th><th>日給</th></tr></thead><tbody>' + detailRows + '</tbody></table></div>';
-  html += '</details>';
+  // 打刻明細（設定に応じて表示）
+  var showDetail = settings.show_detail || 'collapse';
+  if (showDetail !== 'hide' && detailRows) {
+    if (showDetail === 'collapse') {
+      html += '<details class="ps-detail-toggle"><summary>▼ 打刻明細を表示</summary>';
+      html += '<div class="table-scroll" style="margin-top:12px;"><table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table></div>';
+      html += '</details>';
+    } else {
+      html += '<div class="table-scroll" style="margin-top:16px;"><table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table></div>';
+    }
+  }
 
   html += '</div>'; // ps-wrap
 
@@ -899,66 +921,100 @@ function printMonthly() {
 // 給与明細設定
 // ============================================================
 var _payslipSettings = null;
+var _currentPsTab = 'common';
 
 async function getPayslipSettings() {
   if (_payslipSettings) return _payslipSettings;
   var stored = localStorage.getItem('payslip_settings');
   if (stored) { _payslipSettings = JSON.parse(stored); return _payslipSettings; }
-  // Firestoreからも取得試行
   try {
-    var snap = await getDB().collection('payslip_settings').doc('main').get();
-    if (snap.exists) { _payslipSettings = snap.data(); localStorage.setItem('payslip_settings', JSON.stringify(_payslipSettings)); return _payslipSettings; }
+    var db = getDB();
+    if (db) {
+      var snap = await db.collection('payslip_settings').doc('main').get();
+      if (snap.exists) {
+        _payslipSettings = snap.data();
+        localStorage.setItem('payslip_settings', JSON.stringify(_payslipSettings));
+        return _payslipSettings;
+      }
+    }
   } catch(e) {}
-  // デフォルト
   _payslipSettings = {
-    company: '合同会社エニクック',
-    pay_day: 10,
-    note: '健康保険料に子ども・子育て支援金が加算されております。',
-    pay_items: []
+    company:'合同会社エニクック', pay_day:10,
+    font_size:'medium', orientation:'portrait', color:'blue', show_detail:'collapse',
+    note:'健康保険料に子ども・子育て支援金が加算されております。',
+    pay_items_hourly:[], pay_items_employee:[], pay_items_officer:[]
   };
   return _payslipSettings;
 }
 
-async function savePayslipSettings() {
-  var company  = document.getElementById('ps_company').value.trim();
-  var pay_day  = parseInt(document.getElementById('ps_pay_day').value) || 10;
-  var note     = document.getElementById('ps_note').value.trim();
-  var pay_items = [];
-  document.querySelectorAll('.pay-item-row').forEach(function(row) {
-    var name = row.querySelector('.pay-item-name').value.trim();
-    var amt  = parseInt(row.querySelector('.pay-item-amount').value) || 0;
-    if (name) pay_items.push({ name: name, amount: amt });
-  });
-  _payslipSettings = { company: company, pay_day: pay_day, note: note, pay_items: pay_items };
-  localStorage.setItem('payslip_settings', JSON.stringify(_payslipSettings));
-  try {
-    await getDB().collection('payslip_settings').doc('main').set(_payslipSettings);
-  } catch(e) { console.warn('Firestore save failed:', e); }
-  showToast('給与明細設定を保存しました');
+function switchPsTab(type) {
+  _currentPsTab = type;
+  document.querySelectorAll('.ps-set-tab').forEach(function(b){b.classList.toggle('active', b.dataset.ptype===type);});
+  document.querySelectorAll('.ps-set-panel').forEach(function(p){p.style.display='none';});
+  document.getElementById('ps-panel-'+type).style.display='block';
 }
 
 async function loadPayslipSettingTab() {
   var s = await getPayslipSettings();
-  document.getElementById('ps_company').value = s.company || '';
-  document.getElementById('ps_pay_day').value  = s.pay_day || 10;
-  document.getElementById('ps_note').value     = s.note || '';
-  // 支給項目を描画
-  var wrap = document.getElementById('payItemsWrap');
-  wrap.innerHTML = '';
-  (s.pay_items || []).forEach(function(item) { addPayItem(item.name, item.amount); });
+  document.getElementById('ps_company').value    = s.company || '合同会社エニクック';
+  document.getElementById('ps_pay_day').value    = s.pay_day || 10;
+  document.getElementById('ps_font_size').value  = s.font_size || 'medium';
+  document.getElementById('ps_orientation').value= s.orientation || 'portrait';
+  document.getElementById('ps_color').value      = s.color || 'blue';
+  document.getElementById('ps_show_detail').value= s.show_detail || 'collapse';
+  document.getElementById('ps_note').value       = s.note || '';
+  ['hourly','employee','officer'].forEach(function(t){
+    var wrap = document.getElementById('payItemsWrap_'+t);
+    wrap.innerHTML = '';
+    (s['pay_items_'+t]||[]).forEach(function(item){addPayItem(t,item.name,item.amount,item.auto);});
+  });
+  switchPsTab('common');
 }
 
-function addPayItem(name, amount) {
-  var wrap = document.getElementById('payItemsWrap');
+async function savePayslipSettings() {
+  var s = {
+    company:     document.getElementById('ps_company').value.trim(),
+    pay_day:     parseInt(document.getElementById('ps_pay_day').value)||10,
+    font_size:   document.getElementById('ps_font_size').value,
+    orientation: document.getElementById('ps_orientation').value,
+    color:       document.getElementById('ps_color').value,
+    show_detail: document.getElementById('ps_show_detail').value,
+    note:        document.getElementById('ps_note').value.trim(),
+    pay_items_hourly:[], pay_items_employee:[], pay_items_officer:[]
+  };
+  ['hourly','employee','officer'].forEach(function(t){
+    document.querySelectorAll('#payItemsWrap_'+t+' .pay-item-row').forEach(function(row){
+      var name = row.querySelector('.pay-item-name').value.trim();
+      var amt  = parseInt(row.querySelector('.pay-item-amount').value)||0;
+      var isAuto = row.querySelector('.pay-item-auto').checked;
+      if(name) s['pay_items_'+t].push({name:name, amount:amt, auto:isAuto});
+    });
+  });
+  _payslipSettings = s;
+  localStorage.setItem('payslip_settings', JSON.stringify(s));
+  try {
+    var db = getDB();
+    if (db) await db.collection('payslip_settings').doc('main').set(s);
+  } catch(e) { console.warn('Firestore save failed:', e); }
+  showToast('給与明細設定を保存しました');
+}
+
+function addPayItem(type, name, amount, isAuto) {
+  var wrap = document.getElementById('payItemsWrap_'+type);
+  if (!wrap) return;
   var rows = wrap.querySelectorAll('.pay-item-row');
-  if (rows.length >= 6) { showToast('支給項目は最大6項目です', 'error'); return; }
+  if (rows.length >= 8) { showToast('支給項目は最大8項目です', 'error'); return; }
   var div = document.createElement('div');
-  div.className = 'pay-item-row form-grid';
-  div.style.cssText = 'margin-bottom:8px;display:flex;gap:10px;align-items:center;';
+  div.className = 'pay-item-row';
+  div.style.cssText = 'margin-bottom:8px;display:flex;gap:10px;align-items:center;background:#f8fafc;padding:10px;border-radius:10px;border:1px solid var(--border);';
   div.innerHTML =
-    '<div class="form-group" style="flex:2;margin:0;"><input type="text" class="form-input pay-item-name" placeholder="項目名（例: 役員報酬）" value="'+(name||'')+'"></div>'+
-    '<div class="form-group" style="flex:1;margin:0;"><input type="number" class="form-input pay-item-amount" placeholder="金額（円）" value="'+(amount||0)+'" min="0"></div>'+
-    '<button class="btn btn-secondary" onclick="this.parentNode.remove()" style="white-space:nowrap;padding:8px 12px;">🗑️</button>';
+    '<div style="flex:2;"><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:2px;">項目名</label>'+
+    '<input type="text" class="form-input pay-item-name" placeholder="例: 役員報酬" value="'+(name||'')+'" style="margin:0;"></div>'+
+    '<div style="flex:1;"><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:2px;">金額（円）</label>'+
+    '<input type="number" class="form-input pay-item-amount" placeholder="0" value="'+(amount||0)+'" min="0" style="margin:0;"></div>'+
+    '<div style="white-space:nowrap;padding-top:18px;">'+
+    '<label style="font-size:.72rem;cursor:pointer;"><input type="checkbox" class="pay-item-auto"'+(isAuto?' checked':'')+'>スタッフ個別入力</label></div>'+
+    '<button class="btn btn-secondary" onclick="this.parentNode.remove()" style="white-space:nowrap;padding:6px 10px;margin-top:16px;">🗑️</button>';
   wrap.appendChild(div);
 }
 
