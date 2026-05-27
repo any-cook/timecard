@@ -233,7 +233,8 @@ async function loadAttendanceRecords(){
   attendanceFilters.year=parseInt(document.getElementById('filterYear').value);
   attendanceFilters.month=parseInt(document.getElementById('filterMonth').value);
   attendanceFilters.staff_id=document.getElementById('filterStaff').value;
-  var records=await DB.getAttendance(attendanceFilters),staff=await DB.getStaff();
+  var allRecords=await DB.getAttendance({year:attendanceFilters.year,month:attendanceFilters.month}),staff=await DB.getStaff();
+  var records=attendanceFilters.staff_id?allRecords.filter(function(r){return r.staff_id===attendanceFilters.staff_id;}):allRecords;
   var staffMap={};staff.forEach(function(s){staffMap[s.id]=s;});
   var tbody=document.getElementById('attendanceTableBody');tbody.innerHTML='';
   var totalWage=0,totalMins=0,staffSummary={};
