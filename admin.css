@@ -921,3 +921,12 @@ select:focus, input:focus, textarea:focus {
   background: var(--accent);
   color: #fff;
 }
+
+/* 支給項目ラベル */
+.pi-label {
+  font-size: .72rem;
+  color: var(--text-muted);
+  display: block;
+  margin-bottom: 3px;
+  font-weight: 600;
+}

@@ -554,13 +554,17 @@ async function showPayslip(staffId,year,month){
 
   // カテゴリ別に追加項目を仕分け
   var extraAttendance=[], extraPay=[], extraDeduction=[], extraOther=[];
+  var extraTotalDeductExtra = 0;
   extraPayItems.forEach(function(item){
     var cat=item.category||'pay';
+    var isSubtract = item.calc_add === 'sub';
+    if(isSubtract){ extraTotalDeductExtra += (item.amount||0); }
     if(cat==='attendance') extraAttendance.push(item);
     else if(cat==='deduction') extraDeduction.push(item);
     else if(cat==='other') extraOther.push(item);
     else extraPay.push(item);
   });
+  netPayFinal -= extraTotalDeductExtra;
 
   // 勤怠列
   var attRows = [workDays+'.00'].concat(extraAttendance.map(function(i){return i.name+'：'+numFmt(i.amount);}));
@@ -1003,7 +1007,7 @@ async function loadPayslipSettingTab() {
   ['hourly','employee','officer'].forEach(function(t){
     var wrap = document.getElementById('payItemsWrap_'+t);
     wrap.innerHTML = '';
-    (s['pay_items_'+t]||[]).forEach(function(item){addPayItem(t,item.name,item.amount,false,item.category||'pay');});
+    (s['pay_items_'+t]||[]).forEach(function(item){addPayItem(t,item.name,item.amount,false,item.category||'pay',item.calc_add||'add',item.tax_type||'taxable',item.wage_type||'wage',item.salary_type||'fixed');});
   });
   switchPsTab('common');
 }
@@ -1021,10 +1025,14 @@ async function savePayslipSettings() {
   };
   ['hourly','employee','officer'].forEach(function(t){
     document.querySelectorAll('#payItemsWrap_'+t+' .pay-item-row').forEach(function(row){
-      var name = row.querySelector('.pay-item-name').value.trim();
-      var amt  = parseInt(row.querySelector('.pay-item-amount').value)||0;
-      var cat  = row.querySelector('.pay-item-category') ? row.querySelector('.pay-item-category').value : 'pay';
-      if(name) s['pay_items_'+t].push({name:name, amount:amt, category:cat});
+      var name     = row.querySelector('.pay-item-name').value.trim();
+      var amt      = parseInt(row.querySelector('.pay-item-amount').value)||0;
+      var cat      = row.querySelector('.pay-item-category')    ? row.querySelector('.pay-item-category').value    : 'pay';
+      var calc_add = row.querySelector('.pay-item-calc-add')    ? row.querySelector('.pay-item-calc-add').value    : 'add';
+      var tax_type = row.querySelector('.pay-item-tax-type')    ? row.querySelector('.pay-item-tax-type').value    : 'taxable';
+      var wage_type= row.querySelector('.pay-item-wage-type')   ? row.querySelector('.pay-item-wage-type').value   : 'wage';
+      var sal_type = row.querySelector('.pay-item-salary-type') ? row.querySelector('.pay-item-salary-type').value : 'included';
+      if(name) s['pay_items_'+t].push({name:name, amount:amt, category:cat, calc_add:calc_add, tax_type:tax_type, wage_type:wage_type, salary_type:sal_type});
     });
   });
   _payslipSettings = s;
@@ -1036,28 +1044,63 @@ async function savePayslipSettings() {
   showToast('給与明細設定を保存しました');
 }
 
-function addPayItem(type, name, amount, isAuto, category) {
+function addPayItem(type, name, amount, isAuto, category, calc_add, tax_type, wage_type, salary_type) {
   var wrap = document.getElementById('payItemsWrap_'+type);
   if (!wrap) return;
   var rows = wrap.querySelectorAll('.pay-item-row');
   if (rows.length >= 8) { showToast('支給項目は最大8項目です', 'error'); return; }
-  var cat = category || 'pay';
+  var cat   = category   || 'pay';
+  var cadd  = (calc_add  === undefined || calc_add  === null) ? 'add' : calc_add;
+  var ttax  = tax_type   || 'taxable';
+  var twage = wage_type  || 'wage';
+  var tsal  = salary_type|| 'fixed';
   var div = document.createElement('div');
   div.className = 'pay-item-row';
-  div.style.cssText = 'margin-bottom:10px;display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:8px;align-items:end;background:#f8fafc;padding:12px;border-radius:10px;border:1px solid var(--border);';
+  div.style.cssText = 'margin-bottom:12px;background:#f8fafc;padding:14px;border-radius:12px;border:1px solid var(--border);';
   div.innerHTML =
-    '<div><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:2px;">項目名</label>'+
-    '<input type="text" class="form-input pay-item-name" placeholder="例: 役員報酬" value="'+(name||'')+'" style="margin:0;"></div>'+
-    '<div><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:2px;">金額（円）</label>'+
-    '<input type="number" class="form-input pay-item-amount" placeholder="0" value="'+(amount||0)+'" min="0" style="margin:0;"></div>'+
-    '<div><label style="font-size:.72rem;color:var(--text-muted);display:block;margin-bottom:2px;">表示区分</label>'+
-    '<select class="form-input pay-item-category" style="margin:0;">'+
-    '<option value="attendance"'+(cat==='attendance'?' selected':'')+'>勤怠</option>'+
-    '<option value="pay"'+(cat==='pay'?' selected':'')+'>支給</option>'+
-    '<option value="deduction"'+(cat==='deduction'?' selected':'')+'>控除</option>'+
-    '<option value="other"'+(cat==='other'?' selected':'')+'>その他</option>'+
-    '</select></div>'+
-    '<button class="btn btn-secondary" onclick="this.parentNode.remove()" style="padding:8px 10px;">🗑️</button>';
+    // 1行目：項目名・金額・表示区分・集計方法
+    '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:10px;">'+
+      '<div><label class="pi-label">項目名</label>'+
+      '<input type="text" class="form-input pay-item-name" placeholder="例: 食事手当" value="'+(name||'')+'" style="margin:0;"></div>'+
+      '<div><label class="pi-label">金額（円）</label>'+
+      '<input type="number" class="form-input pay-item-amount" placeholder="0" value="'+(amount||0)+'" min="0" style="margin:0;"></div>'+
+      '<div><label class="pi-label">表示区分</label>'+
+      '<select class="form-input pay-item-category" style="margin:0;">'+
+        '<option value="attendance"'+(cat==='attendance'?' selected':'')+'>勤怠</option>'+
+        '<option value="pay"'+(cat==='pay'?' selected':'')+'>支給</option>'+
+        '<option value="deduction"'+(cat==='deduction'?' selected':'')+'>控除</option>'+
+        '<option value="other"'+(cat==='other'?' selected':'')+'>その他</option>'+
+      '</select></div>'+
+      '<div><label class="pi-label">集計方法</label>'+
+      '<select class="form-input pay-item-calc-add" style="margin:0;">'+
+        '<option value="add"'+(cadd==='add'?' selected':'')+'>➕ 加算</option>'+
+        '<option value="sub"'+(cadd==='sub'?' selected':'')+'>➖ 減算</option>'+
+      '</select></div>'+
+      '<button class="btn btn-secondary" onclick="this.closest(\".pay-item-row\").remove()" style="padding:8px 10px;white-space:nowrap;">🗑️</button>'+
+    '</div>'+
+    // 2行目：課税・賃金・報酬・固定賃金
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">'+
+      '<div><label class="pi-label">課税（所得税）</label>'+
+      '<select class="form-input pay-item-tax-type" style="margin:0;font-size:.75rem;">'+
+        '<option value="taxable"'+(ttax==='taxable'?' selected':'')+'>課税</option>'+
+        '<option value="nontaxable"'+(ttax==='nontaxable'?' selected':'')+'>非課税</option>'+
+      '</select></div>'+
+      '<div><label class="pi-label">賃金（労働保険）</label>'+
+      '<select class="form-input pay-item-wage-type" style="margin:0;font-size:.75rem;">'+
+        '<option value="wage"'+(twage==='wage'?' selected':'')+'>賃金に含める</option>'+
+        '<option value="nonwage"'+(twage==='nonwage'?' selected':'')+'>賃金に含めない</option>'+
+      '</select></div>'+
+      '<div><label class="pi-label">報酬（社会保険）</label>'+
+      '<select class="form-input pay-item-salary-type" style="margin:0;font-size:.75rem;">'+
+        '<option value="included"'+(tsal==='included'?' selected':'')+'>報酬に含める</option>'+
+        '<option value="excluded"'+(tsal==='excluded'?' selected':'')+'>報酬に含めない</option>'+
+      '</select></div>'+
+      '<div><label class="pi-label">固定賃金（月額変動）</label>'+
+      '<select class="form-input pay-item-salary-fixed" style="margin:0;font-size:.75rem;">'+
+        '<option value="fixed"'+(tsal==='fixed'?' selected':'')+'>固定賃金</option>'+
+        '<option value="variable"'+(tsal==='variable'?' selected':'')+'>変動賃金</option>'+
+      '</select></div>'+
+    '</div>';
   wrap.appendChild(div);
 }
 
