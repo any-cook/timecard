@@ -463,10 +463,19 @@ async function loadPayrollSummary(){
     var tax=calcTax(taxableIncome,taxRows,staff.tax_type||'kou',staff.dependents||0);
     var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
     var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
-    var health=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
+    var healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
+    // 介護保険料を分離（介護込み - 介護なしの差額）
+    var healthBase=0,nursingCare=0;
+    if(staff.health_table_type==='health_nursing'){
+      healthBase=getInsuranceAmountByGrade(staff.health_grade_id,healthTable);
+      nursingCare=Math.max(0,healthTotal-healthBase);
+    } else {
+      healthBase=healthTotal; nursingCare=0;
+    }
+    var health=healthBase;
     var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
     var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
-    var socialDeduction=pension+health+childSupport+empIns;
+    var socialDeduction=pension+healthTotal+childSupport+empIns;
     var netPay=grossPay+commuteData.taxFree-tax-socialDeduction;
     grandTotal+=grossPay;
     var tr=document.createElement('tr');
@@ -486,6 +495,14 @@ async function showPayslip(staffId,year,month){
   var allStaff=res[0],records=res[1].filter(function(r){return r.staff_id===staffId;}),taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7];
   var staff=allStaff.find(function(s){return s.id===staffId;});if(!staff)return;
   var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
+  var _healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
+  var _healthBase=0,_nursingCare=0;
+  if(staff.health_table_type==='health_nursing'){
+    _healthBase=getInsuranceAmountByGrade(staff.health_grade_id,healthTable);
+    _nursingCare=Math.max(0,_healthTotal-_healthBase);
+  } else {
+    _healthBase=_healthTotal; _nursingCare=0;
+  }
   var grossPay=0,totalMins=0,workDays=0,detailRows='';
   var lunchBreakSlip=staff.lunch_break||false;
   if(staff.type==='hourly'){records.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,staff.lunch_break,staff.lunch_start,staff.lunch_end);totalMins+=mins;if(r.clock_in_actual)workDays++;var daily=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end);grossPay+=daily;detailRows+='<tr><td>'+formatDateJP(r.date)+'</td><td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||'-')+'</td><td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td><td>'+formatWorkTime(mins)+'</td><td>'+(r.is_special_day?'⭐':'')+' '+formatCurrency(r.wage_at_date||staff.wage)+'</td><td>'+formatCurrency(daily)+'</td></tr>';});}
@@ -498,11 +515,11 @@ async function showPayslip(staffId,year,month){
   var health=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
   var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
   var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
-  var netPay=grossPay+commuteData.taxFree-tax-pension-health-childSupport-empIns;
+  var netPay=grossPay+commuteData.taxFree-tax-pension-health-nursingCare-childSupport-empIns;
   var age=calcAge(staff.birthdate);
   // 合計支給額（非課税通勤費含む）
   var totalPay = grossPay + commuteData.taxFree + commuteData.taxable;
-  var totalDeduction = tax + pension + health + childSupport + empIns;
+  var totalDeduction = tax + pension + health + nursingCare + childSupport + empIns;
   var netPayFinal = totalPay - totalDeduction;
   var monthStr = year + '年' + month + '月';
 
@@ -579,7 +596,7 @@ async function showPayslip(staffId,year,month){
   // 控除列
   var dedRows = [
     ['健康保険料', numFmt(health)],
-    ['介護保険料', ''],
+    ['介護保険料', nursingCare>0?numFmt(nursingCare):'―'],
     ['厚生年金保険', numFmt(pension)],
     ['子育て支援金', numFmt(childSupport)],
     ['所得税', numFmt(tax)],
@@ -688,7 +705,8 @@ async function showPayslip(staffId,year,month){
   oldHtml += (commuteData.taxable>0?'<div class="summary-row" style="font-size:.8rem;color:#dc2626;"><span>　うち課税分</span><span>'+formatCurrency(commuteData.taxable)+'</span></div>':'');
   oldHtml += '<div class="summary-row deduction"><span>源泉徴収税（'+(staff.tax_type==='otsu'?'乙欄':'甲欄・扶養'+(staff.dependents||0)+'人')+'）</span><span>- '+formatCurrency(tax)+'</span></div>';
   oldHtml += (pension>0?'<div class="summary-row deduction"><span>厚生年金保険料</span><span>- '+formatCurrency(pension)+'</span></div>':'');
-  oldHtml += (health>0?'<div class="summary-row deduction"><span>健康保険料'+(staff.health_table_type==='health_nursing'?'（介護込み）':'')+'</span><span>- '+formatCurrency(health)+'</span></div>':'');
+  oldHtml += (health>0?'<div class="summary-row deduction"><span>健康保険料</span><span>- '+formatCurrency(health)+'</span></div>':'');
+  oldHtml += (nursingCare>0?'<div class="summary-row deduction"><span>介護保険料</span><span>- '+formatCurrency(nursingCare)+'</span></div>':'');
   oldHtml += (childSupport>0?'<div class="summary-row deduction"><span>子ども・子育て支援金</span><span>- '+formatCurrency(childSupport)+'</span></div>':'');
   oldHtml += (empIns>0?'<div class="summary-row deduction"><span>雇用保険料</span><span>- '+formatCurrency(empIns)+'</span></div>':'');
   oldHtml += '<div class="summary-row total"><span>差引支給額</span><strong class="net-pay">'+formatCurrency(netPayFinal)+'</strong></div>';
