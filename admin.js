@@ -495,24 +495,26 @@ async function showPayslip(staffId,year,month){
   var allStaff=res[0],records=res[1].filter(function(r){return r.staff_id===staffId;}),taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7];
   var staff=allStaff.find(function(s){return s.id===staffId;});if(!staff)return;
   var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
-  var _healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
-  var _healthBase=0,_nursingCare=0;
+  var healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
+  var healthBase=0,nursingCare=0;
   if(staff.health_table_type==='health_nursing'){
-    _healthBase=getInsuranceAmountByGrade(staff.health_grade_id,healthTable);
-    _nursingCare=Math.max(0,_healthTotal-_healthBase);
+    healthBase=getInsuranceAmountByGrade(staff.health_grade_id,healthTable);
+    nursingCare=Math.max(0,healthTotal-healthBase);
   } else {
-    _healthBase=_healthTotal; _nursingCare=0;
+    healthBase=healthTotal; nursingCare=0;
   }
   var grossPay=0,totalMins=0,workDays=0,detailRows='';
   var lunchBreakSlip=staff.lunch_break||false;
   if(staff.type==='hourly'){records.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,staff.lunch_break,staff.lunch_start,staff.lunch_end);totalMins+=mins;if(r.clock_in_actual)workDays++;var daily=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end);grossPay+=daily;detailRows+='<tr><td>'+formatDateJP(r.date)+'</td><td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||'-')+'</td><td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td><td>'+formatWorkTime(mins)+'</td><td>'+(r.is_special_day?'⭐':'')+' '+formatCurrency(r.wage_at_date||staff.wage)+'</td><td>'+formatCurrency(daily)+'</td></tr>';});}
   else{grossPay=staff.monthly_salary||0;workDays=records.filter(function(r){return r.clock_in_actual;}).length;detailRows='<tr><td colspan="8" style="text-align:center;">月額固定給: '+formatCurrency(grossPay)+'</td></tr>';}
-  var commuteData=calcCommuteAllowance(staff.commute_daily_amount||0,workDays,staff.commute_distance||0);
+  // 役員は通勤費固定支給（日額×月固定日数20日換算）、それ以外は出勤日数×日額
+  var commuteWorkDays = (staff.payslip_type==='officer'||staff.type==='officer') ? 20 : workDays;
+  var commuteData=calcCommuteAllowance(staff.commute_daily_amount||0,commuteWorkDays,staff.commute_distance||0);
   var taxableIncome=grossPay+commuteData.taxable;
   var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
   var tax=calcTax(taxableIncome,taxRows,staff.tax_type||'kou',staff.dependents||0);
   var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
-  var health=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
+  var health=healthBase; // 健康保険料（介護保険料除く）
   var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
   var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
   var netPay=grossPay+commuteData.taxFree-tax-pension-health-nursingCare-childSupport-empIns;
@@ -596,7 +598,7 @@ async function showPayslip(staffId,year,month){
   // 控除列
   var dedRows = [
     ['健康保険料', numFmt(health)],
-    ['介護保険料', nursingCare>0?numFmt(nursingCare):'―'],
+    ['介護保険料', nursingCare>0 ? numFmt(nursingCare) : '0'],
     ['厚生年金保険', numFmt(pension)],
     ['子育て支援金', numFmt(childSupport)],
     ['所得税', numFmt(tax)],
