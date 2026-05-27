@@ -276,7 +276,8 @@ async function openStaffDetail(staffId) {
   var s = staff.find(function(x){ return x.id === staffId; });
   if (!s) return;
 
-  var records = await DB.getAttendance({ year: year, month: month, staff_id: staffId });
+  var allRecords = await DB.getAttendance({ year: year, month: month });
+  var records = allRecords.filter(function(r){ return r.staff_id === staffId; });
   var dayNames = ['日','月','火','水','木','金','土'];
 
   // パネル切り替え
