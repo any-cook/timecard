@@ -342,7 +342,7 @@ async function openStaffDetail(staffId) {
         '<td style="color:var(--text-muted);">' + (lunchMins > 0 ? formatWorkTime(lunchMins) : '-') + '</td>' +
         '<td>' + (r.clock_out_calc ? formatCurrency(dailyWage) : '-') + '</td>' +
         '<td>' + (r.is_special_day ? '<span class="badge badge-special">⭐</span>' : '') + '</td>' +
-        '<td><button class="btn-sm btn-edit" onclick="openAttendanceEditModal('' + r.id + '')">✏️</button></td>';
+        '<td><button class="btn-sm btn-edit" onclick="openAttendanceEditModal(\'' + r.id + '\')">✏️</button></td>';
     } else {
       // 未出勤
       tr.innerHTML =
