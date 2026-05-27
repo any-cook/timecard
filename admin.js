@@ -565,8 +565,9 @@ async function showPayslip(staffId,year,month){
   // 勤怠列
   var attRows = [workDays+'.00'].concat(extraAttendance.map(function(i){return i.name+'：'+numFmt(i.amount);}));
   // 支給列
+  var basicPayLabel = psType === 'officer' ? '役員報酬' : (psType === 'employee' ? '基本給' : '基本給');
   var payRows = [
-    ['基本給', numFmt(grossPay)],
+    [basicPayLabel, numFmt(grossPay)],
     ['非課税通勤費', numFmt(commuteData.taxFree)],
   ];
   if(commuteData.taxable>0) payRows.push(['課税通勤費', numFmt(commuteData.taxable)]);
