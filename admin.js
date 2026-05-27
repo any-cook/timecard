@@ -583,9 +583,11 @@ async function showPayslip(staffId,year,month){
               : psType === 'employee' ? 'pay_items_employee'
               : 'pay_items_hourly';
   var extraPayItems = (settings[typeKey] || settings.pay_items || []).map(function(item){
-    // 月次入力がある場合は金額を上書き
-    var mi = monthlyVarItems.find(function(x){return x.name===item.name;});
-    if(mi) return Object.assign({},item,{amount:mi.amount});
+    // 月次変動項目：月次入力があれば金額を上書き
+    if(item.wage_fixed==='variable') {
+      var mi = monthlyVarItems.find(function(x){return x.name===item.name;});
+      if(mi) return Object.assign({},item,{amount:mi.amount});
+    }
     return item;
   });
   var extraTotalPay = extraPayItems.reduce(function(acc,i){return acc+(i.amount||0);},0);
@@ -1048,7 +1050,7 @@ async function loadPayslipSettingTab() {
   ['hourly','employee','officer'].forEach(function(t){
     var wrap = document.getElementById('payItemsWrap_'+t);
     wrap.innerHTML = '';
-    (s['pay_items_'+t]||[]).forEach(function(item){addPayItem(t,item.name,item.amount,false,item.category||'pay',item.calc_add||'add',item.tax_type||'taxable',item.wage_type||'wage',item.salary_type||'fixed');});
+    (s['pay_items_'+t]||[]).forEach(function(item){addPayItem(t,item.name,item.amount,false,item.category||'pay',item.calc_add||'add',item.tax_type||'taxable',item.wage_type||'wage',item.salary_type||'included',item.wage_fixed||'fixed');});
   });
   switchPsTab('common');
 }
@@ -1072,8 +1074,9 @@ async function savePayslipSettings() {
       var calc_add = row.querySelector('.pay-item-calc-add')    ? row.querySelector('.pay-item-calc-add').value    : 'add';
       var tax_type = row.querySelector('.pay-item-tax-type')    ? row.querySelector('.pay-item-tax-type').value    : 'taxable';
       var wage_type= row.querySelector('.pay-item-wage-type')   ? row.querySelector('.pay-item-wage-type').value   : 'wage';
-      var sal_type = row.querySelector('.pay-item-salary-type') ? row.querySelector('.pay-item-salary-type').value : 'included';
-      if(name) s['pay_items_'+t].push({name:name, amount:amt, category:cat, calc_add:calc_add, tax_type:tax_type, wage_type:wage_type, salary_type:sal_type});
+      var sal_type  = row.querySelector('.pay-item-salary-type')  ? row.querySelector('.pay-item-salary-type').value  : 'included';
+      var wage_fixed = row.querySelector('.pay-item-salary-fixed') ? row.querySelector('.pay-item-salary-fixed').value : 'fixed';
+      if(name) s['pay_items_'+t].push({name:name, amount:amt, category:cat, calc_add:calc_add, tax_type:tax_type, wage_type:wage_type, salary_type:sal_type, wage_fixed:wage_fixed});
     });
   });
   _payslipSettings = s;
@@ -1085,7 +1088,7 @@ async function savePayslipSettings() {
   showToast('給与明細設定を保存しました');
 }
 
-function addPayItem(type, name, amount, isAuto, category, calc_add, tax_type, wage_type, salary_type) {
+function addPayItem(type, name, amount, isAuto, category, calc_add, tax_type, wage_type, salary_type, wage_fixed) {
   var wrap = document.getElementById('payItemsWrap_'+type);
   if (!wrap) return;
   var rows = wrap.querySelectorAll('.pay-item-row');
@@ -1094,7 +1097,8 @@ function addPayItem(type, name, amount, isAuto, category, calc_add, tax_type, wa
   var cadd  = (calc_add  === undefined || calc_add  === null) ? 'add' : calc_add;
   var ttax  = tax_type   || 'taxable';
   var twage = wage_type  || 'wage';
-  var tsal  = salary_type|| 'fixed';
+  var tsal  = salary_type|| 'included';
+  var tfixed= wage_fixed || 'fixed';
   var div = document.createElement('div');
   div.className = 'pay-item-row';
   div.style.cssText = 'margin-bottom:12px;background:#f8fafc;padding:14px;border-radius:12px;border:1px solid var(--border);';
@@ -1136,10 +1140,10 @@ function addPayItem(type, name, amount, isAuto, category, calc_add, tax_type, wa
         '<option value="included"'+(tsal==='included'?' selected':'')+'>報酬に含める</option>'+
         '<option value="excluded"'+(tsal==='excluded'?' selected':'')+'>報酬に含めない</option>'+
       '</select></div>'+
-      '<div><label class="pi-label">固定賃金（月額変動）</label>'+
+      '<div><label class="pi-label">月次変動</label>'+
       '<select class="form-input pay-item-salary-fixed" style="margin:0;font-size:.75rem;">'+
-        '<option value="fixed"'+(tsal==='fixed'?' selected':'')+'>固定賃金</option>'+
-        '<option value="variable"'+(tsal==='variable'?' selected':'')+'>変動賃金</option>'+
+        '<option value="fixed"'+(tfixed==='fixed'?' selected':'')+'>固定（変更なし）</option>'+
+        '<option value="variable"'+(tfixed==='variable'?' selected':'')+'>月次変動（毎月入力）</option>'+
       '</select></div>'+
     '</div>';
   wrap.appendChild(div);
@@ -1197,7 +1201,7 @@ async function openMonthlyInputModal() {
   // 変動賃金項目を種別ごとに収集
   function getVarItems(psType) {
     var key = psType==='officer'?'pay_items_officer':psType==='employee'?'pay_items_employee':'pay_items_hourly';
-    return (settings[key]||[]).filter(function(item){ return item.salary_type==='variable'; });
+    return (settings[key]||[]).filter(function(item){ return item.wage_fixed==='variable'; });
   }
 
   var html = '<div style="overflow-y:auto;max-height:62vh;"><table class="data-table" style="font-size:.78rem;">';
