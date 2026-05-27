@@ -264,8 +264,106 @@ async function loadAttendanceRecords(){
   var sb=document.getElementById('staffSummaryBody');sb.innerHTML='';
   var keys=Object.keys(staffSummary);
   if(!keys.length){sb.innerHTML='<tr><td colspan="5" class="empty-cell">データがありません</td></tr>';}
-  else keys.forEach(function(k){var s=staffSummary[k],tr=document.createElement('tr');tr.innerHTML='<td>'+s.name+'</td><td>'+s.days+'日</td><td>'+formatWorkTime(s.mins)+'</td><td>'+formatCurrency(s.wage)+'</td><td>'+formatCurrency(s.commute)+'</td>';sb.appendChild(tr);});
+  else keys.forEach(function(k){var s=staffSummary[k],tr=document.createElement('tr');tr.innerHTML='<td>'+s.name+'</td><td>'+s.days+'日</td><td>'+formatWorkTime(s.mins)+'</td><td>'+formatCurrency(s.wage)+'</td><td>'+formatCurrency(s.commute)+'</td>'+'<td><button class="btn-sm btn-edit" onclick="openStaffDetail(\''+k+'\')">'+'📋 詳細</button></td>';sb.appendChild(tr);});
 }
+// ============================================================
+// 個人勤務詳細
+// ============================================================
+async function openStaffDetail(staffId) {
+  var year  = attendanceFilters.year;
+  var month = attendanceFilters.month;
+  var staff = await DB.getStaff();
+  var s = staff.find(function(x){ return x.id === staffId; });
+  if (!s) return;
+
+  var records = await DB.getAttendance({ year: year, month: month, staff_id: staffId });
+  var dayNames = ['日','月','火','水','木','金','土'];
+
+  // パネル切り替え
+  document.getElementById('staffListPanel').style.display = 'none';
+  document.getElementById('staffDetailPanel').style.display = 'block';
+  document.getElementById('staffDetailName').textContent = s.name + ' さん';
+  document.getElementById('staffDetailPeriod').textContent = year + '年' + month + '月度';
+
+  // 昼休み情報
+  var lunchInfo = document.getElementById('detailLunchInfo');
+  if (s.lunch_break && s.lunch_start && s.lunch_end) {
+    lunchInfo.textContent = '🕐 昼休み設定あり：' + s.lunch_start + ' 〜 ' + s.lunch_end + '（出勤時間から自動控除）';
+    lunchInfo.style.display = 'block';
+  } else {
+    lunchInfo.textContent = '昼休み設定なし';
+    lunchInfo.style.display = 'block';
+  }
+
+  // 月の全日付を生成
+  var daysInMonth = new Date(year, month, 0).getDate();
+  var totalDays = 0, totalMins = 0, totalWage = 0, totalCommute = 0;
+  var tbody = document.getElementById('staffDetailBody');
+  tbody.innerHTML = '';
+
+  for (var d = 1; d <= daysInMonth; d++) {
+    var dateStr = year + '-' + String(month).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    var date    = new Date(year, month-1, d);
+    var dow     = date.getDay();
+    var dowName = dayNames[dow];
+    var r = records.find(function(x){ return x.date === dateStr; });
+    var isWeekend = dow === 0 || dow === 6;
+    var rowStyle  = isWeekend ? (dow===0?'background:#fff5f5':'background:#f0f5ff') : '';
+    var dowStyle  = dow===0?'color:#dc2626;font-weight:700':dow===6?'color:#1d4ed8;font-weight:700':'';
+
+    var tr = document.createElement('tr');
+    tr.style.cssText = rowStyle;
+
+    if (r && r.clock_in_actual) {
+      var workMins = r.clock_out_calc ? calcWorkMinutes(r.clock_in_calc, r.clock_out_calc, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
+      var lunchMins = 0;
+      if (s.lunch_break && s.lunch_start && s.lunch_end && r.clock_out_calc) {
+        var rawMins = calcWorkMinutes(r.clock_in_calc, r.clock_out_calc, false, null, null);
+        lunchMins = rawMins - workMins;
+      }
+      var dailyWage = r.clock_out_calc ? calcDailyWage(r.clock_in_calc, r.clock_out_calc, r.wage_at_date||s.wage, r.is_special_day, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
+      var commuteAmt = s.commute_daily_amount || 0;
+      var isMissingOut = !r.clock_out_actual;
+
+      totalDays++;
+      totalMins  += workMins;
+      totalWage  += dailyWage;
+      totalCommute += commuteAmt;
+
+      tr.innerHTML =
+        '<td style="font-weight:700;">' + d + '日</td>' +
+        '<td style="' + dowStyle + '">' + dowName + '</td>' +
+        '<td style="color:#16a34a;font-weight:700;">' + (r.clock_in_actual||'-') + '</td>' +
+        '<td style="color:' + (isMissingOut?'#f59e0b':'#dc2626') + ';font-weight:700;">' + (r.clock_out_actual||(isMissingOut?'⚠️ 未退勤':'-')) + '</td>' +
+        '<td>' + (r.clock_in_calc||'-')  + '</td>' +
+        '<td>' + (r.clock_out_calc||'-') + '</td>' +
+        '<td style="font-weight:700;">' + (workMins ? formatWorkTime(workMins) : '-') + '</td>' +
+        '<td style="color:var(--text-muted);">' + (lunchMins > 0 ? formatWorkTime(lunchMins) : '-') + '</td>' +
+        '<td>' + (r.clock_out_calc ? formatCurrency(dailyWage) : '-') + '</td>' +
+        '<td>' + (r.is_special_day ? '<span class="badge badge-special">⭐</span>' : '') + '</td>' +
+        '<td><button class="btn-sm btn-edit" onclick="openAttendanceEditModal('' + r.id + '')">✏️</button></td>';
+    } else {
+      // 未出勤
+      tr.innerHTML =
+        '<td style="font-weight:700;">' + d + '日</td>' +
+        '<td style="' + dowStyle + '">' + dowName + '</td>' +
+        '<td colspan="9" style="color:var(--text-muted);font-size:.82rem;">' + (isWeekend ? '休日' : '－') + '</td>';
+    }
+    tbody.appendChild(tr);
+  }
+
+  // サマリー更新
+  document.getElementById('detailTotalDays').textContent   = totalDays + '日';
+  document.getElementById('detailTotalTime').textContent   = formatWorkTime(totalMins);
+  document.getElementById('detailTotalWage').textContent   = formatCurrency(totalWage);
+  document.getElementById('detailTotalCommute').textContent = formatCurrency(totalCommute);
+}
+
+function closeStaffDetail() {
+  document.getElementById('staffDetailPanel').style.display = 'none';
+  document.getElementById('staffListPanel').style.display   = 'block';
+}
+
 async function openAttendanceAddModal(){
   document.getElementById('attendanceModalTitle').textContent='打刻の手動追加';document.getElementById('attendanceId').value='';
   var staff=await DB.getStaff(),sel=document.getElementById('attendanceStaff');sel.innerHTML='';

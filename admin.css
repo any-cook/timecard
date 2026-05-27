@@ -709,3 +709,26 @@ select:focus, input:focus, textarea:focus {
   .monthly-table { font-size: 0.6rem; }
   .monthly-name-col, .monthly-name-cell { position: static; }
 }
+
+/* ============================================================
+   個人勤務詳細
+   ============================================================ */
+#staffDetailPanel .data-table td {
+  font-size: 0.82rem;
+  padding: 7px 8px;
+  white-space: nowrap;
+}
+#staffDetailPanel .data-table th {
+  font-size: 0.78rem;
+  padding: 8px 6px;
+  white-space: nowrap;
+}
+#detailLunchInfo {
+  font-size: .82rem;
+  color: var(--text-muted);
+  padding: 8px 14px;
+  background: #f8fafc;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}

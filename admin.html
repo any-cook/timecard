@@ -84,6 +84,37 @@
           <button class="btn btn-secondary" onclick="openCsvModal()">📂 CSVインポート</button>
         </div>
       </div>
+      <!-- 勤務詳細パネル -->
+      <div id="staffDetailPanel" style="display:none;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+          <button class="btn btn-secondary" onclick="closeStaffDetail()">← 一覧に戻る</button>
+          <h3 id="staffDetailName" style="font-size:1.1rem;font-weight:800;color:var(--text);"></h3>
+          <span id="staffDetailPeriod" style="font-size:.85rem;color:var(--text-muted);"></span>
+        </div>
+        <!-- サマリーカード -->
+        <div class="summary-cards" style="margin-bottom:16px;">
+          <div class="summary-card"><div class="summary-card-label">出勤日数</div><div class="summary-card-value" id="detailTotalDays">-</div></div>
+          <div class="summary-card"><div class="summary-card-label">出勤時間合計</div><div class="summary-card-value" id="detailTotalTime">-</div></div>
+          <div class="summary-card"><div class="summary-card-label">支給額合計</div><div class="summary-card-value" id="detailTotalWage">-</div></div>
+          <div class="summary-card"><div class="summary-card-label">通勤費合計</div><div class="summary-card-value" id="detailTotalCommute">-</div></div>
+        </div>
+        <!-- 昼休み情報 -->
+        <div id="detailLunchInfo" style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px;padding:8px 14px;background:#f8fafc;border-radius:8px;border:1px solid var(--border);"></div>
+        <!-- 勤務詳細テーブル -->
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>日付</th><th>曜日</th><th>出勤(実)</th><th>退勤(実)</th>
+                <th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>休憩</th><th>日給</th><th>特別日</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="staffDetailBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="staffListPanel">
       <div class="filter-bar">
         <div class="filter-group"><span class="filter-label">年</span>
           <select id="filterYear" onchange="loadAttendanceRecords()"><option value="2024">2024</option><option value="2025">2025</option><option value="2026" selected>2026</option></select>
@@ -117,7 +148,8 @@
           <tbody id="attendanceTableBody"><tr><td colspan="11" class="empty-cell">読み込み中...</td></tr></tbody>
         </table>
       </div>
-    </div>
+      </div><!-- /staffListPanel -->
+    </div><!-- /tab-attendance -->
 
     <!-- タブ3: 特別日設定 -->
     <div class="tab-panel" id="tab-special">
