@@ -27,6 +27,12 @@ async function loadStaffTab(){
   _pensionTable=res[0];_healthTable=res[1];_healthNursingTable=res[2];_childSupportTable=res[3];
   var staff=await DB.getStaff(),tbody=document.getElementById('staffTableBody');tbody.innerHTML='';
   if(!staff.length){tbody.innerHTML='<tr><td colspan="9" class="empty-cell">スタッフが登録されていません</td></tr>';return;}
+  // 登録番号順にソート（数値として比較、未設定は末尾）
+  staff.sort(function(a,b){
+    var na=parseInt(a.staff_number||9999),nb=parseInt(b.staff_number||9999);
+    if(na!==nb)return na-nb;
+    return (a.staff_number||'').localeCompare(b.staff_number||'');
+  });
   staff.forEach(function(s){
     var age=calcAge(s.birthdate),ageStr=age!==null?age+'歳':'-';
     var nursing=s.birthdate?(isNursingCare(s.birthdate)?'<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #d97706;">介護2号</span>':'<span class="badge badge-inactive">非該当</span>'):'-';
@@ -234,7 +240,7 @@ async function loadAttendanceRecords(){
   records.forEach(function(r){
     var s=staffMap[r.staff_id]||{};
     var lunchBreak=s.lunch_break||false;
-    var workMins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,(s&&s.lunch_break),(s&&s.lunch_start),(s&&s.lunch_end));
+    var workMins=r.clock_out_calc?calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,(s&&s.lunch_break),(s&&s.lunch_start),(s&&s.lunch_end)):0;
     var dailyWage=r.clock_out_calc?calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||0,r.is_special_day,(s&&s.lunch_break),(s&&s.lunch_start),(s&&s.lunch_end)):0;
     var commuteAmt=r.clock_in_actual&&s.commute_daily_amount?s.commute_daily_amount:0;
     totalWage+=dailyWage;totalMins+=workMins;
@@ -626,7 +632,7 @@ async function loadMonthlyTab() {
       var cls = dow===0?'monthly-sun':dow===6?'monthly-sat':'';
 
       if (r && r.clock_in_actual) {
-        var mins = calcWorkMinutes(r.clock_in_calc, r.clock_out_calc, s.lunch_break, s.lunch_start, s.lunch_end);
+        var mins = r.clock_out_calc ? calcWorkMinutes(r.clock_in_calc, r.clock_out_calc, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
         totalDays++;
         totalMins += mins;
         var inTime  = r.clock_in_actual  || '-';
