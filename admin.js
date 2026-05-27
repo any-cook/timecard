@@ -451,28 +451,28 @@ async function loadPayrollSummary(){
   var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support')]);
   var allStaff=res[0],records=res[1],taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7];
   var tbody=document.getElementById('payrollTableBody');tbody.innerHTML='';var grandTotal=0;
-  allStaff.filter(function(s){return s.is_active;}).forEach(function(staff){
+  var activeStaff=allStaff.filter(function(s){return s.is_active;});
+  for(var si=0;si<activeStaff.length;si++){
+    var staff=activeStaff[si];
     var staffRecords=records.filter(function(r){return r.staff_id===staff.id;});
     var grossPay=0,totalMins=0,workDays=0;
-    var lunchBreak=staff.lunch_break||false;
     if(staff.type==='hourly'){staffRecords.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,staff.lunch_break,staff.lunch_start,staff.lunch_end);totalMins+=mins;if(r.clock_in_actual)workDays++;grossPay+=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end);});}
     else{grossPay=staff.monthly_salary||0;workDays=staffRecords.filter(function(r){return r.clock_in_actual;}).length;}
-    var commuteData=calcCommuteAllowance(staff.commute_daily_amount||0,workDays,staff.commute_distance||0);
+    // 月次入力から出勤日数を取得
+    var monthlyData=await getMonthlyInput(year,month,staff.id);
+    if(monthlyData.work_days!==null) workDays=monthlyData.work_days;
+    // 役員は通勤費固定支給
+    var commuteWorkDays=(staff.payslip_type==='officer'||staff.type==='officer')?20:workDays;
+    var commuteData=calcCommuteAllowance(staff.commute_daily_amount||0,commuteWorkDays,staff.commute_distance||0);
     var taxableIncome=grossPay+commuteData.taxable;
     var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
     var tax=calcTax(taxableIncome,taxRows,staff.tax_type||'kou',staff.dependents||0);
     var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
     var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
     var healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
-    // 介護保険料を分離（介護込み - 介護なしの差額）
     var healthBase=0,nursingCare=0;
-    if(staff.health_table_type==='health_nursing'){
-      healthBase=getInsuranceAmountByGrade(staff.health_grade_id,healthTable);
-      nursingCare=Math.max(0,healthTotal-healthBase);
-    } else {
-      healthBase=healthTotal; nursingCare=0;
-    }
-    var health=healthBase;
+    if(staff.health_table_type==='health_nursing'){healthBase=getInsuranceAmountByGrade(staff.health_grade_id,healthTable);nursingCare=Math.max(0,healthTotal-healthBase);}
+    else{healthBase=healthTotal;nursingCare=0;}
     var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
     var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
     var socialDeduction=pension+healthTotal+childSupport+empIns;
@@ -486,7 +486,7 @@ async function loadPayrollSummary(){
       '<td><strong>'+formatCurrency(netPay)+'</strong></td>'+
       '<td><button class="btn-sm btn-edit" onclick="showPayslip(\''+staff.id+'\','+year+','+month+')">📄 明細</button></td>';
     tbody.appendChild(tr);
-  });
+  }
   document.getElementById('payrollGrandTotal').textContent='支給合計: '+formatCurrency(grandTotal);
 }
 async function showPayslip(staffId,year,month){
