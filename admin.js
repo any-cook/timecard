@@ -476,7 +476,13 @@ async function loadPayrollSummary(){
     var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
     var healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
     var healthBase=0,nursingCare=0;
-    if(staff.health_table_type==='health_nursing'){healthBase=getInsuranceAmountByGrade(staff.health_grade_id,healthTable);nursingCare=Math.max(0,healthTotal-healthBase);}
+    if(staff.health_table_type==='health_nursing'){
+      var _nRow=healthNursingTable.find(function(r){return r.id===staff.health_grade_id;});
+      var _gNo=_nRow?_nRow.grade:null;
+      var _bRow=_gNo?healthTable.find(function(r){return r.grade===_gNo;}):null;
+      healthBase=_bRow?_bRow.employee:0;
+      nursingCare=Math.max(0,healthTotal-healthBase);
+    }
     else{healthBase=healthTotal;nursingCare=0;}
     var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
     var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
@@ -503,7 +509,11 @@ async function showPayslip(staffId,year,month){
   var healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
   var healthBase=0,nursingCare=0;
   if(staff.health_table_type==='health_nursing'){
-    healthBase=getInsuranceAmountByGrade(staff.health_grade_id,healthTable);
+    // 介護込みテーブルのIDから等級番号を取得し、介護なしテーブルの同等級を参照
+    var nursingRow=healthNursingTable.find(function(r){return r.id===staff.health_grade_id;});
+    var gradeNo=nursingRow?nursingRow.grade:null;
+    var baseRow=gradeNo?healthTable.find(function(r){return r.grade===gradeNo;}):null;
+    healthBase=baseRow?baseRow.employee:0;
     nursingCare=Math.max(0,healthTotal-healthBase);
   } else {
     healthBase=healthTotal; nursingCare=0;
