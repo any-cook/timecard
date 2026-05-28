@@ -598,7 +598,7 @@
         <div class="form-group"><label class="form-label">CSVファイル</label><input type="file" id="taxCsvFile" accept=".csv" style="margin-top:6px;"></div>
       </div>
       <button class="btn btn-primary" onclick="previewTaxCsv()">👁️ プレビュー確認</button>
-      <div id="taxCsvPreview" style="display:none;margin-top:16px;"><strong id="taxCsvCount" style="color:var(--accent);display:block;margin-bottom:8px;"></strong><div class="table-scroll"><table class="data-table"><thead><tr><th>月収（以上）</th><th>税額</th></tr></thead><tbody id="taxCsvPreviewBody"></tbody></table></div></div>
+      <div id="taxCsvPreview" style="display:none;margin-top:16px;"><strong id="taxCsvCount" style="color:var(--accent);display:block;margin-bottom:8px;"></strong><div class="table-scroll"><table class="data-table"><thead><tr id="taxCsvPreviewHeader"><th>月収（以上）</th><th>税額</th></tr></thead><tbody id="taxCsvPreviewBody"></tbody></table></div></div>
       <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('taxCsvModal')">キャンセル</button><button class="btn btn-danger" onclick="importTaxCsv()">⚠️ 上書きインポート</button></div>
     </div>
   </div>

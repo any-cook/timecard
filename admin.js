@@ -813,7 +813,7 @@ async function previewTaxCsv(){
   var firstCol=lines[0].split(',')[0].trim().replace(/"/g,'');
   var dl=isNaN(parseInt(firstCol))?lines.slice(1):lines;
   if(type==='kou'){
-    document.getElementById('taxCsvPreviewBody').closest('table').querySelector('thead tr').innerHTML=
+    document.getElementById('taxCsvPreviewHeader').innerHTML=
       '<th>以上</th><th>未満</th><th>0人</th><th>1人</th><th>2人</th><th>3人</th><th>4人</th><th>5人</th><th>6人</th><th>7人</th>';
     for(var i=0;i<dl.length;i++){
       var cols=dl[i].split(',').map(function(c){return c.trim().replace(/[,"¥\u00a5]/g,'');});
@@ -830,7 +830,7 @@ async function previewTaxCsv(){
       tbody.appendChild(tr);
     }
   } else {
-    document.getElementById('taxCsvPreviewBody').closest('table').querySelector('thead tr').innerHTML='<th>月収（以上）</th><th>税額</th>';
+    document.getElementById('taxCsvPreviewHeader').innerHTML='<th>月収（以上）</th><th>税額</th>';
     for(var i=0;i<dl.length;i++){
       var cols=dl[i].split(',').map(function(c){return c.trim().replace(/[,"¥\u00a5]/g,'');});
       if(cols.length<2)continue;
