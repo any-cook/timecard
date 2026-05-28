@@ -93,20 +93,54 @@ function currentYear() { return new Date().getFullYear(); }
 function currentMonth() { return new Date().getMonth()+1; }
 
 // ============================================================
-// 所得税計算（扶養人数対応）
+// 所得税計算（令和8年分 甲欄・扶養人数対応）
 // ============================================================
+// taxRows 新形式(甲欄): { income_from, income_to, dep0〜dep7, calc_type, base_income, base_tax_dep0, rate }
+// taxRows 旧形式(後方互換): { income_from, tax_amount }
 function calcTax(monthlyIncome, taxRows, taxType, dependents) {
   if (!taxRows || !taxRows.length) return 0;
   taxType = taxType || 'kou';
   dependents = parseInt(dependents) || 0;
-  var sorted = taxRows.slice().sort(function(a,b){ return b.income_from - a.income_from; });
+
+  // 新形式（甲欄・扶養人数別テーブル）
+  if (taxType === 'kou' && taxRows[0] && taxRows[0].dep0 !== undefined) {
+    var sorted = taxRows.slice().sort(function(a,b){ return a.income_from - b.income_from; });
+    var row = null;
+    for (var i = sorted.length - 1; i >= 0; i--) {
+      var r = sorted[i];
+      if (monthlyIncome >= r.income_from) {
+        if (!r.income_to || monthlyIncome < r.income_to) { row = r; break; }
+      }
+    }
+    if (!row) return 0;
+    // 計算式型の行（740,000円超など）
+    if (row.calc_type === 'formula') {
+      var depTax7 = row.dep7 !== undefined ? row.dep7 : Math.max(0, (row.dep0||0) - 7*1610);
+      var baseDep = Math.max(0, depTax7 - Math.max(0, dependents-7)*1610);
+      if (dependents <= 7) {
+        var depKey = 'dep'+Math.min(dependents,7);
+        baseDep = row[depKey] !== undefined ? row[depKey] : Math.max(0,(row.dep0||0)-dependents*1610);
+      }
+      var over = Math.max(0, monthlyIncome - row.base_income);
+      return Math.max(0, Math.round(baseDep + over * row.rate));
+    }
+    // 通常の表引き
+    var dk = 'dep' + Math.min(dependents, 7);
+    var tax = (row[dk] !== undefined) ? row[dk] : 0;
+    if (dependents > 7) tax = Math.max(0, (row.dep7||0) - (dependents-7)*1610);
+    return Math.max(0, tax);
+  }
+
+  // 乙欄 または 旧形式甲欄（後方互換）
+  var sortedOld = taxRows.slice().sort(function(a,b){ return b.income_from - a.income_from; });
   var baseTax = 0;
-  for (var i=0; i<sorted.length; i++) {
-    if (monthlyIncome >= sorted[i].income_from) { baseTax = sorted[i].tax_amount; break; }
+  for (var j = 0; j < sortedOld.length; j++) {
+    if (monthlyIncome >= sortedOld[j].income_from) { baseTax = sortedOld[j].tax_amount||0; break; }
   }
   if (taxType === 'otsu') return baseTax;
   return Math.max(0, baseTax - dependents * 1610);
 }
+
 
 // ============================================================
 // 雇用保険料（令和8年度）

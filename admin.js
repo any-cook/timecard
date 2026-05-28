@@ -803,7 +803,46 @@ async function loadInsuranceTable(type){
 }
 function openTaxCsvModal(){document.getElementById('taxCsvType').value=currentTaxType;document.getElementById('taxCsvFile').value='';document.getElementById('taxCsvPreview').style.display='none';document.getElementById('taxCsvPreviewBody').innerHTML='';openModal('taxCsvModal');}
 var taxCsvParsed=[];
-async function previewTaxCsv(){var file=document.getElementById('taxCsvFile').files[0];if(!file){showToast('ファイルを選択してください','error');return;}var text=await file.text(),lines=text.split('\n').filter(function(l){return l.trim();});taxCsvParsed=[];var tbody=document.getElementById('taxCsvPreviewBody');tbody.innerHTML='';var first=lines[0].split(',')[0],dl=(isNaN(parseInt(first))||lines[0].indexOf('月収')>=0)?lines.slice(1):lines;for(var i=0;i<dl.length;i++){var cols=dl[i].split(',').map(function(c){return c.trim().replace(/["\u00a5]/g,'');});if(cols.length<2)continue;var inf=parseInt(cols[0]),ta=parseInt(cols[1]);if(isNaN(inf)||isNaN(ta))continue;taxCsvParsed.push({income_from:inf,tax_amount:ta});var tr=document.createElement('tr');tr.innerHTML='<td>'+formatCurrency(inf)+' ～</td><td>'+formatCurrency(ta)+'</td>';tbody.appendChild(tr);}document.getElementById('taxCsvPreview').style.display='block';document.getElementById('taxCsvCount').textContent=taxCsvParsed.length+'行読み込み済み';}
+async function previewTaxCsv(){
+  var file=document.getElementById('taxCsvFile').files[0];
+  if(!file){showToast('ファイルを選択してください','error');return;}
+  var text=await file.text(),lines=text.split('\n').filter(function(l){return l.trim();});
+  taxCsvParsed=[];
+  var tbody=document.getElementById('taxCsvPreviewBody');tbody.innerHTML='';
+  var type=document.getElementById('taxCsvType').value;
+  var firstCol=lines[0].split(',')[0].trim().replace(/"/g,'');
+  var dl=isNaN(parseInt(firstCol))?lines.slice(1):lines;
+  if(type==='kou'){
+    document.getElementById('taxCsvPreviewBody').closest('table').querySelector('thead tr').innerHTML=
+      '<th>以上</th><th>未満</th><th>0人</th><th>1人</th><th>2人</th><th>3人</th><th>4人</th><th>5人</th><th>6人</th><th>7人</th>';
+    for(var i=0;i<dl.length;i++){
+      var cols=dl[i].split(',').map(function(c){return c.trim().replace(/[,"¥\u00a5]/g,'');});
+      if(cols.length<3)continue;
+      var from=parseInt(cols[0]);if(isNaN(from))continue;
+      var to=cols[1]?parseInt(cols[1]):null;
+      var deps={};
+      for(var d=0;d<8;d++) deps['dep'+d]=parseInt(cols[d+2])||0;
+      taxCsvParsed.push(Object.assign({income_from:from,income_to:to},deps));
+      var tr=document.createElement('tr');
+      tr.innerHTML='<td>'+formatCurrency(from)+'</td><td>'+(to?formatCurrency(to):'-')+'</td>'+
+        '<td>'+deps.dep0+'</td><td>'+deps.dep1+'</td><td>'+deps.dep2+'</td><td>'+deps.dep3+'</td>'+
+        '<td>'+deps.dep4+'</td><td>'+deps.dep5+'</td><td>'+deps.dep6+'</td><td>'+deps.dep7+'</td>';
+      tbody.appendChild(tr);
+    }
+  } else {
+    document.getElementById('taxCsvPreviewBody').closest('table').querySelector('thead tr').innerHTML='<th>月収（以上）</th><th>税額</th>';
+    for(var i=0;i<dl.length;i++){
+      var cols=dl[i].split(',').map(function(c){return c.trim().replace(/[,"¥\u00a5]/g,'');});
+      if(cols.length<2)continue;
+      var inf=parseInt(cols[0]),ta=parseInt(cols[1]);if(isNaN(inf)||isNaN(ta))continue;
+      taxCsvParsed.push({income_from:inf,tax_amount:ta});
+      var tr=document.createElement('tr');tr.innerHTML='<td>'+formatCurrency(inf)+' ～</td><td>'+formatCurrency(ta)+'</td>';
+      tbody.appendChild(tr);
+    }
+  }
+  document.getElementById('taxCsvPreview').style.display='block';
+  document.getElementById('taxCsvCount').textContent=taxCsvParsed.length+'行読み込み済み';
+}
 async function importTaxCsv(){if(!taxCsvParsed.length){showToast('データがありません','error');return;}var type=document.getElementById('taxCsvType').value;if(!confirmAction(taxCsvParsed.length+'行で税額表（'+(type==='kou'?'甲欄':'乙欄')+'）を上書きしますか？'))return;await DB.replaceTaxTable(type,taxCsvParsed.map(function(r){return Object.assign({},r,{id:_uid()});}));closeModal('taxCsvModal');showToast('税額表を更新しました');loadTaxTable(type);}
 function downloadTaxCsvTemplate(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['月収以上,税額\n88000,130\n89000,220'],{type:'text/csv;charset=utf-8;'}));a.download='tax_template.csv';a.click();}
 function openInsuranceCsvModal(){document.getElementById('insuranceCsvType').value=currentInsuranceType;document.getElementById('insuranceCsvFile').value='';document.getElementById('insuranceCsvPreview').style.display='none';document.getElementById('insuranceCsvPreviewBody').innerHTML='';openModal('insuranceCsvModal');}
