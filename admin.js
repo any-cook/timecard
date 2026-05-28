@@ -473,9 +473,6 @@ async function loadPayrollSummary(){
       ? calcOfficerCommuteAllowance(staff.commute_distance||0)
       : calcCommuteAllowance(staff.commute_daily_amount||0,workDays,staff.commute_distance||0);
     // 所得税：課税支給額（基本給＋課税通勤費）で計算
-    var taxableIncome=grossPay+commuteData.taxable;
-    var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
-    var tax=calcTax(taxableIncome,taxRows,staff.tax_type||'kou',staff.dependents||0);
     var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
     var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
     var healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
@@ -491,6 +488,10 @@ async function loadPayrollSummary(){
     var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
     var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
     var socialDeduction=pension+healthTotal+childSupport+empIns;
+    // 正しい所得税計算：社会保険料等控除後の給与に税額表を適用
+    var taxableIncome=grossPay+commuteData.taxable-socialDeduction;
+    var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
+    var tax=calcTax(Math.max(0,taxableIncome),taxRows,staff.tax_type||'kou',staff.dependents||0);
     var netPay=grossPay+commuteData.taxFree-tax-socialDeduction;
     grandTotal+=grossPay;
     var tr=document.createElement('tr');
@@ -544,13 +545,15 @@ async function showPayslip(staffId,year,month){
     ? calcOfficerCommuteAllowance(staff.commute_distance||0)
     : calcCommuteAllowance(staff.commute_daily_amount||0,workDays,staff.commute_distance||0);
   // 所得税：課税支給額（基本給＋課税通勤費）で計算
-  var taxableIncome=grossPay+commuteData.taxable;
-  var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
-  var tax=calcTax(taxableIncome,taxRows,staff.tax_type||'kou',staff.dependents||0);
   var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
   var health=healthBase; // 健康保険料（介護保険料除く）
   var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
   var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
+  // 正しい所得税計算：社会保険料等控除後の給与に税額表を適用
+  var socialInsTotal=pension+health+nursingCare+childSupport+empIns;
+  var taxableIncome=grossPay+commuteData.taxable-socialInsTotal;
+  var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
+  var tax=calcTax(Math.max(0,taxableIncome),taxRows,staff.tax_type||'kou',staff.dependents||0);
   var netPay=grossPay+commuteData.taxFree-tax-pension-health-nursingCare-childSupport-empIns;
   var age=calcAge(staff.birthdate);
   // 合計支給額（非課税通勤費含む）
