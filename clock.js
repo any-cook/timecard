@@ -204,8 +204,8 @@ async function clockIn() {
     // 保存結果（IDつき）をキャッシュ
     cachedRecord = saved || newRecord;
 
-    showPunchMessage('✅ 出勤しました！', now, '#16a34a', '本日もよろしくお願い致します。😊');
     await updateClockStatus();
+    showPunchMessage('✅ 出勤しました！', now, '#16a34a', '本日もよろしくお願い致します。😊');
 
   } catch(e) {
     console.error('clockIn error:', e);
@@ -256,8 +256,8 @@ async function clockOut() {
     await DB.saveAttendance(updated);
     cachedRecord = updated;
 
-    showPunchMessage('✅ 退勤しました！', now, '#dc2626', '本日もご苦労様でした。🌸');
     await updateClockStatus();
+    showPunchMessage('✅ 退勤しました！', now, '#dc2626', '本日もご苦労様でした。🌸');
 
     // 3秒後に番号入力画面へ戻る
     setTimeout(function() { backToNumberInput(); }, 3000);
