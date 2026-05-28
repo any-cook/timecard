@@ -145,3 +145,9 @@ function calcCommuteAllowance(dailyAmount, workDays, distanceKm) {
   var taxFreeLimit = getCommuteTaxFreeLimit(distanceKm);
   return { total:total, taxFree:Math.min(total, taxFreeLimit), taxable:Math.max(0, total - taxFreeLimit) };
 }
+
+// 役員用通勤費：距離の非課税限度額を固定支給（全額非課税）
+function calcOfficerCommuteAllowance(distanceKm) {
+  var taxFreeLimit = getCommuteTaxFreeLimit(distanceKm);
+  return { total:taxFreeLimit, taxFree:taxFreeLimit, taxable:0 };
+}

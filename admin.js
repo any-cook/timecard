@@ -467,8 +467,12 @@ async function loadPayrollSummary(){
       grossPay  = Math.floor(monthlyData.work_hours * (staff.wage||0));
     }
     // 役員は通勤費固定支給
-    var commuteWorkDays=(staff.payslip_type==='officer'||staff.type==='officer')?20:workDays;
-    var commuteData=calcCommuteAllowance(staff.commute_daily_amount||0,commuteWorkDays,staff.commute_distance||0);
+    // 役員：距離の非課税限度額を固定支給（全額非課税）、それ以外：出勤日数×日額
+    var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
+    var commuteData=isOfficer
+      ? calcOfficerCommuteAllowance(staff.commute_distance||0)
+      : calcCommuteAllowance(staff.commute_daily_amount||0,workDays,staff.commute_distance||0);
+    // 所得税：課税支給額（基本給＋課税通勤費）で計算
     var taxableIncome=grossPay+commuteData.taxable;
     var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
     var tax=calcTax(taxableIncome,taxRows,staff.tax_type||'kou',staff.dependents||0);
@@ -534,8 +538,12 @@ async function showPayslip(staffId,year,month){
   var monthlyVarItems = monthlyData.variable_items||[];
   var monthlyNote = monthlyData.note||'';
   // 役員は通勤費固定支給（日額×月固定日数20日換算）、それ以外は出勤日数×日額
-  var commuteWorkDays = (staff.payslip_type==='officer'||staff.type==='officer') ? 20 : workDays;
-  var commuteData=calcCommuteAllowance(staff.commute_daily_amount||0,commuteWorkDays,staff.commute_distance||0);
+  // 役員：距離の非課税限度額を固定支給（全額非課税）、それ以外：出勤日数×日額
+  var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
+  var commuteData=isOfficer
+    ? calcOfficerCommuteAllowance(staff.commute_distance||0)
+    : calcCommuteAllowance(staff.commute_daily_amount||0,workDays,staff.commute_distance||0);
+  // 所得税：課税支給額（基本給＋課税通勤費）で計算
   var taxableIncome=grossPay+commuteData.taxable;
   var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
   var tax=calcTax(taxableIncome,taxRows,staff.tax_type||'kou',staff.dependents||0);
