@@ -229,6 +229,25 @@
       <div class="collapsible-body" id="insuranceTableSection">
         <div class="table-scroll"><table class="data-table"><thead><tr><th>等級</th><th>標準報酬月額</th><th>報酬月額範囲</th><th>被保険者負担</th><th>事業主負担</th></tr></thead><tbody id="insuranceTableBody"></tbody></table></div>
       </div>
+      <hr class="section-divider">
+      <div class="section-header">
+        <h2 class="section-title">💼 雇用保険料率管理</h2>
+        <button class="btn btn-secondary" onclick="openEmpInsCsvModal()">📂 CSVインポート</button>
+      </div>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px;">事業区分ごとの雇用保険料率を設定します。スタッフの雇用保険料計算に反映されます。</p>
+      <div class="collapsible-header" onclick="toggleCollapsible('empInsSection')">
+        <h3 id="empInsTitle">📄 雇用保険料率一覧</h3>
+        <span class="collapsible-arrow" id="empInsSectionArrow">▼</span>
+      </div>
+      <div class="collapsible-body" id="empInsSection">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>事業区分</th><th>適用年度</th><th>労働者負担</th><th>事業主負担</th><th>合計料率</th><th>操作</th></tr></thead>
+            <tbody id="empInsTableBody"><tr><td colspan="6" class="empty-cell">読み込み中...</td></tr></tbody>
+          </table>
+        </div>
+        <button class="btn btn-primary" onclick="openEmpInsAddModal()" style="margin-top:10px;">➕ 手動追加</button>
+      </div>
     </div>
 
     <!-- タブ6: 有休管理 -->
