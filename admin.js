@@ -785,7 +785,62 @@ function switchPayslip(mode) {
   document.getElementById('btnPayslipOld').style.background = isNew ? 'var(--surface2)' : 'var(--accent)';
   document.getElementById('btnPayslipOld').style.color = isNew ? 'var(--text)' : '#fff';
 }
-function printPayslip(){window.print();}
+function printPayslip(){
+  // 給与明細の内容を取得
+  var newContent = document.getElementById('payslipNew').style.display !== 'none'
+    ? document.getElementById('payslipNew').innerHTML
+    : document.getElementById('payslipOld').innerHTML;
+
+  var printWin = window.open('', '_blank', 'width=800,height=600');
+  printWin.document.write(
+    '<!DOCTYPE html><html><head>' +
+    '<meta charset="UTF-8">' +
+    '<title>給与明細書</title>' +
+    '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">' +
+    '<style>' +
+    'body{font-family:"Noto Sans JP",sans-serif;font-size:0.82rem;color:#222;margin:16px;padding:0;background:#fff;}' +
+    '.ps-wrap{max-width:760px;margin:0 auto;}' +
+    '.ps-company{font-size:.9rem;font-weight:700;text-align:right;margin-bottom:4px;}' +
+    '.ps-title{font-size:1.1rem;font-weight:900;text-align:center;margin-bottom:10px;letter-spacing:.05em;}' +
+    '.ps-meta{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #222;}' +
+    '.ps-emp{font-size:1rem;font-weight:700;}' +
+    '.ps-meta-right{font-size:.82rem;color:#555;}' +
+    '.ps-table{width:100%;border-collapse:collapse;margin-bottom:0;}' +
+    '.ps-table th,.ps-table td{border:1px solid #999;padding:5px 6px;font-size:.78rem;}' +
+    '.ps-section-header th{background:#e8e8e8;font-weight:700;text-align:center;font-size:.8rem;padding:6px;}' +
+    '.ps-label{background:#f5f5f5;color:#444;width:10%;white-space:nowrap;}' +
+    '.ps-val{text-align:right;font-weight:600;width:12%;padding-right:8px;}' +
+    '.ps-total-label{background:#dde4f0;font-weight:700;color:#1a3a6b;}' +
+    '.ps-total-val{background:#eef2fa;font-weight:700;color:#1a3a6b;font-size:.88rem;}' +
+    '.ps-total-row td{border-top:2px solid #666;}' +
+    '.ps-bottom{display:flex;border:1px solid #999;border-top:none;}' +
+    '.ps-bottom-block{flex:1;border-right:1px solid #999;padding:0;}' +
+    '.ps-bottom-block:last-child{border-right:none;}' +
+    '.ps-bottom-label{background:#e8e8e8;font-weight:700;text-align:center;font-size:.78rem;padding:4px;border-bottom:1px solid #999;}' +
+    '.ps-bottom-val{text-align:right;font-weight:600;padding:6px 10px;font-size:.88rem;}' +
+    '.ps-net{background:#fef9e7;}' +
+    '.ps-net-val{font-size:1.1rem;font-weight:900;color:#c0392b;}' +
+    '.ps-footer{display:flex;border:1px solid #999;border-top:none;}' +
+    '.ps-footer-item{flex:1;border-right:1px solid #999;padding:5px 8px;font-size:.75rem;color:#666;}' +
+    '.ps-footer-item:last-child{border-right:none;}' +
+    '.ps-note{font-size:.75rem;color:#555;margin-top:8px;padding:6px 10px;background:#fffbe6;border:1px solid #f0d060;border-radius:4px;}' +
+    '.ps-detail-toggle{display:none;}' +
+    '.summary-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;}' +
+    '.summary-row.deduction span:last-child{color:#dc2626;}' +
+    '.summary-row.total{font-weight:900;font-size:1.1rem;border-top:2px solid #222;margin-top:8px;}' +
+    '.payslip{max-width:760px;margin:0 auto;}' +
+    '.payslip-header{text-align:center;margin-bottom:16px;}' +
+    '.payslip-info{display:flex;flex-wrap:wrap;gap:8px 20px;margin-bottom:16px;font-size:.82rem;}' +
+    '.payslip-summary{margin-top:16px;border:1px solid #ddd;border-radius:8px;padding:16px;}' +
+    '</style>' +
+    '</head><body>' +
+    newContent +
+    '</body></html>'
+  );
+  printWin.document.close();
+  printWin.focus();
+  setTimeout(function(){ printWin.print(); printWin.close(); }, 500);
+}
 
 var currentTaxType='kou',currentInsuranceType='pension';
 var insuranceLabels={pension:'厚生年金',health:'健康保険（介護なし）',health_nursing:'健康保険（介護込み）',child_support:'子ども・子育て支援金'};
