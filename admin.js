@@ -1205,51 +1205,90 @@ function addPayItem(type, name, amount, isAuto, category, calc_add, tax_type, wa
   var tfixed= wage_fixed || 'fixed';
   var div = document.createElement('div');
   div.className = 'pay-item-row';
-  div.style.cssText = 'margin-bottom:12px;background:#f8fafc;padding:14px;border-radius:12px;border:1px solid var(--border);';
-  div.innerHTML =
-    // 1行目：項目名・金額・表示区分・集計方法
-    '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:10px;">'+
-      '<div><label class="pi-label">項目名</label>'+
-      '<input type="text" class="form-input pay-item-name" placeholder="例: 食事手当" value="'+(name||'')+'" style="margin:0;"></div>'+
-      '<div><label class="pi-label">金額（円）</label>'+
-      '<input type="number" class="form-input pay-item-amount" placeholder="0" value="'+(amount||0)+'" min="0" style="margin:0;"></div>'+
-      '<div><label class="pi-label">表示区分</label>'+
-      '<select class="form-input pay-item-category" style="margin:0;">'+
-        '<option value="attendance"'+(cat==='attendance'?' selected':'')+'>勤怠</option>'+
-        '<option value="pay"'+(cat==='pay'?' selected':'')+'>支給</option>'+
-        '<option value="deduction"'+(cat==='deduction'?' selected':'')+'>控除</option>'+
-        '<option value="other"'+(cat==='other'?' selected':'')+'>その他</option>'+
-      '</select></div>'+
-      '<div><label class="pi-label">集計方法</label>'+
-      '<select class="form-input pay-item-calc-add" style="margin:0;">'+
-        '<option value="add"'+(cadd==='add'?' selected':'')+'>➕ 加算</option>'+
-        '<option value="sub"'+(cadd==='sub'?' selected':'')+'>➖ 減算</option>'+
-      '</select></div>'+
-      '<button class="btn btn-secondary" onclick="this.closest(\".pay-item-row\").remove()" style="padding:8px 10px;white-space:nowrap;">🗑️</button>'+
-    '</div>'+
-    // 2行目：課税・賃金・報酬・固定賃金
-    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;">'+
-      '<div><label class="pi-label">課税（所得税）</label>'+
-      '<select class="form-input pay-item-tax-type" style="margin:0;font-size:.75rem;">'+
-        '<option value="taxable"'+(ttax==='taxable'?' selected':'')+'>課税</option>'+
-        '<option value="nontaxable"'+(ttax==='nontaxable'?' selected':'')+'>非課税</option>'+
-      '</select></div>'+
-      '<div><label class="pi-label">賃金（労働保険）</label>'+
-      '<select class="form-input pay-item-wage-type" style="margin:0;font-size:.75rem;">'+
-        '<option value="wage"'+(twage==='wage'?' selected':'')+'>賃金に含める</option>'+
-        '<option value="nonwage"'+(twage==='nonwage'?' selected':'')+'>賃金に含めない</option>'+
-      '</select></div>'+
-      '<div><label class="pi-label">報酬（社会保険）</label>'+
-      '<select class="form-input pay-item-salary-type" style="margin:0;font-size:.75rem;">'+
-        '<option value="included"'+(tsal==='included'?' selected':'')+'>報酬に含める</option>'+
-        '<option value="excluded"'+(tsal==='excluded'?' selected':'')+'>報酬に含めない</option>'+
-      '</select></div>'+
-      '<div><label class="pi-label">月次変動</label>'+
-      '<select class="form-input pay-item-salary-fixed" style="margin:0;font-size:.75rem;">'+
-        '<option value="fixed"'+(tfixed==='fixed'?' selected':'')+'>固定（変更なし）</option>'+
-        '<option value="variable"'+(tfixed==='variable'?' selected':'')+'>月次変動（毎月入力）</option>'+
-      '</select></div>'+
-    '</div>';
+  div.draggable = true;
+  div.style.cssText = 'margin-bottom:12px;background:#f8fafc;padding:14px;border-radius:12px;border:1px solid var(--border);cursor:grab;';
+
+  // ドラッグ&ドロップで並べ替え
+  div.addEventListener('dragstart', function(e){ e.dataTransfer.effectAllowed='move'; window._dragRow=div; div.style.opacity='0.5'; });
+  div.addEventListener('dragend',   function(){ div.style.opacity='1'; window._dragRow=null; });
+  div.addEventListener('dragover',  function(e){ e.preventDefault(); e.dataTransfer.dropEffect='move'; div.style.borderColor='var(--accent)'; });
+  div.addEventListener('dragleave', function(){ div.style.borderColor='var(--border)'; });
+  div.addEventListener('drop',      function(e){
+    e.preventDefault(); div.style.borderColor='var(--border)';
+    if (window._dragRow && window._dragRow !== div) {
+      var parent = div.parentNode;
+      var allRows = Array.from(parent.querySelectorAll('.pay-item-row'));
+      var fromIdx = allRows.indexOf(window._dragRow);
+      var toIdx   = allRows.indexOf(div);
+      if (fromIdx < toIdx) parent.insertBefore(window._dragRow, div.nextSibling);
+      else parent.insertBefore(window._dragRow, div);
+    }
+  });
+
+  // 行の内容を構築
+  var row1 = document.createElement('div');
+  row1.style.cssText = 'display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:8px;align-items:end;margin-bottom:10px;';
+
+  // ドラッグハンドル＋項目名
+  var nameDiv = document.createElement('div');
+  nameDiv.innerHTML = '<label class="pi-label">☰ 項目名</label><input type="text" class="form-input pay-item-name" placeholder="例: 食事手当" value="'+(name||'')+'" style="margin:0;">';
+  row1.appendChild(nameDiv);
+
+  // 金額
+  var amtDiv = document.createElement('div');
+  amtDiv.innerHTML = '<label class="pi-label">金額（円）</label><input type="number" class="form-input pay-item-amount" placeholder="0" value="'+(amount||0)+'" min="0" style="margin:0;">';
+  row1.appendChild(amtDiv);
+
+  // 表示区分
+  var catDiv = document.createElement('div');
+  catDiv.innerHTML = '<label class="pi-label">表示区分</label><select class="form-input pay-item-category" style="margin:0;">' +
+    '<option value="attendance"'+(cat==='attendance'?' selected':'')+'>勤怠</option>' +
+    '<option value="pay"'+(cat==='pay'?' selected':'')+'>支給</option>' +
+    '<option value="deduction"'+(cat==='deduction'?' selected':'')+'>控除</option>' +
+    '<option value="other"'+(cat==='other'?' selected':'')+'>その他</option>' +
+    '</select>';
+  row1.appendChild(catDiv);
+
+  // 集計方法
+  var calcDiv = document.createElement('div');
+  calcDiv.innerHTML = '<label class="pi-label">集計方法</label><select class="form-input pay-item-calc-add" style="margin:0;">' +
+    '<option value="add"'+(cadd==='add'?' selected':'')+'>➕ 加算</option>' +
+    '<option value="sub"'+(cadd==='sub'?' selected':'')+'>➖ 減算</option>' +
+    '</select>';
+  row1.appendChild(calcDiv);
+
+  // 削除ボタン（addEventListener で確実に動作）
+  var delBtn = document.createElement('button');
+  delBtn.className = 'btn btn-secondary';
+  delBtn.style.cssText = 'padding:8px 10px;white-space:nowrap;margin-top:16px;';
+  delBtn.textContent = '🗑️';
+  delBtn.type = 'button';
+  delBtn.addEventListener('click', function(){ div.remove(); });
+  row1.appendChild(delBtn);
+
+  div.appendChild(row1);
+
+  // 2行目：課税・賃金・報酬・月次変動
+  var row2 = document.createElement('div');
+  row2.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;';
+  row2.innerHTML =
+    '<div><label class="pi-label">課税（所得税）</label><select class="form-input pay-item-tax-type" style="margin:0;font-size:.75rem;">' +
+      '<option value="taxable"'+(ttax==='taxable'?' selected':'')+'>課税</option>' +
+      '<option value="nontaxable"'+(ttax==='nontaxable'?' selected':'')+'>非課税</option>' +
+    '</select></div>' +
+    '<div><label class="pi-label">賃金（労働保険）</label><select class="form-input pay-item-wage-type" style="margin:0;font-size:.75rem;">' +
+      '<option value="wage"'+(twage==='wage'?' selected':'')+'>賃金に含める</option>' +
+      '<option value="nonwage"'+(twage==='nonwage'?' selected':'')+'>賃金に含めない</option>' +
+    '</select></div>' +
+    '<div><label class="pi-label">報酬（社会保険）</label><select class="form-input pay-item-salary-type" style="margin:0;font-size:.75rem;">' +
+      '<option value="included"'+(tsal==='included'?' selected':'')+'>報酬に含める</option>' +
+      '<option value="excluded"'+(tsal==='excluded'?' selected':'')+'>報酬に含めない</option>' +
+    '</select></div>' +
+    '<div><label class="pi-label">月次変動</label><select class="form-input pay-item-salary-fixed" style="margin:0;font-size:.75rem;">' +
+      '<option value="fixed"'+(tfixed==='fixed'?' selected':'')+'>固定（変更なし）</option>' +
+      '<option value="variable"'+(tfixed==='variable'?' selected':'')+'>月次変動（毎月入力）</option>' +
+    '</select></div>';
+  div.appendChild(row2);
   wrap.appendChild(div);
 }
 
