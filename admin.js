@@ -590,9 +590,9 @@ async function showPayslip(staffId,year,month){
     }
     return item;
   });
+  // 加算項目は支給に加算、減算項目は支給合計から差し引く
   var extraTotalPay = extraPayItems.reduce(function(acc,i){
-    // 加算項目のみ totalPay に加算、減算項目は後で netPayFinal から引く
-    return acc + (i.calc_add==='sub' ? 0 : (i.amount||0));
+    return acc + (i.calc_add==='sub' ? -(i.amount||0) : (i.amount||0));
   }, 0);
   totalPay += extraTotalPay;
   netPayFinal += extraTotalPay;
@@ -610,7 +610,7 @@ async function showPayslip(staffId,year,month){
     else if(cat==='other') extraOther.push(item);
     else extraPay.push(item); // 減算でも支給欄に表示
   });
-  netPayFinal -= extraTotalDeductExtra;
+  // ※減算分は extraTotalPay の計算で既に netPayFinal に反映済み
 
   // 勤怠列
   var attRows = [workDays+'日'].concat(extraAttendance.map(function(i){return i.name+'：'+numFmt(i.amount);}));
@@ -624,14 +624,14 @@ async function showPayslip(staffId,year,month){
   extraPay.forEach(function(i){
     var isSubtract = i.calc_add === 'sub';
     payRows.push([
-      i.name + (isSubtract ? '<span style="color:#dc2626;font-size:.72rem;margin-left:4px;">（減算）</span>' : ''),
-      (isSubtract ? '<span style="color:#dc2626;">▲ ' + numFmt(i.amount) + '</span>' : numFmt(i.amount))
+      i.name,
+      (isSubtract ? '▲ ' + numFmt(i.amount) : numFmt(i.amount))
     ]);
   });
   // 控除列
   var dedRows = [
     ['健康保険料', numFmt(health)],
-    ['介護保険料', nursingCare>0 ? numFmt(nursingCare) : '0'],
+    ['介護保険料', nursingCare>0 ? numFmt(nursingCare) : '―'],
     ['厚生年金保険', numFmt(pension)],
     ['子育て支援金', numFmt(childSupport)],
     ['所得税', numFmt(tax)],
@@ -741,7 +741,7 @@ async function showPayslip(staffId,year,month){
   oldHtml += '<div class="summary-row deduction"><span>源泉徴収税（'+(staff.tax_type==='otsu'?'乙欄':'甲欄・扶養'+(staff.dependents||0)+'人')+'）</span><span>- '+formatCurrency(tax)+'</span></div>';
   oldHtml += (pension>0?'<div class="summary-row deduction"><span>厚生年金保険料</span><span>- '+formatCurrency(pension)+'</span></div>':'');
   oldHtml += (health>0?'<div class="summary-row deduction"><span>健康保険料</span><span>- '+formatCurrency(health)+'</span></div>':'');
-  oldHtml += (nursingCare>0?'<div class="summary-row deduction"><span>介護保険料</span><span>- '+formatCurrency(nursingCare)+'</span></div>':'');
+  oldHtml += '<div class="summary-row deduction"><span>介護保険料</span><span>'+(nursingCare>0?'- '+formatCurrency(nursingCare):'―')+'</span></div>';
   oldHtml += (childSupport>0?'<div class="summary-row deduction"><span>子ども・子育て支援金</span><span>- '+formatCurrency(childSupport)+'</span></div>':'');
   oldHtml += (empIns>0?'<div class="summary-row deduction"><span>雇用保険料</span><span>- '+formatCurrency(empIns)+'</span></div>':'');
   oldHtml += '<div class="summary-row total"><span>差引支給額</span><strong class="net-pay">'+formatCurrency(netPayFinal)+'</strong></div>';
