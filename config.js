@@ -305,6 +305,54 @@ const DB = {
       await batch.commit();
     }
   },
+  // 雇用保険料率
+  async getEmpInsRates() {
+    const key = 'emp_ins_rates';
+    if (DEMO_MODE) return JSON.parse(localStorage.getItem(key) || '[]');
+    try {
+      const snap = await getDB().collection('employment_insurance_rates').orderBy('category').get();
+      const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      localStorage.setItem(key, JSON.stringify(rows));
+      return rows;
+    } catch(e) { return JSON.parse(localStorage.getItem(key) || '[]'); }
+  },
+  async saveEmpInsRate(row) {
+    if (DEMO_MODE) {
+      let list = JSON.parse(localStorage.getItem('emp_ins_rates') || '[]');
+      if (row.id) list = list.map(r => r.id === row.id ? row : r);
+      else { row.id = Date.now().toString(); list.push(row); }
+      localStorage.setItem('emp_ins_rates', JSON.stringify(list)); return row;
+    }
+    const db = getDB();
+    if (row.id) { await db.collection('employment_insurance_rates').doc(row.id).set(row); return row; }
+    const ref = await db.collection('employment_insurance_rates').add(row);
+    return { id: ref.id, ...row };
+  },
+  async deleteEmpInsRate(id) {
+    if (DEMO_MODE) {
+      let list = JSON.parse(localStorage.getItem('emp_ins_rates') || '[]');
+      localStorage.setItem('emp_ins_rates', JSON.stringify(list.filter(r => r.id !== id))); return;
+    }
+    await getDB().collection('employment_insurance_rates').doc(id).delete();
+  },
+  async replaceEmpInsRates(rows) {
+    if (DEMO_MODE) { localStorage.setItem('emp_ins_rates', JSON.stringify(rows)); return; }
+    const db = getDB();
+    const snap = await db.collection('employment_insurance_rates').get();
+    for (let i = 0; i < snap.docs.length; i += 400) {
+      const batch = db.batch();
+      snap.docs.slice(i, i+400).forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+    for (let i = 0; i < rows.length; i += 400) {
+      const batch = db.batch();
+      rows.slice(i, i+400).forEach(row => {
+        const { id, ...data } = row;
+        batch.set(db.collection('employment_insurance_rates').doc(), data);
+      });
+      await batch.commit();
+    }
+  },
   async getLeaveAll() {
     if (DEMO_MODE) return JSON.parse(localStorage.getItem('leave_records') || '[]');
     const snap = await getDB().collection('leave_records').orderBy('date','desc').get();

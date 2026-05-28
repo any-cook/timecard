@@ -686,6 +686,78 @@
     </div>
   </div>
 
+  <!-- モーダル: 雇用保険料率CSVインポート -->
+  <div class="modal-overlay" id="empInsCsvModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">📂 雇用保険料率 CSVインポート</h3>
+        <button class="modal-close" onclick="closeModal('empInsCsvModal')">✕</button>
+      </div>
+      <div style="margin-bottom:16px;">
+        <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px;">
+          CSVフォーマット：事業区分, 適用年度, 労働者負担（分子）, 労働者負担（分母）, 事業主負担（分子）, 事業主負担（分母）
+        </p>
+        <button class="btn btn-secondary" onclick="downloadEmpInsCsvTemplate()" style="margin-bottom:12px;">⬇️ テンプレートCSVをダウンロード</button>
+        <div class="form-group">
+          <label class="form-label">CSVファイルを選択</label>
+          <input type="file" id="empInsCsvFile" accept=".csv" class="form-input" onchange="previewEmpInsCsv()">
+        </div>
+      </div>
+      <div id="empInsCsvPreview" style="display:none;">
+        <strong id="empInsCsvCount" style="color:var(--accent);display:block;margin-bottom:8px;"></strong>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr><th>事業区分</th><th>適用年度</th><th>労働者負担</th><th>事業主負担</th><th>合計</th></tr></thead>
+            <tbody id="empInsCsvPreviewBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('empInsCsvModal')">キャンセル</button>
+        <button class="btn btn-danger" onclick="importEmpInsCsv()">⚠️ 上書きインポート</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- モーダル: 雇用保険料率 手動追加 -->
+  <div class="modal-overlay" id="empInsAddModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">➕ 雇用保険料率 追加・編集</h3>
+        <button class="modal-close" onclick="closeModal('empInsAddModal')">✕</button>
+      </div>
+      <input type="hidden" id="empInsEditId">
+      <div class="form-grid">
+        <div class="form-group full"><label class="form-label">事業区分</label>
+          <select id="empInsCategory" class="form-input">
+            <option value="一般の事業">一般の事業</option>
+            <option value="農林水産・清酒製造の事業">農林水産・清酒製造の事業</option>
+            <option value="建設の事業">建設の事業</option>
+          </select>
+        </div>
+        <div class="form-group full"><label class="form-label">適用年度</label>
+          <input type="text" id="empInsYear" class="form-input" placeholder="例: 令和8年度（2026.4〜2027.3）">
+        </div>
+        <div class="form-group"><label class="form-label">労働者負担（分子）</label>
+          <input type="number" id="empInsEmployee" class="form-input" placeholder="例: 5" step="0.5">
+        </div>
+        <div class="form-group"><label class="form-label">分母</label>
+          <input type="number" id="empInsEmployeeDenom" class="form-input" value="1000">
+        </div>
+        <div class="form-group"><label class="form-label">事業主負担（分子）</label>
+          <input type="number" id="empInsEmployer" class="form-input" placeholder="例: 8.5" step="0.5">
+        </div>
+        <div class="form-group"><label class="form-label">分母</label>
+          <input type="number" id="empInsEmployerDenom" class="form-input" value="1000">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('empInsAddModal')">キャンセル</button>
+        <button class="btn btn-success" onclick="saveEmpInsRate()">💾 保存</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="config.js"></script>

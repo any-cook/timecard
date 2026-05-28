@@ -145,10 +145,17 @@ function calcTax(monthlyIncome, taxRows, taxType, dependents) {
 // ============================================================
 // 雇用保険料（令和8年度）
 // ============================================================
-var EMP_INS_RATE_EMPLOYEE = 0.006;
-function calcEmploymentInsurance(grossPay, isEnrolled) {
+var EMP_INS_RATE_EMPLOYEE = 0.005; // 令和8年度 一般の事業：5/1000
+function calcEmploymentInsurance(grossPay, isEnrolled, category) {
   if (!isEnrolled) return 0;
-  return Math.floor(grossPay * EMP_INS_RATE_EMPLOYEE);
+  // 雇用保険料率キャッシュから事業区分別料率を取得
+  var rate = EMP_INS_RATE_EMPLOYEE;
+  if (window._empInsRatesCache && window._empInsRatesCache.length) {
+    var cat = category || '一般の事業';
+    var found = window._empInsRatesCache.find(function(r){ return r.category === cat; });
+    if (found) rate = found.employee_numerator / (found.employee_denominator || 1000);
+  }
+  return Math.floor((grossPay || 0) * rate);
 }
 
 // ============================================================

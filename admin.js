@@ -25,6 +25,8 @@ var editingStaff=null,_pensionTable=[],_healthTable=[],_healthNursingTable=[],_c
 async function loadStaffTab(){
   var res=await Promise.all([DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support')]);
   _pensionTable=res[0];_healthTable=res[1];_healthNursingTable=res[2];_childSupportTable=res[3];
+  // 雇用保険料率キャッシュを初期化
+  DB.getEmpInsRates().then(function(rows){ if(rows.length) window._empInsRatesCache=rows; }).catch(function(){});
   var staff=await DB.getStaff(),tbody=document.getElementById('staffTableBody');tbody.innerHTML='';
   if(!staff.length){tbody.innerHTML='<tr><td colspan="9" class="empty-cell">スタッフが登録されていません</td></tr>';return;}
   // 登録番号順にソート（数値として比較、未設定は末尾）
@@ -787,7 +789,7 @@ function printPayslip(){window.print();}
 
 var currentTaxType='kou',currentInsuranceType='pension';
 var insuranceLabels={pension:'厚生年金',health:'健康保険（介護なし）',health_nursing:'健康保険（介護込み）',child_support:'子ども・子育て支援金'};
-async function loadTaxTab(){loadTaxTable('kou');loadInsuranceTable('pension');}
+async function loadTaxTab(){loadTaxTable('kou');loadInsuranceTable('pension');loadEmpInsRateTable();}
 async function loadTaxTable(type){
   currentTaxType=type;
   document.querySelectorAll('.tax-type-btn').forEach(function(b){b.classList.toggle('active',b.dataset.type===type);});
@@ -1290,6 +1292,158 @@ function addPayItem(type, name, amount, isAuto, category, calc_add, tax_type, wa
     '</select></div>';
   div.appendChild(row2);
   wrap.appendChild(div);
+}
+
+// ============================================================
+// 雇用保険料率管理
+// ============================================================
+async function loadEmpInsRateTable() {
+  var rows = await DB.getEmpInsRates();
+  var tbody = document.getElementById('empInsTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-cell">データがありません</td></tr>';
+    return;
+  }
+  rows.forEach(function(r) {
+    var empRate  = (r.employee_numerator / r.employee_denominator * 100).toFixed(3) + '%';
+    var erRate   = (r.employer_numerator  / r.employer_denominator  * 100).toFixed(3) + '%';
+    var totalNum = (parseFloat(r.employee_numerator)||0) + (parseFloat(r.employer_numerator)||0);
+    var totalRate = (totalNum / (r.employee_denominator||1000) * 100).toFixed(3) + '%';
+    var tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td><strong>' + r.category + '</strong></td>' +
+      '<td style="font-size:.8rem;">' + (r.fiscal_year||'-') + '</td>' +
+      '<td>' + r.employee_numerator + '/' + r.employee_denominator + '（' + empRate + '）</td>' +
+      '<td>' + r.employer_numerator + '/' + r.employer_denominator + '（' + erRate + '）</td>' +
+      '<td><strong>' + totalNum + '/' + (r.employee_denominator||1000) + '（' + totalRate + '）</strong></td>' +
+      '<td>' +
+        '<button class="btn-sm btn-edit" onclick="openEmpInsEditModal(\'' + r.id + '\')">✏️</button> ' +
+        '<button class="btn-sm btn-delete" onclick="deleteEmpInsRate(\'' + r.id + '\')">🗑️</button>' +
+      '</td>';
+    tbody.appendChild(tr);
+  });
+  document.getElementById('empInsTitle').textContent = '📄 雇用保険料率一覧（' + rows.length + '件）';
+  openCollapsible('empInsSection');
+}
+
+function openEmpInsCsvModal() {
+  document.getElementById('empInsCsvFile').value = '';
+  document.getElementById('empInsCsvPreview').style.display = 'none';
+  document.getElementById('empInsCsvPreviewBody').innerHTML = '';
+  openModal('empInsCsvModal');
+}
+
+function openEmpInsAddModal() {
+  document.getElementById('empInsEditId').value = '';
+  document.getElementById('empInsCategory').value = '一般の事業';
+  document.getElementById('empInsYear').value = '令和8年度（2026.4〜2027.3）';
+  document.getElementById('empInsEmployee').value = '';
+  document.getElementById('empInsEmployeeDenom').value = '1000';
+  document.getElementById('empInsEmployer').value = '';
+  document.getElementById('empInsEmployerDenom').value = '1000';
+  openModal('empInsAddModal');
+}
+
+async function openEmpInsEditModal(id) {
+  var rows = await DB.getEmpInsRates();
+  var r = rows.find(function(x){ return x.id === id; });
+  if (!r) return;
+  document.getElementById('empInsEditId').value = r.id;
+  document.getElementById('empInsCategory').value = r.category;
+  document.getElementById('empInsYear').value = r.fiscal_year || '';
+  document.getElementById('empInsEmployee').value = r.employee_numerator;
+  document.getElementById('empInsEmployeeDenom').value = r.employee_denominator || 1000;
+  document.getElementById('empInsEmployer').value = r.employer_numerator;
+  document.getElementById('empInsEmployerDenom').value = r.employer_denominator || 1000;
+  openModal('empInsAddModal');
+}
+
+async function saveEmpInsRate() {
+  var id  = document.getElementById('empInsEditId').value;
+  var row = {
+    category:             document.getElementById('empInsCategory').value,
+    fiscal_year:          document.getElementById('empInsYear').value.trim(),
+    employee_numerator:   parseFloat(document.getElementById('empInsEmployee').value) || 0,
+    employee_denominator: parseInt(document.getElementById('empInsEmployeeDenom').value) || 1000,
+    employer_numerator:   parseFloat(document.getElementById('empInsEmployer').value) || 0,
+    employer_denominator: parseInt(document.getElementById('empInsEmployerDenom').value) || 1000,
+  };
+  if (id) row.id = id;
+  await DB.saveEmpInsRate(row);
+  closeModal('empInsAddModal');
+  showToast('雇用保険料率を保存しました');
+  loadEmpInsRateTable();
+}
+
+async function deleteEmpInsRate(id) {
+  if (!confirmAction('この料率データを削除しますか？')) return;
+  await DB.deleteEmpInsRate(id);
+  showToast('削除しました');
+  loadEmpInsRateTable();
+}
+
+var empInsCsvParsed = [];
+function previewEmpInsCsv() {
+  var file = document.getElementById('empInsCsvFile').files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var lines = e.target.result.split('\n').filter(function(l){ return l.trim(); });
+    empInsCsvParsed = [];
+    var tbody = document.getElementById('empInsCsvPreviewBody');
+    tbody.innerHTML = '';
+    // ヘッダー行スキップ
+    var firstCol = lines[0].split(',')[0].trim().replace(/"/g,'');
+    var dl = isNaN(parseInt(firstCol)) ? lines.slice(1) : lines;
+    dl.forEach(function(line) {
+      var cols = line.split(',').map(function(c){ return c.trim().replace(/"/g,''); });
+      if (cols.length < 4) return;
+      var category = cols[0];
+      var fiscal_year = cols[1] || '';
+      var emp_num  = parseFloat(cols[2]) || 0;
+      var emp_den  = parseInt(cols[3]) || 1000;
+      var er_num   = parseFloat(cols[4]) || 0;
+      var er_den   = parseInt(cols[5]) || 1000;
+      if (!category) return;
+      empInsCsvParsed.push({ category: category, fiscal_year: fiscal_year, employee_numerator: emp_num, employee_denominator: emp_den, employer_numerator: er_num, employer_denominator: er_den });
+      var empRate = (emp_num/emp_den*100).toFixed(3)+'%';
+      var erRate  = (er_num/er_den*100).toFixed(3)+'%';
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td>'+category+'</td><td style="font-size:.78rem;">'+fiscal_year+'</td><td>'+emp_num+'/'+emp_den+'（'+empRate+'）</td><td>'+er_num+'/'+er_den+'（'+erRate+'）</td><td>'+((emp_num+er_num)/emp_den*100).toFixed(3)+'%</td>';
+      tbody.appendChild(tr);
+    });
+    document.getElementById('empInsCsvPreview').style.display = 'block';
+    document.getElementById('empInsCsvCount').textContent = empInsCsvParsed.length + '件読み込み済み';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+async function importEmpInsCsv() {
+  if (!empInsCsvParsed.length) { showToast('データがありません', 'error'); return; }
+  if (!confirmAction(empInsCsvParsed.length + '件で雇用保険料率を上書きしますか？')) return;
+  await DB.replaceEmpInsRates(empInsCsvParsed);
+  closeModal('empInsCsvModal');
+  showToast('雇用保険料率をインポートしました');
+  loadEmpInsRateTable();
+  // config.js の EMP_INS_RATE_EMPLOYEE も自動更新
+  var general = empInsCsvParsed.find(function(r){ return r.category === '一般の事業'; });
+  if (general) {
+    EMP_INS_RATE_EMPLOYEE = general.employee_numerator / general.employee_denominator;
+    showToast('雇用保険料率を自動更新: 労働者 ' + general.employee_numerator + '/' + general.employee_denominator, 'success');
+  }
+}
+
+function downloadEmpInsCsvTemplate() {
+  var csv = '事業区分,適用年度,労働者負担（分子）,労働者負担（分母）,事業主負担（分子）,事業主負担（分母）\n';
+  csv += '一般の事業,令和8年度（2026.4〜2027.3）,5,1000,8.5,1000\n';
+  csv += '農林水産・清酒製造の事業,令和8年度（2026.4〜2027.3）,6,1000,9.5,1000\n';
+  csv += '建設の事業,令和8年度（2026.4〜2027.3）,6,1000,10.5,1000\n';
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '雇用保険料率テンプレート.csv';
+  a.click();
 }
 
 function toggleLunchBreak(){
