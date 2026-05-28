@@ -789,7 +789,41 @@ async function loadTaxTable(type){
   currentTaxType=type;
   document.querySelectorAll('.tax-type-btn').forEach(function(b){b.classList.toggle('active',b.dataset.type===type);});
   var rows=await DB.getTaxTable(type),tbody=document.getElementById('taxTableBody');tbody.innerHTML='';
-  rows.slice().sort(function(a,b){return a.income_from-b.income_from;}).forEach(function(r){var tr=document.createElement('tr');tr.innerHTML='<td>'+formatCurrency(r.income_from)+' ～</td><td>'+formatCurrency(r.tax_amount)+'</td><td><button class="btn-sm btn-edit" onclick="openTaxEditModal(\''+r.id+'\')">✏️</button> <button class="btn-sm btn-delete" onclick="deleteTaxRow(\''+r.id+'\')">🗑️</button></td>';tbody.appendChild(tr);});
+  var sorted=rows.slice().sort(function(a,b){return a.income_from-b.income_from;});
+  // 新形式（甲欄・扶養人数別）かどうか判定
+  var isNewKou = type==='kou' && sorted.length>0 && sorted[0].dep0!==undefined;
+  // ヘッダーを切り替え
+  var header=document.getElementById('taxTableHeader');
+  if(header){
+    if(isNewKou){
+      header.innerHTML='<th>以上</th><th>未満</th><th>0人</th><th>1人</th><th>2人</th><th>3人</th><th>4人</th><th>5人</th><th>6人</th><th>7人</th>';
+    } else {
+      header.innerHTML='<th>月収（以上）</th><th>税額</th><th>操作</th>';
+    }
+  }
+  sorted.forEach(function(r){
+    var tr=document.createElement('tr');
+    if(isNewKou){
+      tr.innerHTML=
+        '<td>'+formatCurrency(r.income_from)+'</td>'+
+        '<td>'+(r.income_to?formatCurrency(r.income_to):'-')+'</td>'+
+        '<td>'+numFmt(r.dep0||0)+'</td>'+
+        '<td>'+numFmt(r.dep1||0)+'</td>'+
+        '<td>'+numFmt(r.dep2||0)+'</td>'+
+        '<td>'+numFmt(r.dep3||0)+'</td>'+
+        '<td>'+numFmt(r.dep4||0)+'</td>'+
+        '<td>'+numFmt(r.dep5||0)+'</td>'+
+        '<td>'+numFmt(r.dep6||0)+'</td>'+
+        '<td>'+numFmt(r.dep7||0)+'</td>';
+    } else {
+      tr.innerHTML=
+        '<td>'+formatCurrency(r.income_from)+' ～</td>'+
+        '<td>'+formatCurrency(r.tax_amount||0)+'</td>'+
+        '<td><button class="btn-sm btn-edit" onclick="openTaxEditModal(\'' + r.id + '\')">✏️</button> ' +
+        '<button class="btn-sm btn-delete" onclick="deleteTaxRow(\'' + r.id + '\')">🗑️</button></td>';
+    }
+    tbody.appendChild(tr);
+  });
   document.getElementById('taxTableTitle').textContent='📄 '+(type==='kou'?'甲欄':'乙欄')+' 税額一覧（'+rows.length+'件）';
   openCollapsible('taxTableSection');
 }
