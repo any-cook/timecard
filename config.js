@@ -240,11 +240,28 @@ const DB = {
     const key = 'tax_' + type;
     if (DEMO_MODE) { localStorage.setItem(key, JSON.stringify(rows)); return; }
     const col = type === 'kou' ? 'tax_table_kou' : 'tax_table_otsu';
-    const snap = await getDB().collection(col).get();
-    const batch = getDB().batch();
-    snap.docs.forEach(d => batch.delete(d.ref));
-    rows.forEach(row => { const ref=getDB().collection(col).doc(); const {id,...data}=row; batch.set(ref,data); });
-    await batch.commit();
+    const db = getDB();
+    // 既存データ削除（バッチ500件制限対応）
+    const snap = await db.collection(col).get();
+    const delChunks = [];
+    for (let i = 0; i < snap.docs.length; i += 400) {
+      delChunks.push(snap.docs.slice(i, i + 400));
+    }
+    for (const chunk of delChunks) {
+      const batch = db.batch();
+      chunk.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+    // 新データ書き込み（バッチ500件制限対応）
+    for (let i = 0; i < rows.length; i += 400) {
+      const batch = db.batch();
+      rows.slice(i, i + 400).forEach(row => {
+        const ref = db.collection(col).doc();
+        const {id, ...data} = row;
+        batch.set(ref, data);
+      });
+      await batch.commit();
+    }
   },
   async getInsuranceTable(type) {
     const key = 'insurance_' + type;
@@ -267,11 +284,26 @@ const DB = {
     const key = 'insurance_' + type;
     if (DEMO_MODE) { localStorage.setItem(key, JSON.stringify(rows)); return; }
     const col = 'insurance_' + type;
-    const snap = await getDB().collection(col).get();
-    const batch = getDB().batch();
-    snap.docs.forEach(d => batch.delete(d.ref));
-    rows.forEach(row => { const ref=getDB().collection(col).doc(); const {id,...data}=row; batch.set(ref,data); });
-    await batch.commit();
+    const db = getDB();
+    const snap = await db.collection(col).get();
+    const delChunks = [];
+    for (let i = 0; i < snap.docs.length; i += 400) {
+      delChunks.push(snap.docs.slice(i, i + 400));
+    }
+    for (const chunk of delChunks) {
+      const batch = db.batch();
+      chunk.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+    for (let i = 0; i < rows.length; i += 400) {
+      const batch = db.batch();
+      rows.slice(i, i + 400).forEach(row => {
+        const ref = db.collection(col).doc();
+        const {id, ...data} = row;
+        batch.set(ref, data);
+      });
+      await batch.commit();
+    }
   },
   async getLeaveAll() {
     if (DEMO_MODE) return JSON.parse(localStorage.getItem('leave_records') || '[]');
