@@ -474,8 +474,8 @@ async function loadPayrollSummary(){
     // 役員：距離の非課税限度額を固定支給（全額非課税）、それ以外：出勤日数×日額
     var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
     var commuteData=isOfficer
-      ? calcOfficerCommuteAllowance(staff.commute_distance||0)
-      : calcCommuteAllowance(staff.commute_daily_amount||0,workDays,staff.commute_distance||0);
+      ? (staff.commute_distance ? calcOfficerCommuteAllowance(staff.commute_distance) : {total:0,taxFree:0,taxable:0})
+      : (staff.commute_daily_amount ? calcCommuteAllowance(staff.commute_daily_amount,workDays,staff.commute_distance||0) : {total:0,taxFree:0,taxable:0});
     // 所得税：課税支給額（基本給＋課税通勤費）で計算
     var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
     var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
@@ -562,8 +562,8 @@ async function showPayslip(staffId,year,month){
   // 役員：距離の非課税限度額を固定支給（全額非課税）、それ以外：出勤日数×日額
   var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
   var commuteData=isOfficer
-    ? calcOfficerCommuteAllowance(staff.commute_distance||0)
-    : calcCommuteAllowance(staff.commute_daily_amount||0,workDays,staff.commute_distance||0);
+    ? (staff.commute_distance ? calcOfficerCommuteAllowance(staff.commute_distance) : {total:0,taxFree:0,taxable:0})
+    : (staff.commute_daily_amount ? calcCommuteAllowance(staff.commute_daily_amount,workDays,staff.commute_distance||0) : {total:0,taxFree:0,taxable:0});
   // 所得税：課税支給額（基本給＋課税通勤費）で計算
   var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
   var health=healthBase; // 健康保険料（介護保険料除く）
@@ -1044,8 +1044,16 @@ async function loadTodayTab() {
     inList.forEach(function(item) {
       var nowMins = now.getHours()*60 + now.getMinutes();
       var inMins = timeToMinutes(item.record.clock_in_calc || item.record.clock_in_actual);
-      var lunchB = item.staff.lunch_break || false;
-    var workMins = Math.max(0, nowMins - inMins - (lunchB ? 60 : 0));
+      // 昼休み控除（設定時刻で正確に計算）
+      var lunchDeduct = 0;
+      if (item.staff.lunch_break && item.staff.lunch_start && item.staff.lunch_end) {
+        var lsM = timeToMinutes(item.staff.lunch_start);
+        var leM = timeToMinutes(item.staff.lunch_end);
+        var overlapStart = Math.max(inMins, lsM);
+        var overlapEnd   = Math.min(nowMins, leM);
+        lunchDeduct = Math.max(0, overlapEnd - overlapStart);
+      }
+      var workMins = Math.max(0, nowMins - inMins - lunchDeduct);
       var tr = document.createElement('tr');
       tr.style.background = '#f0fdf4';
       tr.innerHTML =
