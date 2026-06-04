@@ -247,7 +247,7 @@ async function clockOut() {
       clock_in_actual:  r.clock_in_actual,
       clock_in_calc:    r.clock_in_calc,
       clock_out_actual: now,
-      clock_out_calc:   roundDownClockOut(now),
+      clock_out_calc:   now, // 分単位そのまま（繰り上げ・繰り下げなし）
       wage_at_date:     r.wage_at_date,
       is_special_day:   r.is_special_day,
       notes:            r.notes || ''
@@ -275,10 +275,17 @@ async function clockOut() {
 // ============================================================
 function showPunchMessage(msg, time, color, subMsg) {
   document.getElementById('clockStatus').innerHTML =
-    '<div style="text-align:center;">' +
-    '<div style="font-size:1.4rem;font-weight:900;color:' + color + ';margin-bottom:6px;">' + msg + '</div>' +
-    (time ? '<div style="font-size:1.1rem;color:var(--text-muted);margin-bottom:10px;">' + time + '</div>' : '') +
-    (subMsg ? '<div style="font-size:1.05rem;font-weight:700;color:' + color + ';background:rgba(0,0,0,0.04);border-radius:12px;padding:10px 18px;display:inline-block;">' + subMsg + '</div>' : '') +
+    '<div style="text-align:center;padding:10px 0;">' +
+    '<div style="font-size:1.5rem;font-weight:900;color:' + color + ';margin-bottom:8px;">' + msg + '</div>' +
+    (time ? '<div style="font-size:1.15rem;font-weight:700;color:#555;margin-bottom:14px;">' + time + '</div>' : '') +
+    (subMsg ?
+      '<div style="font-size:1.1rem;font-weight:800;' +
+      'color:#fff;background:' + color + ';' +
+      'border-radius:16px;padding:12px 24px;' +
+      'display:inline-block;letter-spacing:0.02em;' +
+      'box-shadow:0 4px 12px rgba(0,0,0,0.15);">' +
+      subMsg + '</div>'
+      : '') +
     '</div>';
 }
 
