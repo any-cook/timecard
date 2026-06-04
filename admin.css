@@ -576,10 +576,34 @@ select:focus, input:focus, textarea:focus {
 
 /* 印刷スタイル */
 @media print {
-  .admin-header, .tab-nav, .demo-banner,
-  .modal-header .modal-close, .modal-footer { display: none !important; }
-  .modal-card { box-shadow: none; padding: 0; }
-  body { background: #fff; }
+  /* 印刷時は給与明細モーダル以外を全て非表示 */
+  body > *:not(#payslipModal) { display: none !important; }
+  #payslipModal {
+    display: block !important;
+    position: static !important;
+    background: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+  #payslipModal .modal-card {
+    display: block !important;
+    position: static !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+  }
+  #payslipModal .modal-header { display: none !important; }
+  #payslipModal .modal-footer { display: none !important; }
+  body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
 }
 
 /* レスポンシブ */
@@ -883,21 +907,12 @@ select:focus, input:focus, textarea:focus {
   cursor: pointer;
 }
 
-/* 印刷時 */
+/* 印刷時（給与明細追加スタイル） */
 @media print {
-  .ps-detail-toggle { display: none; }
-  .modal-header .btn, .modal-header button { display: none; }
-  .modal-overlay {
-    position: static;
-    background: none;
-  }
-  .modal-card {
-    box-shadow: none;
-    max-width: 100%;
-    margin: 0;
-    padding: 0;
-  }
-  .ps-wrap { max-width: 100%; }
+  .ps-detail-toggle { display: none !important; }
+  .ps-wrap { max-width: 100% !important; font-size: 0.78rem !important; }
+  .ps-table { width: 100% !important; }
+  .monthly-name-cell, .monthly-name-col { position: static !important; }
 }
 
 /* ============================================================
