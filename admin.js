@@ -1067,7 +1067,9 @@ async function loadTodayTab() {
     doneList.forEach(function(item) {
       var r = item.record;
       var lunchBDone = item.staff.lunch_break || false;
-      var workMins = timeToMinutes(r.clock_out_calc||r.clock_out_actual) - timeToMinutes(r.clock_in_calc||r.clock_in_actual) - (lunchBDone ? 60 : 0);
+      var _todayOut = r.clock_out_actual||r.clock_out_calc;
+      var _todayIn  = r.clock_in_calc||r.clock_in_actual;
+      var workMins = calcWorkMinutes(_todayIn, _todayOut, item.staff.lunch_break, item.staff.lunch_start, item.staff.lunch_end);
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td>' + item.staff.name + '</td>' +
