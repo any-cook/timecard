@@ -247,8 +247,9 @@ async function loadAttendanceRecords(){
   records.forEach(function(r){
     var s=staffMap[r.staff_id]||{};
     var lunchBreak=s.lunch_break||false;
-    var workMins=r.clock_out_calc?calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,(s&&s.lunch_break),(s&&s.lunch_start),(s&&s.lunch_end)):0;
-    var dailyWage=r.clock_out_calc?calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||0,r.is_special_day,(s&&s.lunch_break),(s&&s.lunch_start),(s&&s.lunch_end)):0;
+    var _outTime=r.clock_out_actual||r.clock_out_calc; // 実打刻優先
+    var workMins=_outTime?calcWorkMinutes(r.clock_in_calc,_outTime,(s&&s.lunch_break),(s&&s.lunch_start),(s&&s.lunch_end)):0;
+    var dailyWage=_outTime?calcDailyWage(r.clock_in_calc,_outTime,r.wage_at_date||0,r.is_special_day,(s&&s.lunch_break),(s&&s.lunch_start),(s&&s.lunch_end)):0;
     var commuteAmt=r.clock_in_actual&&s.commute_daily_amount?s.commute_daily_amount:0;
     totalWage+=dailyWage;totalMins+=workMins;
     if(!staffSummary[r.staff_id])staffSummary[r.staff_id]={name:s.name||'不明',mins:0,wage:0,days:0,commute:0};
@@ -323,12 +324,13 @@ async function openStaffDetail(staffId) {
     tr.style.cssText = rowStyle;
 
     if (r && r.clock_in_actual) {
-      var workMins = r.clock_out_calc ? calcWorkMinutes(r.clock_in_calc, r.clock_out_calc, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
+      var _out2 = r.clock_out_actual||r.clock_out_calc;
+      var workMins = _out2 ? calcWorkMinutes(r.clock_in_calc, _out2, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
       var lunchMins = 0;
-      if (s.lunch_break && s.lunch_start && s.lunch_end && r.clock_out_calc) {
-        var rawMins = calcWorkMinutes(r.clock_in_calc, r.clock_out_calc, false, null, null);
+      if (s.lunch_break && s.lunch_start && s.lunch_end && _out2) {
+        var rawMins = calcWorkMinutes(r.clock_in_calc, _out2, false, null, null);
         lunchMins = rawMins - workMins;
-      }
+      var dailyWage = _out2 ? calcDailyWage(r.clock_in_calc, _out2, r.wage_at_date||s.wage, r.is_special_day, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
       var dailyWage = r.clock_out_calc ? calcDailyWage(r.clock_in_calc, r.clock_out_calc, r.wage_at_date||s.wage, r.is_special_day, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
       var commuteAmt = s.commute_daily_amount || 0;
       var isMissingOut = !r.clock_out_actual;
@@ -458,7 +460,7 @@ async function loadPayrollSummary(){
     var staff=activeStaff[si];
     var staffRecords=records.filter(function(r){return r.staff_id===staff.id;});
     var grossPay=0,totalMins=0,workDays=0;
-    if(staff.type==='hourly'){staffRecords.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,staff.lunch_break,staff.lunch_start,staff.lunch_end);totalMins+=mins;if(r.clock_in_actual)workDays++;grossPay+=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end);});}
+    if(staff.type==='hourly'){staffRecords.forEach(function(r){var _o=r.clock_out_actual||r.clock_out_calc;var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,staff.lunch_break,staff.lunch_start,staff.lunch_end):0;totalMins+=mins;if(r.clock_in_actual)workDays++;grossPay+=_o?calcDailyWage(r.clock_in_calc,_o,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end):0;});}
     else{grossPay=staff.monthly_salary||0;workDays=staffRecords.filter(function(r){return r.clock_in_actual;}).length;}
     // 月次入力から出勤日数・時間数を取得
     var monthlyData=await getMonthlyInput(year,month,staff.id);
@@ -509,8 +511,8 @@ async function loadPayrollSummary(){
 }
 async function showPayslip(staffId,year,month){
   var settings = await getPayslipSettings();
-  var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support')]);
-  var allStaff=res[0],records=res[1].filter(function(r){return r.staff_id===staffId;}),taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7];
+  var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support'),DB.getLeaveAll()]);
+  var allStaff=res[0],records=res[1].filter(function(r){return r.staff_id===staffId;}),taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7],allLeave=res[8];
   var staff=allStaff.find(function(s){return s.id===staffId;});if(!staff)return;
   var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
   var healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
@@ -527,7 +529,7 @@ async function showPayslip(staffId,year,month){
   }
   var grossPay=0,totalMins=0,workDays=0,detailRows='';
   var lunchBreakSlip=staff.lunch_break||false;
-  if(staff.type==='hourly'){records.forEach(function(r){var mins=calcWorkMinutes(r.clock_in_calc,r.clock_out_calc,staff.lunch_break,staff.lunch_start,staff.lunch_end);totalMins+=mins;if(r.clock_in_actual)workDays++;var daily=calcDailyWage(r.clock_in_calc,r.clock_out_calc,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end);grossPay+=daily;detailRows+='<tr><td>'+formatDateJP(r.date)+'</td><td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||'-')+'</td><td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td><td>'+formatWorkTime(mins)+'</td><td>'+(r.is_special_day?'⭐':'')+' '+formatCurrency(r.wage_at_date||staff.wage)+'</td><td>'+formatCurrency(daily)+'</td></tr>';});}
+  if(staff.type==='hourly'){records.forEach(function(r){var _o=r.clock_out_actual||r.clock_out_calc;var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,staff.lunch_break,staff.lunch_start,staff.lunch_end):0;totalMins+=mins;if(r.clock_in_actual)workDays++;var daily=_o?calcDailyWage(r.clock_in_calc,_o,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end):0;grossPay+=daily;detailRows+='<tr><td>'+formatDateJP(r.date)+'</td><td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||'-')+'</td><td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td><td>'+formatWorkTime(mins)+'</td><td>'+(r.is_special_day?'⭐':'')+' '+formatCurrency(r.wage_at_date||staff.wage)+'</td><td>'+formatCurrency(daily)+'</td></tr>';});}
   else{grossPay=staff.monthly_salary||0;workDays=records.filter(function(r){return r.clock_in_actual;}).length;detailRows='<tr><td colspan="8" style="text-align:center;">月額固定給: '+formatCurrency(grossPay)+'</td></tr>';}
   // 月次入力から出勤日数・時間数・変動項目・備考を取得
   var monthlyData = await getMonthlyInput(year,month,staff.id);
@@ -540,6 +542,22 @@ async function showPayslip(staffId,year,month){
   }
   var monthlyVarItems = monthlyData.variable_items||[];
   var monthlyNote = monthlyData.note||'';
+
+  // 有給残日数・当月使用日数を計算
+  var staffLeave = allLeave.filter(function(r){ return r.staff_id === staffId; });
+  // 累計付与日数
+  var totalGranted = staffLeave.filter(function(r){ return r.type==='grant'; })
+    .reduce(function(s,r){ return s + (parseFloat(r.days)||0); }, 0);
+  // 当月以前の使用日数合計
+  var ymStr = year + '-' + String(month).padStart(2,'0');
+  var totalUsed = staffLeave.filter(function(r){ return r.type==='use'; })
+    .reduce(function(s,r){ return s + (parseFloat(r.days)||0); }, 0);
+  // 当月の使用日数
+  var monthUsed = staffLeave.filter(function(r){
+    return r.type==='use' && r.date && r.date.startsWith(ymStr);
+  }).reduce(function(s,r){ return s + (parseFloat(r.days)||0); }, 0);
+  // 残日数（当月末時点）
+  var leaveBalance = Math.max(0, totalGranted - totalUsed);
   // 役員は通勤費固定支給（日額×月固定日数20日換算）、それ以外は出勤日数×日額
   // 役員：距離の非課税限度額を固定支給（全額非課税）、それ以外：出勤日数×日額
   var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
@@ -637,6 +655,9 @@ async function showPayslip(staffId,year,month){
 
   // 勤怠列
   var attRows = [workDays+'日'].concat(extraAttendance.map(function(i){return i.name+'：'+numFmt(i.amount);}));
+  // 有給情報を勤怠列に追加
+  attRows.push('有休残：' + leaveBalance + '日');
+  if (monthUsed > 0) attRows.push('有休使用：' + monthUsed + '日');
   // 支給列
   var basicPayLabel = psType === 'officer' ? '役員報酬' : (psType === 'employee' ? '基本給' : '基本給');
   var payRows = [
@@ -668,8 +689,14 @@ async function showPayslip(staffId,year,month){
   // 最大行数
   var maxRows = Math.max(attRows.length, payRows.length, dedRows.length, otherRows.length);
   var rows2 = [];
+  // 勤怠列のラベルと値を定義
+  var attLabels = ['労働日数'];
+  extraAttendance.forEach(function(i){ attLabels.push(i.name); });
+  attLabels.push('有休残');
+  if (monthUsed > 0) attLabels.push('有休使用');
+
   for(var ri=0; ri<maxRows; ri++){
-    var att  = ri===0 ? '労働日数' : (extraAttendance[ri-1]?extraAttendance[ri-1].name:'');
+    var att  = ri < attLabels.length ? attLabels[ri] : '';
     var attV = ri<attRows.length ? attRows[ri] : '';
     var pay  = payRows[ri]  ? payRows[ri][0]  : '';
     var payV = payRows[ri]  ? payRows[ri][1]  : '';
@@ -1126,7 +1153,8 @@ async function loadMonthlyTab() {
       var cls = dow===0?'monthly-sun':dow===6?'monthly-sat':'';
 
       if (r && r.clock_in_actual) {
-        var mins = r.clock_out_calc ? calcWorkMinutes(r.clock_in_calc, r.clock_out_calc, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
+        var _oc = r.clock_out_actual||r.clock_out_calc;
+        var mins = _oc ? calcWorkMinutes(r.clock_in_calc, _oc, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
         totalDays++;
         totalMins += mins;
         var inTime  = r.clock_in_actual  || '-';
@@ -1669,3 +1697,4 @@ async function saveMonthlyInput() {
 }
 
 function _uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
+}
