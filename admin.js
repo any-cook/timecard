@@ -330,8 +330,8 @@ async function openStaffDetail(staffId) {
       if (s.lunch_break && s.lunch_start && s.lunch_end && _out2) {
         var rawMins = calcWorkMinutes(r.clock_in_calc, _out2, false, null, null);
         lunchMins = rawMins - workMins;
+      }
       var dailyWage = _out2 ? calcDailyWage(r.clock_in_calc, _out2, r.wage_at_date||s.wage, r.is_special_day, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
-      var dailyWage = r.clock_out_calc ? calcDailyWage(r.clock_in_calc, r.clock_out_calc, r.wage_at_date||s.wage, r.is_special_day, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
       var commuteAmt = s.commute_daily_amount || 0;
       var isMissingOut = !r.clock_out_actual;
 
@@ -1697,4 +1697,3 @@ async function saveMonthlyInput() {
 }
 
 function _uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2);}
-}
