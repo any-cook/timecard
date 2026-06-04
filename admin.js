@@ -259,7 +259,7 @@ async function loadAttendanceRecords(){
     var tr=document.createElement('tr');if(isMissingOut)tr.classList.add('missing-clockout');if(r.is_special_day)tr.classList.add('special-day-row');
     tr.innerHTML='<td>'+formatDateJP(r.date)+'</td><td>'+(s.name||'不明')+'</td>'+
       '<td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||(isMissingOut?'<span class="alert-text">⚠️ 退勤忘れ</span>':'-'))+'</td>'+
-      '<td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td>'+
+      '<td>'+(r.clock_in_calc||'-')+'</td><td>'+((r.clock_out_actual||r.clock_out_calc)||'-')+'</td>'+
       '<td>'+(workMins?formatWorkTime(workMins):'-')+'</td>'+
       '<td>'+(r.clock_out_calc?formatCurrency(dailyWage):'-')+'</td>'+
       '<td>'+(r.clock_in_actual&&commuteAmt?formatCurrency(commuteAmt):'-')+'</td>'+
@@ -346,7 +346,7 @@ async function openStaffDetail(staffId) {
         '<td style="color:#16a34a;font-weight:700;">' + (r.clock_in_actual||'-') + '</td>' +
         '<td style="color:' + (isMissingOut?'#f59e0b':'#dc2626') + ';font-weight:700;">' + (r.clock_out_actual||(isMissingOut?'⚠️ 未退勤':'-')) + '</td>' +
         '<td>' + (r.clock_in_calc||'-')  + '</td>' +
-        '<td>' + (r.clock_out_calc||'-') + '</td>' +
+        '<td>' + (r.clock_out_actual||r.clock_out_calc||'-') + '</td>' +
         '<td style="font-weight:700;">' + (workMins ? formatWorkTime(workMins) : '-') + '</td>' +
         '<td style="color:var(--text-muted);">' + (lunchMins > 0 ? formatWorkTime(lunchMins) : '-') + '</td>' +
         '<td>' + (r.clock_out_calc ? formatCurrency(dailyWage) : '-') + '</td>' +
@@ -412,7 +412,7 @@ async function saveAttendance(){
   var clockOut=document.getElementById('attendanceClockOut').value;
   if(!date||!staff_id){showToast('日付とスタッフを入力してください','error');return;}
   if(!clockIn){showToast('出勤時刻を入力してください','error');return;}
-  var record={staff_id:staff_id,date:date,clock_in_actual:clockIn,clock_out_actual:clockOut||null,clock_in_calc:roundUpClockIn(clockIn),clock_out_calc:clockOut?roundDownClockOut(clockOut):null,wage_at_date:parseInt(document.getElementById('attendanceWage').value)||0,is_special_day:document.getElementById('attendanceSpecial').checked,notes:document.getElementById('attendanceNotes').value};
+  var record={staff_id:staff_id,date:date,clock_in_actual:clockIn,clock_out_actual:clockOut||null,clock_in_calc:roundUpClockIn(clockIn),clock_out_calc:clockOut||null,wage_at_date:parseInt(document.getElementById('attendanceWage').value)||0,is_special_day:document.getElementById('attendanceSpecial').checked,notes:document.getElementById('attendanceNotes').value};
   if(id)record.id=id;
   await DB.saveAttendance(record);closeModal('attendanceModal');showToast('保存しました');loadAttendanceRecords();
 }
@@ -432,7 +432,7 @@ async function previewCsv(){
   var text=await file.text(),lines=text.split('\n').filter(function(l){return l.trim();}),staff=await DB.getStaff();
   csvParsedData=[];var tbody=document.getElementById('csvPreviewBody');tbody.innerHTML='';
   var dl=(lines[0].indexOf('スタッフ')>=0||lines[0].indexOf('date')>=0||lines[0].indexOf('日付')>=0)?lines.slice(1):lines;
-  for(var i=0;i<dl.length;i++){var cols=dl[i].split(',').map(function(c){return c.trim().replace(/"/g,'');});if(cols.length<3)continue;var sn=cols[0],date=cols[1],ci=cols[2],co=cols[3];var ms=staff.find(function(s){return s.name===sn;});var ok=ms&&date&&ci;var tr=document.createElement('tr');tr.style.color=ok?'':'#dc2626';tr.innerHTML='<td>'+sn+' '+(ms?'✅':'❌未登録')+'</td><td>'+date+'</td><td>'+ci+'</td><td>'+(co||'-')+'</td>';tbody.appendChild(tr);if(ok)csvParsedData.push({staff_id:ms.id,date:date,clock_in_actual:ci,clock_out_actual:co||null,clock_in_calc:roundUpClockIn(ci),clock_out_calc:co?roundDownClockOut(co):null,wage_at_date:ms.wage||0,is_special_day:false,notes:'CSVインポート'});}
+  for(var i=0;i<dl.length;i++){var cols=dl[i].split(',').map(function(c){return c.trim().replace(/"/g,'');});if(cols.length<3)continue;var sn=cols[0],date=cols[1],ci=cols[2],co=cols[3];var ms=staff.find(function(s){return s.name===sn;});var ok=ms&&date&&ci;var tr=document.createElement('tr');tr.style.color=ok?'':'#dc2626';tr.innerHTML='<td>'+sn+' '+(ms?'✅':'❌未登録')+'</td><td>'+date+'</td><td>'+ci+'</td><td>'+(co||'-')+'</td>';tbody.appendChild(tr);if(ok)csvParsedData.push({staff_id:ms.id,date:date,clock_in_actual:ci,clock_out_actual:co||null,clock_in_calc:roundUpClockIn(ci),clock_out_calc:co||null,wage_at_date:ms.wage||0,is_special_day:false,notes:'CSVインポート'});}
   document.getElementById('csvPreviewArea').style.display='block';document.getElementById('csvImportCount').textContent=csvParsedData.length+'件インポート可能';
 }
 async function importCsv(){if(!csvParsedData.length){showToast('データがありません','error');return;}if(!confirmAction(csvParsedData.length+'件インポートしますか？'))return;for(var i=0;i<csvParsedData.length;i++)await DB.saveAttendance(csvParsedData[i]);closeModal('csvModal');showToast(csvParsedData.length+'件インポートしました');loadAttendanceRecords();}
