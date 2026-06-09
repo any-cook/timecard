@@ -294,6 +294,6 @@ function showPunchMessage(msg, time, color, subMsg) {
 // ============================================================
 function isSpecialDay(dateStr, specialDays) {
   var day = new Date(dateStr).getDay();
-  if (day === 0 || day === 5 || day === 6) return true;
+  if (day === 0) return true; // 日曜のみ特別日
   return specialDays.some(function(s) { return s.date === dateStr; });
 }
