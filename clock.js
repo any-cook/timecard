@@ -186,7 +186,7 @@ async function clockIn() {
     var now   = nowTimeStr();
     var today = todayStr();
     var specialDays = await DB.getSpecialDays();
-    var isSpecial   = isSpecialDay(today, specialDays);
+    var isSpecial   = await isSpecialDay(today, specialDays);
 
     var newRecord = {
       staff_id:         selectedStaff.id,
@@ -292,8 +292,14 @@ function showPunchMessage(msg, time, color, subMsg) {
 // ============================================================
 // 特別日判定
 // ============================================================
-function isSpecialDay(dateStr, specialDays) {
+async function isSpecialDay(dateStr, specialDays) {
   var day = new Date(dateStr).getDay();
-  if (day === 0) return true; // 日曜のみ特別日
-  return specialDays.some(function(s) { return s.date === dateStr; });
+  // 日曜日は割増
+  if (day === 0) return true;
+  // 祝日は割増
+  try {
+    var holidays = await fetchHolidays();
+    if (holidays.has(dateStr)) return true;
+  } catch(e) {}
+  return false;
 }

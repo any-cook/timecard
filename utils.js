@@ -61,7 +61,7 @@ function formatWorkTime(mins) {
 // 日給計算（勤務時間×時給）
 function calcDailyWage(clockInCalc, clockOutCalc, wage, isSpecialDay, lunchBreak, lunchStart, lunchEnd) {
   var workMins = calcWorkMinutes(clockInCalc, clockOutCalc, lunchBreak, lunchStart, lunchEnd);
-  var effectiveWage = isSpecialDay ? wage + 50 : wage;
+  var effectiveWage = isSpecialDay ? Math.ceil(wage * 1.25) : wage; // 日曜・祝日は25%割増（法定）
   return Math.floor((workMins / 60) * effectiveWage);
 }
 
