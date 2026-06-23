@@ -8,6 +8,7 @@ var cachedRecord = null; // 出勤時に保存したレコード（IDを保持�
 // ============================================================
 async function initClock() {
   startClock();
+  loadHolidayCache(); // 祝日データを事前ロード（打刻時に待たない）
   allStaff = await DB.getStaff();
   allStaff = allStaff.filter(function(s) {
     return s.is_active && s.type !== 'officer';
@@ -186,7 +187,7 @@ async function clockIn() {
     var now   = nowTimeStr();
     var today = todayStr();
     var specialDays = await DB.getSpecialDays();
-    var isSpecial   = await isSpecialDay(today, specialDays);
+    var isSpecial   = isSpecialDay(today, specialDays);
 
     var newRecord = {
       staff_id:         selectedStaff.id,
@@ -292,14 +293,17 @@ function showPunchMessage(msg, time, color, subMsg) {
 // ============================================================
 // 特別日判定
 // ============================================================
-async function isSpecialDay(dateStr, specialDays) {
+// 祝日キャッシュ（起動時にロード）
+var _holidayCache = null;
+async function loadHolidayCache() {
+  try { _holidayCache = await fetchHolidays(); } catch(e) { _holidayCache = new Set(); }
+}
+
+function isSpecialDay(dateStr, specialDays) {
   var day = new Date(dateStr).getDay();
-  // 日曜日は割増
+  // 日曜日
   if (day === 0) return true;
-  // 祝日は割増
-  try {
-    var holidays = await fetchHolidays();
-    if (holidays.has(dateStr)) return true;
-  } catch(e) {}
+  // 祝日（キャッシュから同期判定）
+  if (_holidayCache && _holidayCache.has(dateStr)) return true;
   return false;
 }
