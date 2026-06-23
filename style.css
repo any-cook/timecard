@@ -1,0 +1,294 @@
+/* ============================================================
+   style.css - スタッフ打刻画面（明るくかわいいデザイン）
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&family=Kaisei+Decol:wght@400;700&family=Pacifico&display=swap');
+
+:root {
+  --bg:         #fff8f0;
+  --surface:    #ffffff;
+  --surface2:   #fef3e8;
+  --border:     #fde8d0;
+  --accent:     #ff7043;
+  --accent2:    #ff9a6c;
+  --accent3:    #ffb347;
+  --green:      #4caf7d;
+  --red:        #e05c5c;
+  --text:       #3d2b1f;
+  --text-muted: #a08070;
+  --radius:     20px;
+  --radius-sm:  14px;
+  --shadow:     0 4px 20px rgba(255,112,67,0.12);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(255,180,120,0.18) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(255,150,100,0.13) 0%, transparent 50%);
+}
+
+/* ヘッダー */
+.clock-header {
+  background: linear-gradient(135deg, #ff7043, #ff9a6c);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 3px 14px rgba(255,112,67,0.3);
+}
+.clock-header h1 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+.admin-link {
+  color: rgba(255,255,255,0.85);
+  text-decoration: none;
+  font-size: 0.82rem;
+  padding: 6px 14px;
+  border: 1.5px solid rgba(255,255,255,0.5);
+  border-radius: 999px;
+  transition: all 0.2s;
+  font-weight: 500;
+}
+.admin-link:hover {
+  background: rgba(255,255,255,0.2);
+  color: #fff;
+}
+
+/* メインコンテナ */
+.clock-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 20px 48px;
+  gap: 20px;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* デジタル時計 */
+.digital-clock {
+  text-align: center;
+  padding: 24px 16px 20px;
+  background: linear-gradient(145deg, #ffffff, #fff4ec);
+  border: 2px solid var(--border);
+  border-radius: 24px;
+  width: 100%;
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+.digital-clock::before {
+  content: '';
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 120px;
+  height: 120px;
+  background: radial-gradient(circle, rgba(255,180,100,0.15), transparent 70%);
+  border-radius: 50%;
+}
+#clockDisplay {
+  font-family: 'Kaisei Decol', serif;
+  font-size: clamp(2.4rem, 10vw, 4.8rem);
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  position: relative;
+  white-space: nowrap;
+  overflow: hidden;
+}
+#dateDisplay {
+  margin-top: 10px;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+/* カード */
+.card {
+  background: var(--surface);
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px;
+  width: 100%;
+  box-shadow: var(--shadow);
+}
+.card h2 {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* 選択中スタッフ名 */
+.selected-staff-name {
+  text-align: center;
+  font-size: 1.9rem;
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+/* ステータスエリア */
+.status-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border);
+}
+.status-badge {
+  font-size: 0.95rem;
+  font-weight: 700;
+  padding: 6px 22px;
+  border-radius: 999px;
+  letter-spacing: 0.05em;
+}
+.status-out  { background: #fff0f0; color: var(--red); border: 1.5px solid #f5c0c0; }
+.status-in   { background: #edfaf3; color: var(--green); border: 1.5px solid #b2e6c8; }
+.status-done { background: #f5f5f5; color: var(--text-muted); border: 1.5px solid #ddd; }
+
+/* 打刻ボタン */
+.clock-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.clock-btn {
+  border: none;
+  border-radius: var(--radius-sm);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  padding: 22px 16px;
+  cursor: pointer;
+  transition: all 0.18s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 90px;
+  letter-spacing: 0.06em;
+}
+.clock-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+.clock-btn:not(:disabled):active { transform: scale(0.96); }
+.btn-in {
+  background: linear-gradient(145deg, #4caf7d, #3a9a69);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(76,175,125,0.35);
+}
+.btn-out {
+  background: linear-gradient(145deg, #e05c5c, #cc4444);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(224,92,92,0.35);
+}
+.btn-icon { font-size: 1.6rem; }
+.btn-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  max-width: 340px;
+  margin: 16px auto 0;
+  background: #fff;
+  color: #555;
+  border: 2.5px solid #ddd;
+  border-radius: 16px;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  padding: 16px 24px;
+  cursor: pointer;
+  transition: all 0.18s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  letter-spacing: 0.02em;
+}
+.btn-back:hover {
+  background: #f5f5f5;
+  color: #333;
+  border-color: #bbb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.btn-back:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+}
+
+/* デモバナー */
+.demo-banner {
+  background: #fffbea;
+  border: 1.5px solid #f5d44a;
+  border-radius: var(--radius-sm);
+  padding: 10px 16px;
+  text-align: center;
+  font-size: 0.82rem;
+  color: #8a6d0b;
+}
+
+/* トースト */
+.toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: #fff;
+  border: 2px solid var(--border);
+  color: var(--text);
+  padding: 12px 28px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  opacity: 0;
+  transition: all 0.3s;
+  z-index: 9999;
+  white-space: nowrap;
+  box-shadow: 0 8px 32px rgba(255,112,67,0.2);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast-success { border-color: var(--green); color: var(--green); }
+.toast-error   { border-color: var(--red); color: var(--red); }
+
+/* 名前確認ボタン */
+.btn-yes {
+  background: linear-gradient(145deg, #ff7043, #ff9a6c);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(255,112,67,0.3);
+}
+.btn-yes:active { transform: scale(0.97); }
+.btn-no {
+  background: var(--surface2);
+  color: var(--text-muted);
+  border: 1.5px solid var(--border);
+}
+.btn-no:active { transform: scale(0.97); }
+
+/* レスポンシブ */
+@media (max-width: 420px) {
+  .clock-buttons { grid-template-columns: 1fr 1fr; }
+}
