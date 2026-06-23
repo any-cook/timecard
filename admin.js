@@ -22,6 +22,13 @@ function getHealthTableType(s){return s.social_insurance&&isNursingCare(s.birthd
 
 var editingStaff=null,_pensionTable=[],_healthTable=[],_healthNursingTable=[],_childSupportTable=[];
 
+// スタッフ種別ラベル
+function staffTypeLabel(type) {
+  if (type === 'officer')  return '役員';
+  if (type === 'employee') return '社員';
+  return 'パート・時給';
+}
+
 async function loadStaffTab(){
   var res=await Promise.all([DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support')]);
   _pensionTable=res[0];_healthTable=res[1];_healthNursingTable=res[2];_childSupportTable=res[3];
@@ -46,7 +53,7 @@ async function loadStaffTab(){
       '<td>'+s.name+lunchMark+'</td><td><span class="badge badge-type">'+staffTypeLabel(s.type)+'</span></td>'+
       '<td>'+(s.type==='hourly'?formatCurrency(s.wage)+'/時':formatCurrency(s.monthly_salary)+'/月')+'</td>'+
       '<td>'+hireDateStr+'</td><td>'+ageStr+'</td><td>'+nursing+'</td><td>'+emp+'</td>'+
-      '<td><span class="badge '+(s.is_active===true||s.is_active===1?'badge-active':'badge-inactive')+'">'+(s.is_active===true||s.is_active===1?'在籍':'退職')+'</span></td>'+
+      '<td><span class="badge '+(s.is_active===true||s.is_active===1?'badge-active':'badge-inactive')+'" style="white-space:nowrap;min-width:48px;display:inline-block;text-align:center;">'+(s.is_active===true||s.is_active===1?'在籍':'退職')+'</span></td>'+
       '<td><button class="btn-sm btn-edit" onclick="openStaffModal(\''+s.id+'\')">✏️ 編集</button> '+
       '<button class="btn-sm btn-toggle" onclick="toggleStaffActive(\''+s.id+'\','+(!s.is_active)+')">'+(s.is_active?'退職処理':'在籍に戻す')+'</button></td>';
     tbody.appendChild(tr);
