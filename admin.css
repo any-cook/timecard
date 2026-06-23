@@ -296,6 +296,7 @@ body {
 
 /* バッジ */
 .badge {
+  white-space: nowrap;
   display: inline-block;
   font-size: 0.72rem;
   font-weight: 700;
