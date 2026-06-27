@@ -381,12 +381,15 @@ function closeStaffDetail() {
   document.getElementById('staffListPanel').style.display   = 'block';
 }
 
-async function openAttendanceAddModal(){
+async function openAttendanceAddModal(preDate, preStaffId){
   document.getElementById('attendanceModalTitle').textContent='打刻の手動追加';document.getElementById('attendanceId').value='';
   var staff=await DB.getStaff(),sel=document.getElementById('attendanceStaff');sel.innerHTML='';
   staff.filter(function(s){return s.is_active;}).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;sel.appendChild(o);});
-  document.getElementById('attendanceDate').value=todayStr();
+  document.getElementById('attendanceDate').value=preDate||todayStr();
+  if(preStaffId){document.getElementById('attendanceStaff').value=preStaffId;}
   ['attendanceClockIn','attendanceClockOut','attendanceWage','attendanceNotes'].forEach(function(id){document.getElementById(id).value='';});
+  // スタッフが選択されていれば時給を自動セット
+  if(preStaffId){var s=staff.find(function(x){return x.id===preStaffId;});if(s&&s.wage)document.getElementById('attendanceWage').value=s.wage;}
   document.getElementById('attendanceSpecial').checked=false;
   document.getElementById('btnDeleteAttendance').style.display='none';
   openModal('attendanceModal');
@@ -421,7 +424,10 @@ async function saveAttendance(){
   if(!clockIn){showToast('出勤時刻を入力してください','error');return;}
   var record={staff_id:staff_id,date:date,clock_in_actual:clockIn,clock_out_actual:clockOut||null,clock_in_calc:roundUpClockIn(clockIn),clock_out_calc:clockOut||null,wage_at_date:parseInt(document.getElementById('attendanceWage').value)||0,is_special_day:document.getElementById('attendanceSpecial').checked,notes:document.getElementById('attendanceNotes').value};
   if(id)record.id=id;
-  await DB.saveAttendance(record);closeModal('attendanceModal');showToast('保存しました');loadAttendanceRecords();
+  await DB.saveAttendance(record);closeModal('attendanceModal');showToast('保存しました');
+  loadAttendanceRecords();
+  // 月別出勤表が開いていれば更新
+  if(document.getElementById('tab-monthly').style.display!=='none') loadMonthlyTab();
 }
 async function deleteAttendance(id){if(!confirmAction('この打刻記録を削除しますか？'))return;await DB.deleteAttendance(id);showToast('削除しました');loadAttendanceRecords();}
 async function deleteAttendanceFromModal(){
@@ -1177,12 +1183,15 @@ async function loadMonthlyTab() {
         var inTime  = r.clock_in_actual  || '-';
         var outTime = r.clock_out_actual || '未退勤';
         var outCls  = r.clock_out_actual ? '' : 'monthly-missing';
-        html += '<td class="monthly-cell '+cls+'">' +
+        html += '<td class="monthly-cell '+cls+'" style="position:relative;">' +
           '<span class="monthly-in">'  + inTime  + '</span><br>' +
-          '<span class="monthly-out '+outCls+'">' + outTime + '</span>' +
+          '<span class="monthly-out '+outCls+'">' + outTime + '</span><br>' +
+          '<button class="monthly-edit-btn" onclick="openAttendanceEditModal(\'' + r.id + '\')">✏️</button>' +
           '</td>';
       } else {
-        html += '<td class="monthly-cell monthly-empty '+cls+'">－</td>';
+        html += '<td class="monthly-cell monthly-empty '+cls+'" style="position:relative;">' +
+          '<button class="monthly-add-btn" onclick="openAttendanceAddModal(\'' + dateStr + '\',\'' + s.id + '\')">➕</button>' +
+          '</td>';
       }
     });
 
