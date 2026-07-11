@@ -555,22 +555,28 @@ async function loadPayrollSummary(){
     var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
     var socialDeduction=pension+healthTotal+childSupport+empIns;
     // 正しい所得税計算：社会保険料等控除後の給与に税額表を適用
-    // 課税所得（非課税手当を除外）
-    var _extraTaxable = 0;
-    // 明細設定から非課税項目を取得して除外
+    // 明細設定から支給項目を取得して差引支給額に反映
     var _psType = staff.payslip_type||staff.type||'hourly';
     var _typeKey = _psType==='officer'?'pay_items_officer':_psType==='employee'?'pay_items_employee':'pay_items_hourly';
-    if(window._payslipSettings && window._payslipSettings[_typeKey]){
-      window._payslipSettings[_typeKey].forEach(function(item){
-        if(item.tax_type!=='nontaxable' && item.calc_add!=='sub') _extraTaxable += (item.amount||0);
-      });
-    }
-    var bonusAmt2 = staff.contribution_bonus ? 1000 : 0;
-    var taxableIncome = grossPay + commuteData.taxable + _extraTaxable + bonusAmt2 - socialDeduction;
+    var _payItems = (window._payslipSettings && window._payslipSettings[_typeKey]) ? window._payslipSettings[_typeKey] : [];
+    // 課税所得計算（減算項目は引く・非課税項目は除外）
+    var _extraTaxable = 0;
+    var _extraTotal = 0;
+    _payItems.forEach(function(item){
+      var amt = item.amount||0;
+      if(item.calc_add==='sub'){
+        _extraTaxable -= amt; // 減算は課税所得から引く
+        _extraTotal -= amt;   // 差引支給額からも引く
+      } else {
+        if(item.tax_type!=='nontaxable') _extraTaxable += amt;
+        _extraTotal += amt;
+      }
+    });
+    var bonusAmt = staff.contribution_bonus ? 1000 : 0;
+    var taxableIncome = grossPay + commuteData.taxable + _extraTaxable + bonusAmt - socialDeduction;
     var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
     var tax=calcTax(Math.max(0,taxableIncome),taxRows,staff.tax_type||'kou',staff.dependents||0);
-    var bonusAmt = staff.contribution_bonus ? 1000 : 0;
-    var netPay=grossPay+commuteData.taxFree+bonusAmt-tax-socialDeduction;
+    var netPay=grossPay+commuteData.taxFree+_extraTotal+bonusAmt-tax-socialDeduction;
     grandTotal+=grossPay;
     var tr=document.createElement('tr');
     tr.innerHTML='<td>'+staff.name+'</td><td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span></td>'+
