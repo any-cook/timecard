@@ -727,17 +727,17 @@ async function showPayslip(staffId,year,month){
   var extraTaxableAmt = 0;
   extraPayItems.forEach(function(i){
     if (i.calc_add === 'sub') {
-      // 減算項目は課税・非課税に関わらず課税所得から引く
       extraTaxableAmt -= (i.amount||0);
     } else if (i.tax_type !== 'nontaxable') {
-      // 加算・課税項目は課税所得に加える
       extraTaxableAmt += (i.amount||0);
     }
-    // 加算・非課税項目は課税所得に影響しない
   });
   var taxableIncome = grossPay + commuteData.taxable + extraTaxableAmt + contributionBonus - socialInsTotal;
   tax = calcTax(Math.max(0, taxableIncome), taxRows, staff.tax_type||'kou', staff.dependents||0);
   netPay = grossPay + commuteData.taxFree - tax - pension - health - nursingCare - childSupport - empIns;
+  // tax確定後にtotalDeductionを再計算（所得税を含む）
+  totalDeduction = tax + pension + health + nursingCare + childSupport + empIns;
+  netPayFinal = totalPay - totalDeduction;
 
   // 課税額・非課税額の内訳計算（extraPayItems確定後）
   var taxablePay = grossPay + commuteData.taxable;
@@ -752,7 +752,7 @@ async function showPayslip(staffId,year,month){
   var nontaxablePay = commuteData.taxFree;
   extraPayItems.forEach(function(i){ if(i.tax_type==='nontaxable' && i.calc_add!=='sub') nontaxablePay += (i.amount||0); });
   var socialInsTotal2 = pension + health + nursingCare + childSupport + empIns;
-  var totalDeductAll = totalDeduction;
+  var totalDeductAll = tax + socialInsTotal2; // 所得税+社会保険計
 
   // カテゴリ別に追加項目を仕分け
   var extraAttendance=[], extraPay=[], extraDeduction=[], extraOther=[];
