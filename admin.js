@@ -584,6 +584,8 @@ async function loadPayrollSummary(){
   document.getElementById('payrollGrandTotal').textContent='支給合計: '+formatCurrency(grandTotal);
 }
 async function showPayslip(staffId,year,month){
+  // 毎回最新の設定を取得
+  _payslipSettings = null;
   var settings = await getPayslipSettings();
   var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support'),DB.getLeaveAll()]);
   var allStaff=res[0],records=res[1].filter(function(r){return r.staff_id===staffId;}),taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7],allLeave=res[8];
