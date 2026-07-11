@@ -720,7 +720,14 @@ async function showPayslip(staffId,year,month){
   // 所得税計算（extraPayItems確定後）
   var extraTaxableAmt = 0;
   extraPayItems.forEach(function(i){
-    if(i.tax_type!=='nontaxable' && i.calc_add!=='sub') extraTaxableAmt += (i.amount||0);
+    if (i.calc_add === 'sub') {
+      // 減算項目は課税・非課税に関わらず課税所得から引く
+      extraTaxableAmt -= (i.amount||0);
+    } else if (i.tax_type !== 'nontaxable') {
+      // 加算・課税項目は課税所得に加える
+      extraTaxableAmt += (i.amount||0);
+    }
+    // 加算・非課税項目は課税所得に影響しない
   });
   var taxableIncome = grossPay + commuteData.taxable + extraTaxableAmt + contributionBonus - socialInsTotal;
   tax = calcTax(Math.max(0, taxableIncome), taxRows, staff.tax_type||'kou', staff.dependents||0);
@@ -728,7 +735,13 @@ async function showPayslip(staffId,year,month){
 
   // 課税額・非課税額の内訳計算（extraPayItems確定後）
   var taxablePay = grossPay + commuteData.taxable;
-  extraPayItems.forEach(function(i){ if(i.tax_type!=='nontaxable' && i.calc_add!=='sub') taxablePay += (i.amount||0); });
+  extraPayItems.forEach(function(i){
+    if (i.calc_add === 'sub') {
+      taxablePay -= (i.amount||0); // 減算項目は課税額から引く
+    } else if (i.tax_type !== 'nontaxable') {
+      taxablePay += (i.amount||0); // 加算・課税項目は加える
+    }
+  });
   if(contributionBonus > 0) taxablePay += contributionBonus;
   var nontaxablePay = commuteData.taxFree;
   extraPayItems.forEach(function(i){ if(i.tax_type==='nontaxable' && i.calc_add!=='sub') nontaxablePay += (i.amount||0); });
