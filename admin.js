@@ -672,19 +672,6 @@ async function showPayslip(staffId,year,month){
   html += '<table class="ps-table">';
 
   // 勤怠行
-  // 課税額・非課税額の内訳計算
-  // 課税支給 = 基本給 + 課税通勤費 + 課税追加項目
-  var taxablePay = grossPay + commuteData.taxable;
-  extraPayItems.forEach(function(i){ if(i.tax_type!=='nontaxable' && i.calc_add!=='sub') taxablePay += (i.amount||0); });
-  if(contributionBonus > 0) taxablePay += contributionBonus;
-  // 非課税支給 = 非課税通勤費 + 非課税追加項目
-  var nontaxablePay = commuteData.taxFree;
-  extraPayItems.forEach(function(i){ if(i.tax_type==='nontaxable' && i.calc_add!=='sub') nontaxablePay += (i.amount||0); });
-  // 社会保険合計
-  var socialInsTotal2 = pension + health + nursingCare + childSupport + empIns;
-  // 控除額合計（所得税含む）
-  var totalDeductAll = totalDeduction; // tax + socialInsTotal2
-
   html += '<style>.ps-section-header th{background:'+clr.header+'!important;}.ps-total-label{color:'+clr.total+'!important;}.ps-total-val{color:'+clr.total+'!important;background:'+clr.totalBg+'!important;}.ps-total-row td{border-top:2px solid '+clr.total+'!important;}</style>';
   html += '<tr class="ps-section-header">';
   html += '<th colspan="2">勤　怠</th>';
@@ -716,6 +703,15 @@ async function showPayslip(staffId,year,month){
   }, 0);
   totalPay += extraTotalPay + contributionBonus;
   netPayFinal += extraTotalPay + contributionBonus;
+
+  // 課税額・非課税額の内訳計算（extraPayItems確定後）
+  var taxablePay = grossPay + commuteData.taxable;
+  extraPayItems.forEach(function(i){ if(i.tax_type!=='nontaxable' && i.calc_add!=='sub') taxablePay += (i.amount||0); });
+  if(contributionBonus > 0) taxablePay += contributionBonus;
+  var nontaxablePay = commuteData.taxFree;
+  extraPayItems.forEach(function(i){ if(i.tax_type==='nontaxable' && i.calc_add!=='sub') nontaxablePay += (i.amount||0); });
+  var socialInsTotal2 = pension + health + nursingCare + childSupport + empIns;
+  var totalDeductAll = totalDeduction;
 
   // カテゴリ別に追加項目を仕分け
   var extraAttendance=[], extraPay=[], extraDeduction=[], extraOther=[];
