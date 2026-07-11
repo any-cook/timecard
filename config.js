@@ -110,6 +110,18 @@ const DB = {
     return results;
   },
 
+  async getAttendanceById(id) {
+    if (DEMO_MODE) {
+      var list = JSON.parse(localStorage.getItem('attendance') || '[]');
+      return list.find(function(r){ return r.id === id; }) || null;
+    }
+    try {
+      var snap = await getDB().collection('attendance').doc(id).get();
+      if (snap.exists) return { id: snap.id, ...snap.data() };
+    } catch(e) {}
+    return null;
+  },
+
   async saveAttendance(record) {
     if (DEMO_MODE) {
       let list = JSON.parse(localStorage.getItem('attendance') || '[]');

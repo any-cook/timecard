@@ -415,15 +415,14 @@ async function openAttendanceAddModal(preDate, preStaffId){
   openModal('attendanceModal');
 }
 async function openAttendanceEditModal(id, yearHint, monthHint){
-  // 年月を引数で受け取るか、現在のタブから取得
-  var year  = yearHint  || parseInt(document.getElementById('filterYear')  ? document.getElementById('filterYear').value  : document.getElementById('monthlyYear').value);
-  var month = monthHint || parseInt(document.getElementById('filterMonth') ? document.getElementById('filterMonth').value : document.getElementById('monthlyMonth').value);
-  var records=await DB.getAttendance({year:year,month:month});
-  var r=records.find(function(x){return x.id===id;});
-  // 見つからない場合は日付から年月を推定して再検索
+  // IDで直接取得（最も確実な方法）
+  var r = await DB.getAttendanceById(id);
+  // 直接取得できない場合は年月でフィルターして検索
   if(!r){
-    var allRec=await DB.getAttendance({year:year,month:month});
-    r=allRec.find(function(x){return x.id===id;});
+    var year  = yearHint  || parseInt((document.getElementById('filterYear')||document.getElementById('monthlyYear')).value);
+    var month = monthHint || parseInt((document.getElementById('filterMonth')||document.getElementById('monthlyMonth')).value);
+    var records = await DB.getAttendance({year:year, month:month});
+    r = records.find(function(x){ return x.id===id; });
   }
   if(!r){showToast('レコードが見つかりません','error');return;}
   document.getElementById('attendanceModalTitle').textContent='打刻の修正';document.getElementById('attendanceId').value=r.id;
