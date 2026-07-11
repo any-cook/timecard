@@ -1739,6 +1739,9 @@ async function openMonthlyInputModal() {
   var year  = parseInt(document.getElementById('payrollYear').value);
   var month = parseInt(document.getElementById('payrollMonth').value);
   var staff = await DB.getStaff();
+  // 常に最新の設定を取得（キャッシュをクリア）
+  _payslipSettings = null;
+  localStorage.removeItem('payslip_settings');
   var settings = await getPayslipSettings();
 
   // 変動賃金項目を種別ごとに収集（wage_fixed==='variable' のもの）
