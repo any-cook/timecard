@@ -87,6 +87,7 @@ async function openStaffModal(id){
       toggleOfficerCommute();
       document.getElementById('staffPayslipNote').value=editingStaff.payslip_note||'';
       document.getElementById('staffPaidLeaveHours').value=editingStaff.paid_leave_hours||7.5;
+      document.getElementById('staffContributionBonus').checked=editingStaff.contribution_bonus||false;
       document.getElementById('staffName').value=editingStaff.name;
       document.getElementById('staffBirthdate').value=editingStaff.birthdate||'';
       document.getElementById('staffLunchBreak').checked=editingStaff.lunch_break||false;
@@ -209,6 +210,7 @@ async function saveStaff(){
     commute_fixed:parseInt(document.getElementById('staffCommuteFixed').value)||0,
     payslip_note:document.getElementById('staffPayslipNote').value.trim(),
     paid_leave_hours:parseFloat(document.getElementById('staffPaidLeaveHours').value)||7.5,
+    contribution_bonus:document.getElementById('staffContributionBonus').checked,
     lunch_break:document.getElementById('staffLunchBreak').checked,
     lunch_start:document.getElementById('staffLunchStart').value||'12:00',
     lunch_end:document.getElementById('staffLunchEnd').value||'13:00',
@@ -554,7 +556,8 @@ async function loadPayrollSummary(){
     var taxableIncome=grossPay+commuteData.taxable-socialDeduction;
     var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
     var tax=calcTax(Math.max(0,taxableIncome),taxRows,staff.tax_type||'kou',staff.dependents||0);
-    var netPay=grossPay+commuteData.taxFree-tax-socialDeduction;
+    var bonusAmt = staff.contribution_bonus ? 1000 : 0;
+    var netPay=grossPay+commuteData.taxFree+bonusAmt-tax-socialDeduction;
     grandTotal+=grossPay;
     var tr=document.createElement('tr');
     tr.innerHTML='<td>'+staff.name+'</td><td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span></td>'+
@@ -676,6 +679,9 @@ async function showPayslip(staffId,year,month){
   html += '</tr>';
 
   // データ行
+  // 貢献手当（スタッフにチェックがある場合のみ）
+  var contributionBonus = staff.contribution_bonus ? 1000 : 0;
+
   // 追加支給項目（スタッフの明細書種別から取得）
   var psType = staff.payslip_type || staff.type || 'hourly';
   var typeKey = psType === 'officer' ? 'pay_items_officer'
@@ -693,8 +699,8 @@ async function showPayslip(staffId,year,month){
   var extraTotalPay = extraPayItems.reduce(function(acc,i){
     return acc + (i.calc_add==='sub' ? -(i.amount||0) : (i.amount||0));
   }, 0);
-  totalPay += extraTotalPay;
-  netPayFinal += extraTotalPay;
+  totalPay += extraTotalPay + contributionBonus;
+  netPayFinal += extraTotalPay + contributionBonus;
 
   // カテゴリ別に追加項目を仕分け
   var extraAttendance=[], extraPay=[], extraDeduction=[], extraOther=[];
@@ -722,6 +728,10 @@ async function showPayslip(staffId,year,month){
     [basicPayLabel, numFmt(grossPay)],
     ['非課税通勤費', numFmt(commuteData.taxFree)],
   ];
+  // 貢献手当（チェックありの場合のみ追加）
+  if (contributionBonus > 0) {
+    payRows.push(['貢献手当', numFmt(contributionBonus)]);
+  }
   if(commuteData.taxable>0) payRows.push(['課税通勤費', numFmt(commuteData.taxable)]);
   extraPay.forEach(function(i){
     var isSubtract = i.calc_add === 'sub';

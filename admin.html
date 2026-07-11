@@ -467,6 +467,13 @@
             <input type="number" id="staffPaidLeaveHours" class="form-input" placeholder="例: 7.5" step="0.5" min="1" max="12">
             <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px;">月別出勤表・集計での有給時間計算に使用します</p>
           </div>
+          <div class="form-group full">
+            <label class="form-check" style="font-weight:700;">
+              <input type="checkbox" id="staffContributionBonus">
+              🏅 貢献手当（毎月1,000円を給与明細に自動追加）
+            </label>
+            <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px;">チェックがある方のみ給与明細の支給欄に「貢献手当 1,000円」を表示します</p>
+          </div>
           <div class="form-group" style="align-self:flex-end;">
             <label class="form-check"><input type="checkbox" id="staffLunchBreak"> 🍱 昼休憩あり（1時間控除）</label>
             <p style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">勤務時間から昼休憩1時間を差し引きます</p>
