@@ -555,7 +555,18 @@ async function loadPayrollSummary(){
     var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
     var socialDeduction=pension+healthTotal+childSupport+empIns;
     // 正しい所得税計算：社会保険料等控除後の給与に税額表を適用
-    var taxableIncome=grossPay+commuteData.taxable-socialDeduction;
+    // 課税所得（非課税手当を除外）
+    var _extraTaxable = 0;
+    // 明細設定から非課税項目を取得して除外
+    var _psType = staff.payslip_type||staff.type||'hourly';
+    var _typeKey = _psType==='officer'?'pay_items_officer':_psType==='employee'?'pay_items_employee':'pay_items_hourly';
+    if(window._payslipSettings && window._payslipSettings[_typeKey]){
+      window._payslipSettings[_typeKey].forEach(function(item){
+        if(item.tax_type!=='nontaxable' && item.calc_add!=='sub') _extraTaxable += (item.amount||0);
+      });
+    }
+    var bonusAmt2 = staff.contribution_bonus ? 1000 : 0;
+    var taxableIncome = grossPay + commuteData.taxable + _extraTaxable + bonusAmt2 - socialDeduction;
     var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
     var tax=calcTax(Math.max(0,taxableIncome),taxRows,staff.tax_type||'kou',staff.dependents||0);
     var bonusAmt = staff.contribution_bonus ? 1000 : 0;
@@ -634,7 +645,13 @@ async function showPayslip(staffId,year,month){
   var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
   // 正しい所得税計算：社会保険料等控除後の給与に税額表を適用
   var socialInsTotal=pension+health+nursingCare+childSupport+empIns;
-  var taxableIncome=grossPay+commuteData.taxable-socialInsTotal;
+  // 課税所得 = 基本給 + 課税通勤費 + 課税手当（食事手当等の非課税項目は除外） - 社会保険計
+  var extraTaxableAmt = 0;
+  extraPayItems.forEach(function(i){
+    if(i.tax_type!=='nontaxable' && i.calc_add!=='sub') extraTaxableAmt += (i.amount||0);
+  });
+  // 貢献手当は課税
+  var taxableIncome = grossPay + commuteData.taxable + extraTaxableAmt + contributionBonus - socialInsTotal;
   var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
   var tax=calcTax(Math.max(0,taxableIncome),taxRows,staff.tax_type||'kou',staff.dependents||0);
   var netPay=grossPay+commuteData.taxFree-tax-pension-health-nursingCare-childSupport-empIns;
