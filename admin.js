@@ -679,12 +679,15 @@ async function showPayslip(staffId,year,month){
   html += '<div class="ps-wrap" style="font-size:'+fs+'">';
   // ヘッダー
   html += '<div class="ps-company">'+(settings.company||'合同会社エニクック')+'</div>';
-  html += '<div class="ps-title">' + year + '年' + month + '月分　給与明細書</div>';
+  // 給与明細は翌月分（例：6月勤務→7月分）
+  var payYear  = month === 12 ? year + 1 : year;
+  var payMonth = month === 12 ? 1 : month + 1;
+  html += '<div class="ps-title">' + payYear + '年' + payMonth + '月分　給与明細書</div>';
   html += '<div class="ps-meta">';
   html += '<div class="ps-meta-left">';
   html += '<span class="ps-emp">（' + (staff.staff_number||'-') + '）' + staff.name + '　様</span>';
   html += '</div>';
-  html += '<div class="ps-meta-right">支給日：令和' + (year-2018) + '年' + month + '月'+(settings.pay_day||10)+'日</div>';
+  html += '<div class="ps-meta-right">支給日：令和' + (payYear-2018) + '年' + payMonth + '月'+(settings.pay_day||10)+'日</div>';
   html += '</div>';
 
   // メインテーブル
