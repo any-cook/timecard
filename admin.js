@@ -518,6 +518,11 @@ async function loadPayrollSummary(){
   var allStaff=res[0],records=res[1],taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7];
   var tbody=document.getElementById('payrollTableBody');tbody.innerHTML='';var grandTotal=0;
   var activeStaff=allStaff.filter(function(s){return s.is_active && s.type!=='contract';});
+  // 登録番号順にソート
+  activeStaff.sort(function(a,b){
+    var na=parseInt(a.staff_number||9999), nb=parseInt(b.staff_number||9999);
+    return na-nb;
+  });
   for(var si=0;si<activeStaff.length;si++){
     var staff=activeStaff[si];
     var staffRecords=records.filter(function(r){return r.staff_id===staff.id;});
