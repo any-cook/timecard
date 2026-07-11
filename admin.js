@@ -862,10 +862,10 @@ async function showPayslip(staffId,year,month){
   // 差引支給額ブロック
   var netPayDisplay = netPayFinal; // 差引支給額 = 支給合計 - 控除合計
   html += '<div class="ps-bottom">';
-  // 課税支給額
+  // 支給額合計
   html += '<div class="ps-bottom-block">';
-  html += '<div class="ps-bottom-label">課税支給額</div>';
-  html += '<div class="ps-bottom-val">' + numFmt(taxablePay) + '</div>';
+  html += '<div class="ps-bottom-label">支給額合計</div>';
+  html += '<div class="ps-bottom-val">' + numFmt(totalPay) + '</div>';
   html += '</div>';
   // 控除合計額
   html += '<div class="ps-bottom-block">';
