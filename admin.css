@@ -974,3 +974,29 @@ select:focus, input:focus, textarea:focus {
 }
 .monthly-edit-btn:hover,
 .monthly-add-btn:hover { opacity: 1; }
+
+/* 月別出勤表 有休表示 */
+.monthly-leave {
+  background: #f0fdf4 !important;
+}
+.monthly-leave-day {
+  display: block;
+  color: #16a34a;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+.monthly-leave-time {
+  display: block;
+  color: #16a34a;
+  font-size: 0.68rem;
+}
+.monthly-leave-badge {
+  display: inline-block;
+  background: #bbf7d0;
+  color: #166534;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 4px;
+  margin-top: 2px;
+}

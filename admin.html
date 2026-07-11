@@ -463,6 +463,10 @@
           <div class="form-group full"><label class="form-label">個別備考（この方の明細書のみに表示）</label>
             <input type="text" id="staffPayslipNote" class="form-input" placeholder="例: 試用期間中のため時給900円">
           </div>
+          <div class="form-group"><label class="form-label">有給1日の時間数（時間）</label>
+            <input type="number" id="staffPaidLeaveHours" class="form-input" placeholder="例: 7.5" step="0.5" min="1" max="12">
+            <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px;">月別出勤表・集計での有給時間計算に使用します</p>
+          </div>
           <div class="form-group" style="align-self:flex-end;">
             <label class="form-check"><input type="checkbox" id="staffLunchBreak"> 🍱 昼休憩あり（1時間控除）</label>
             <p style="font-size:.75rem;color:var(--text-muted);margin-top:4px;">勤務時間から昼休憩1時間を差し引きます</p>
