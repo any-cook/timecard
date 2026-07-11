@@ -671,6 +671,16 @@
           <button class="modal-close" onclick="closeModal('payslipModal')">✕</button>
         </div>
       </div>
+      <!-- 役員：出勤日数入力欄 -->
+      <div id="payslipWorkDaysBar" style="display:none;padding:10px 16px;background:#fffbe6;border-bottom:1px solid #fcd34d;display:flex;align-items:center;gap:12px;">
+        <span style="font-size:.85rem;font-weight:700;color:#92400e;">📅 当月出勤日数</span>
+        <input type="number" id="payslipWorkDaysInput" min="0" max="31"
+          style="width:80px;text-align:center;font-size:1.1rem;font-weight:700;border:2px solid #fcd34d;border-radius:8px;padding:4px 8px;"
+          placeholder="日数">
+        <span style="font-size:.82rem;color:var(--text-muted);">日</span>
+        <button class="btn btn-secondary" style="padding:6px 14px;font-size:.78rem;" onclick="applyPayslipWorkDays()">✔ 適用</button>
+        <span id="payslipWorkDaysHint" style="font-size:.75rem;color:#92400e;"></span>
+      </div>
       <div id="payslipNew"></div>
       <div id="payslipOld" style="display:none;"></div>
     </div>

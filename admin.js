@@ -824,6 +824,20 @@ async function showPayslip(staffId,year,month){
   // 新フォーマット（PDF準拠）
   document.getElementById('payslipNew').innerHTML = html;
 
+  // 役員：出勤日数入力欄を表示
+  var wdBar = document.getElementById('payslipWorkDaysBar');
+  var psTypeCheck = staff.payslip_type||staff.type;
+  if (psTypeCheck === 'officer') {
+    wdBar.style.display = 'flex';
+    document.getElementById('payslipWorkDaysInput').value = workDays || '';
+    document.getElementById('payslipWorkDaysInput').dataset.staffId = staffId;
+    document.getElementById('payslipWorkDaysInput').dataset.year   = year;
+    document.getElementById('payslipWorkDaysInput').dataset.month  = month;
+    document.getElementById('payslipWorkDaysHint').textContent = '（現在：' + workDays + '日）';
+  } else {
+    wdBar.style.display = 'none';
+  }
+
   // 旧フォーマット（詳細）
   var oldHtml = '';
   oldHtml += '<div class="payslip">';
@@ -857,6 +871,23 @@ async function showPayslip(staffId,year,month){
   openModal('payslipModal');
 }
 function numFmt(n){ return Number(n||0).toLocaleString(); }
+
+// 給与明細の出勤日数を適用して再表示
+async function applyPayslipWorkDays() {
+  var input   = document.getElementById('payslipWorkDaysInput');
+  var days    = parseInt(input.value);
+  var staffId = input.dataset.staffId;
+  var year    = parseInt(input.dataset.year);
+  var month   = parseInt(input.dataset.month);
+  if (isNaN(days) || days < 0 || days > 31) { showToast('正しい日数を入力してください','error'); return; }
+  // 月次入力に保存
+  var existing = await getMonthlyInput(year, month, staffId);
+  await saveMonthlyInputData(year, month, staffId, Object.assign({}, existing, { work_days: days }));
+  showToast('出勤日数を保存しました');
+  document.getElementById('payslipWorkDaysHint').textContent = '（現在：' + days + '日）';
+  // 給与明細を再表示
+  await showPayslip(staffId, year, month);
+}
 function switchPayslip(mode) {
   var isNew = mode === 'new';
   document.getElementById('payslipNew').style.display = isNew ? 'block' : 'none';
@@ -1176,18 +1207,12 @@ async function loadMonthlyTab() {
   wrap.innerHTML = '<p style="padding:20px;color:var(--text-muted);">読み込み中...</p>';
 
   var staff   = await DB.getStaff();
-  var active  = staff.filter(function(s){ return s.is_active; }); // 役員も含む
+  var active  = staff.filter(function(s){ return s.is_active && s.type !== 'officer'; });
   var records = await DB.getAttendance({ year: year, month: month });
   var allLeave = await DB.getLeaveAll();
   // 当月の有給使用データ
   var ymStr = year + '-' + String(month).padStart(2,'0');
-  // 役員の月次入力をキャッシュ
-  var monthlyInputCache = {};
-  var officers = staff.filter(function(s){ return s.is_active && (s.type==='officer'||s.payslip_type==='officer'); });
-  for(var oi=0; oi<officers.length; oi++){
-    var md = await getMonthlyInput(year, month, officers[oi].id);
-    if(md.work_days !== null) monthlyInputCache[officers[oi].id] = md.work_days;
-  }
+
 
   // 月の日数を取得
   var daysInMonth = new Date(year, month, 0).getDate();
@@ -1214,7 +1239,6 @@ async function loadMonthlyTab() {
   // スタッフ行
   html += '<tbody>';
   active.forEach(function(s) {
-    var isOfficerRow = (s.type === 'officer' || s.payslip_type === 'officer');
     var staffRecords = records.filter(function(r){ return r.staff_id === s.id; });
     var totalDays = 0, totalMins = 0;
     var paidLeaveHours = s.paid_leave_hours || 7.5;
@@ -1223,29 +1247,6 @@ async function loadMonthlyTab() {
     var staffLeave = allLeave.filter(function(r){ return r.staff_id === s.id && r.type === 'use' && r.date && r.date.startsWith(ymStr); });
     var leaveDates = {};
     staffLeave.forEach(function(r){ leaveDates[r.date] = (leaveDates[r.date]||0) + (parseFloat(r.days)||1); });
-
-    // 役員：出勤日数入力欄を1行で表示
-    if (isOfficerRow) {
-      var officerWorkDays = monthlyInputCache[s.id] !== undefined ? monthlyInputCache[s.id] : '';
-      html += '<tr style="background:#fffbe6;">';
-      html += '<td class="monthly-name-cell">' + s.name + ' <span style="font-size:.7rem;color:#92400e;font-weight:700;">役員</span></td>';
-      html += '<td colspan="' + daysInMonth + '" style="text-align:center;padding:10px;">';
-      html += '<div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;">';
-      html += '<label style="font-size:.85rem;font-weight:700;color:#92400e;">📅 当月出勤日数：</label>';
-      html += '<input type="number" class="form-input officer-workdays-input" data-staff="' + s.id + '" ';
-      html += 'value="' + officerWorkDays + '" min="0" max="31" placeholder="日数を入力" ';
-      html += 'style="width:90px;text-align:center;font-size:1.1rem;font-weight:700;margin:0;" ';
-      html += 'onchange="saveOfficerWorkDays(\'' + s.id + '\', this.value, ' + year + ', ' + month + ')">';
-      html += '<span style="font-size:.82rem;color:var(--text-muted);">日</span>';
-      html += '<button class="btn btn-secondary" style="padding:6px 14px;font-size:.78rem;" ';
-      html += 'onclick="saveOfficerWorkDays(\'' + s.id + '\', document.querySelector(\'.officer-workdays-input[data-staff=\"' + s.id + '\"]\')?document.querySelector(\'.officer-workdays-input[data-staff=\"' + s.id + '\"]\').value:\'\', ' + year + ', ' + month + ')">💾 保存</button>';
-      html += '</div></td>';
-      var od = officerWorkDays !== '' ? parseInt(officerWorkDays) : '-';
-      html += '<td class="monthly-total-cell">' + od + '日</td>';
-      html += '<td class="monthly-total-cell">-</td>';
-      html += '</tr>';
-      return;
-    }
 
     html += '<tr><td class="monthly-name-cell">' + s.name + '</td>';
 
