@@ -83,6 +83,8 @@ async function openStaffModal(id){
     if(editingStaff){
       document.getElementById('staffNumber').value=editingStaff.staff_number||'';
       document.getElementById('staffPayslipType').value=editingStaff.payslip_type||editingStaff.type||'hourly';
+      document.getElementById('staffCommuteFixed').value=editingStaff.commute_fixed||0;
+      toggleOfficerCommute();
       document.getElementById('staffPayslipNote').value=editingStaff.payslip_note||'';
       document.getElementById('staffPaidLeaveHours').value=editingStaff.paid_leave_hours||7.5;
       document.getElementById('staffName').value=editingStaff.name;
@@ -154,7 +156,8 @@ function updateNursingCareStatus(){
   else{el.textContent=age+'歳 ／ 介護保険非該当';el.style.background='#f0fdf4';el.style.color='#166534';}
   if(document.getElementById('staffSocialInsurance').checked)buildGradeSelects(nursing?'health_nursing':'health');
 }
-function updateStaffTypeFields(){var type=document.getElementById('staffType').value;document.getElementById('staffWageSection').style.display=type==='hourly'?'block':'none';document.getElementById('staffSalarySection').style.display=type!=='hourly'?'block':'none';}
+function updateStaffTypeFields(){
+  toggleOfficerCommute();var type=document.getElementById('staffType').value;document.getElementById('staffWageSection').style.display=type==='hourly'?'block':'none';document.getElementById('staffSalarySection').style.display=type!=='hourly'?'block':'none';}
 function toggleSocialInsurance(){var checked=document.getElementById('staffSocialInsurance').checked;document.getElementById('socialInsuranceFields').style.display=checked?'block':'none';if(checked){var bd=document.getElementById('staffBirthdate').value;buildGradeSelects((bd&&isNursingCare(bd))?'health_nursing':'health');updateInsurancePreview();}}
 function toggleEmploymentInsurance(){document.getElementById('employmentInsuranceFields').style.display=document.getElementById('staffEmploymentInsurance').checked?'block':'none';}
 function updateInsurancePreview(){
@@ -203,6 +206,7 @@ async function saveStaff(){
     staff_number:String(staffNumber).trim(),name:name,birthdate:birthdate,
     hire_date:document.getElementById('staffHireDate').value,
     payslip_type:document.getElementById('staffPayslipType').value,
+    commute_fixed:parseInt(document.getElementById('staffCommuteFixed').value)||0,
     payslip_note:document.getElementById('staffPayslipNote').value.trim(),
     paid_leave_hours:parseFloat(document.getElementById('staffPaidLeaveHours').value)||7.5,
     lunch_break:document.getElementById('staffLunchBreak').checked,
@@ -528,7 +532,7 @@ async function loadPayrollSummary(){
     // 役員：距離の非課税限度額を固定支給（全額非課税）、それ以外：出勤日数×日額
     var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
     var commuteData=isOfficer
-      ? (staff.commute_distance ? calcOfficerCommuteAllowance(staff.commute_distance) : {total:0,taxFree:0,taxable:0})
+      ? calcOfficerCommuteFixed(staff)
       : (staff.commute_daily_amount ? calcCommuteAllowance(staff.commute_daily_amount,workDays,staff.commute_distance||0) : {total:0,taxFree:0,taxable:0});
     // 所得税：課税支給額（基本給＋課税通勤費）で計算
     var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
@@ -616,7 +620,7 @@ async function showPayslip(staffId,year,month){
   // 役員：距離の非課税限度額を固定支給（全額非課税）、それ以外：出勤日数×日額
   var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
   var commuteData=isOfficer
-    ? (staff.commute_distance ? calcOfficerCommuteAllowance(staff.commute_distance) : {total:0,taxFree:0,taxable:0})
+    ? calcOfficerCommuteFixed(staff)
     : (staff.commute_daily_amount ? calcCommuteAllowance(staff.commute_daily_amount,workDays,staff.commute_distance||0) : {total:0,taxFree:0,taxable:0});
   // 所得税：課税支給額（基本給＋課税通勤費）で計算
   var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
@@ -1678,6 +1682,14 @@ function updateAttendanceLunchPreview(){
     var mins = timeToMinutes(end) - timeToMinutes(start);
     prev.textContent = '控除時間：' + (mins > 0 ? Math.floor(mins/60)+'時間'+mins%60+'分' : '-');
   }
+}
+
+function toggleOfficerCommute(){
+  var type = document.getElementById('staffType').value;
+  var psType = document.getElementById('staffPayslipType') ? document.getElementById('staffPayslipType').value : '';
+  var isOfficer = (type === 'officer' || psType === 'officer');
+  var row = document.getElementById('officerCommuteFixedRow');
+  if(row) row.style.display = isOfficer ? 'block' : 'none';
 }
 
 function toggleLunchBreak(){

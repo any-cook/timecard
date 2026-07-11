@@ -188,6 +188,15 @@ function calcCommuteAllowance(dailyAmount, workDays, distanceKm) {
 }
 
 // 役員用通勤費：距離の非課税限度額を固定支給（全額非課税）
+// 役員の固定通勤費計算
+function calcOfficerCommuteFixed(staff) {
+  var fixedAmt = staff.commute_fixed || 0;
+  var distAmt  = staff.commute_distance ? getCommuteTaxFreeLimit(staff.commute_distance) : 0;
+  var amount   = fixedAmt > 0 ? fixedAmt : distAmt;
+  if (amount <= 0) return { total:0, taxFree:0, taxable:0 };
+  return { total: amount, taxFree: amount, taxable: 0 };
+}
+
 function calcOfficerCommuteAllowance(distanceKm) {
   var taxFreeLimit = getCommuteTaxFreeLimit(distanceKm);
   return { total:taxFreeLimit, taxFree:taxFreeLimit, taxable:0 };

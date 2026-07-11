@@ -492,6 +492,14 @@
           <div class="form-group"><label class="form-label">通勤距離（km）</label><input type="number" id="staffCommuteDistance" class="form-input" placeholder="0" min="0" step="0.1" onchange="updateCommuteTaxFree()"></div>
           <div class="form-group"><label class="form-label">1日あたり通勤費（円）</label><input type="number" id="staffCommuteDailyAmount" class="form-input" placeholder="0" min="0" step="10"></div>
           <div class="form-group full"><div id="commuteTaxFreeInfo" class="commute-info-box" style="display:none;"></div></div>
+          <!-- 役員用：固定通勤費 -->
+          <div class="form-group full" id="officerCommuteFixedRow" style="display:none;">
+            <div style="background:#fffbe6;border:1.5px solid #fcd34d;border-radius:10px;padding:12px 14px;">
+              <label class="form-label" style="color:#92400e;font-weight:700;">🏅 役員 固定通勤費（月額・円）</label>
+              <input type="number" id="staffCommuteFixed" class="form-input" placeholder="例: 7300" min="0" step="10" style="margin-top:6px;">
+              <p style="font-size:.72rem;color:#92400e;margin-top:4px;">設定した金額を毎月全額非課税で支給します。距離設定がある場合は非課税限度額が自動適用されます。</p>
+            </div>
+          </div>
         </div>
         <div class="form-section-title">🕐 勤務設定</div>
         <div class="form-grid">
