@@ -770,10 +770,14 @@ async function showPayslip(staffId,year,month){
   // ※減算分は extraTotalPay の計算で既に netPayFinal に反映済み
 
   // 勤怠列
-  var attRows = [workDays+'日'].concat(extraAttendance.map(function(i){return i.name+'：'+numFmt(i.amount);}));
-  // 有給情報を勤怠列に追加
-  attRows.push('有休残：' + leaveBalance + '日');
-  if (monthUsed > 0) attRows.push('有休使用：' + monthUsed + '日');
+  // 勤務時間合計を計算
+  var totalH2 = Math.floor(totalMins/60), totalM2 = totalMins%60;
+  var totalTimeStr2 = totalH2 + '時間' + (totalM2 > 0 ? totalM2 + '分' : '');
+  // 勤怠列：労働日数 → 勤務時間合計 → 有休使用（使用時のみ） → 有休残
+  var attRows = [workDays+'日', totalTimeStr2];
+  extraAttendance.forEach(function(i){ attRows.push(i.name+'：'+numFmt(i.amount)); });
+  if (monthUsed > 0) attRows.push(monthUsed + '日');
+  attRows.push(leaveBalance + '日');
   // 支給列
   var basicPayLabel = psType === 'officer' ? '役員報酬' : (psType === 'employee' ? '基本給' : '基本給');
   var payRows = [
@@ -810,10 +814,10 @@ async function showPayslip(staffId,year,month){
   var maxRows = Math.max(attRows.length, payRows.length, dedRows.length, otherRows.length);
   var rows2 = [];
   // 勤怠列のラベルと値を定義
-  var attLabels = ['労働日数'];
+  var attLabels = ['労働日数', '勤務時間合計'];
   extraAttendance.forEach(function(i){ attLabels.push(i.name); });
+  if (monthUsed > 0) attLabels.push('有休休暇');
   attLabels.push('有休残');
-  if (monthUsed > 0) attLabels.push('有休使用');
 
   for(var ri=0; ri<maxRows; ri++){
     var att  = ri < attLabels.length ? attLabels[ri] : '';
@@ -886,19 +890,7 @@ async function showPayslip(staffId,year,month){
   if (noteText) html += '<div class="ps-note">※ ' + noteText + '</div>';
   if (personalNote) html += '<div class="ps-note" style="margin-top:6px;background:#fff4e6;border-color:#f0a040;">📝 ' + personalNote + '</div>';
 
-  // 勤務時間合計
-  var totalH = Math.floor(totalMins/60);
-  var totalM = totalMins % 60;
-  var totalTimeStr = totalH + '時間' + (totalM > 0 ? totalM + '分' : '');
-  html += '<div style="margin-top:12px;padding:10px 14px;background:#f0f8ff;border:1.5px solid #bfdbfe;border-radius:10px;display:flex;align-items:center;gap:16px;">';
-  html += '<span style="font-size:.82rem;font-weight:700;color:#1d4ed8;">⏱ 当月勤務時間合計</span>';
-  html += '<span style="font-size:1.1rem;font-weight:900;color:#1d4ed8;">' + totalTimeStr + '</span>';
-  if (workDays > 0) {
-    var avgMins = Math.round(totalMins / workDays);
-    var avgH = Math.floor(avgMins/60), avgM = avgMins%60;
-    html += '<span style="font-size:.78rem;color:var(--text-muted);">（1日平均：' + avgH + '時間' + (avgM>0?avgM+'分':'') + '）</span>';
-  }
-  html += '</div>';
+
 
   // 打刻明細（設定に応じて表示）
   var showDetail = settings.show_detail || 'collapse';
