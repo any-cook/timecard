@@ -26,6 +26,8 @@ var editingStaff=null,_pensionTable=[],_healthTable=[],_healthNursingTable=[],_c
 function staffTypeLabel(type) {
   if (type === 'officer')  return '役員';
   if (type === 'employee') return '社員';
+  if (type === 'contract') return '委託';
+  if (type === 'senzoku')  return '専従者';
   return 'パート・時給';
 }
 
@@ -515,7 +517,7 @@ async function loadPayrollSummary(){
   var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support')]);
   var allStaff=res[0],records=res[1],taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7];
   var tbody=document.getElementById('payrollTableBody');tbody.innerHTML='';var grandTotal=0;
-  var activeStaff=allStaff.filter(function(s){return s.is_active;});
+  var activeStaff=allStaff.filter(function(s){return s.is_active && s.type!=='contract';});
   for(var si=0;si<activeStaff.length;si++){
     var staff=activeStaff[si];
     var staffRecords=records.filter(function(r){return r.staff_id===staff.id;});
@@ -1236,7 +1238,7 @@ async function loadMonthlyTab() {
   wrap.innerHTML = '<p style="padding:20px;color:var(--text-muted);">読み込み中...</p>';
 
   var staff   = await DB.getStaff();
-  var active  = staff.filter(function(s){ return s.is_active && s.type !== 'officer'; });
+  var active  = staff.filter(function(s){ return s.is_active && s.type !== 'officer' && s.type !== 'contract'; });
   var records = await DB.getAttendance({ year: year, month: month });
   var allLeave = await DB.getLeaveAll();
   // 当月の有給使用データ
