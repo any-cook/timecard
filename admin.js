@@ -778,9 +778,9 @@ async function showPayslip(staffId,year,month){
   // ※減算分は extraTotalPay の計算で既に netPayFinal に反映済み
 
   // 勤怠列
-  // 勤務時間合計を計算
-  var totalH2 = Math.floor(totalMins/60), totalM2 = totalMins%60;
-  var totalTimeStr2 = totalH2 + '時間' + (totalM2 > 0 ? totalM2 + '分' : '');
+  // 勤務時間合計を小数表示（例：78.18時間）
+  var totalHoursDecimal = Math.round(totalMins / 60 * 100) / 100;
+  var totalTimeStr2 = totalHoursDecimal + '時間';
   // 勤怠列：労働日数 → 勤務時間合計 → 有休使用（使用時のみ） → 有休残
   var attRows = [workDays+'日', totalTimeStr2];
   extraAttendance.forEach(function(i){ attRows.push(i.name+'：'+numFmt(i.amount)); });
