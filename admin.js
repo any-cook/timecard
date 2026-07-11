@@ -821,6 +821,20 @@ async function showPayslip(staffId,year,month){
   if (noteText) html += '<div class="ps-note">※ ' + noteText + '</div>';
   if (personalNote) html += '<div class="ps-note" style="margin-top:6px;background:#fff4e6;border-color:#f0a040;">📝 ' + personalNote + '</div>';
 
+  // 勤務時間合計
+  var totalH = Math.floor(totalMins/60);
+  var totalM = totalMins % 60;
+  var totalTimeStr = totalH + '時間' + (totalM > 0 ? totalM + '分' : '');
+  html += '<div style="margin-top:12px;padding:10px 14px;background:#f0f8ff;border:1.5px solid #bfdbfe;border-radius:10px;display:flex;align-items:center;gap:16px;">';
+  html += '<span style="font-size:.82rem;font-weight:700;color:#1d4ed8;">⏱ 当月勤務時間合計</span>';
+  html += '<span style="font-size:1.1rem;font-weight:900;color:#1d4ed8;">' + totalTimeStr + '</span>';
+  if (workDays > 0) {
+    var avgMins = Math.round(totalMins / workDays);
+    var avgH = Math.floor(avgMins/60), avgM = avgMins%60;
+    html += '<span style="font-size:.78rem;color:var(--text-muted);">（1日平均：' + avgH + '時間' + (avgM>0?avgM+'分':'') + '）</span>';
+  }
+  html += '</div>';
+
   // 打刻明細（設定に応じて表示）
   var showDetail = settings.show_detail || 'collapse';
   if (showDetail !== 'hide' && detailRows) {
@@ -951,6 +965,7 @@ function printPayslip(){
     '.ps-footer-item:last-child{border-right:none;}' +
     '.ps-note{font-size:.75rem;color:#555;margin-top:8px;padding:6px 10px;background:#fffbe6;border:1px solid #f0d060;border-radius:4px;}' +
     '.ps-detail-toggle{display:none;}' +
+    '.ps-work-total{margin-top:10px;padding:8px 12px;background:#f0f8ff;border:1.5px solid #bfdbfe;border-radius:8px;}' +
     '.summary-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee;}' +
     '.summary-row.deduction span:last-child{color:#dc2626;}' +
     '.summary-row.total{font-weight:900;font-size:1.1rem;border-top:2px solid #222;margin-top:8px;}' +
