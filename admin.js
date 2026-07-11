@@ -1741,10 +1741,15 @@ async function openMonthlyInputModal() {
   var staff = await DB.getStaff();
   var settings = await getPayslipSettings();
 
-  // 変動賃金項目を種別ごとに収集
+  // 変動賃金項目を種別ごとに収集（wage_fixed==='variable' のもの）
   function getVarItems(psType) {
     var key = psType==='officer'?'pay_items_officer':psType==='employee'?'pay_items_employee':'pay_items_hourly';
     return (settings[key]||[]).filter(function(item){ return item.wage_fixed==='variable'; });
+  }
+  // 時給スタッフの全支給項目（固定・変動問わず金額入力可能）
+  function getAllPayItems(psType) {
+    var key = psType==='officer'?'pay_items_officer':psType==='employee'?'pay_items_employee':'pay_items_hourly';
+    return (settings[key]||[]);
   }
 
   var html = '<div style="overflow-y:auto;max-height:62vh;"><table class="data-table" style="font-size:.78rem;">';
@@ -1786,17 +1791,23 @@ async function openMonthlyInputModal() {
       html += '<td style="text-align:center;color:var(--text-muted);font-size:.75rem;">-</td>';
     }
 
-    // 変動賃金項目
-    if (varItems.length > 0) {
+    // 変動手当：時給スタッフは全支給項目を表示、それ以外は変動賃金項目のみ
+    var dispItems = (s.type==='hourly') ? getAllPayItems(psType) : varItems;
+    if (dispItems.length > 0) {
       var varHtml = '';
-      varItems.forEach(function(item) {
+      dispItems.forEach(function(item) {
         var found = (monthly.variable_items||[]).find(function(x){return x.name===item.name;});
+        // 固定項目は金額を薄く表示、変動項目は通常表示
+        var isFixed = item.wage_fixed !== 'variable';
         varHtml += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'+
-          '<span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;">'+item.name+'</span>'+
+          '<span style="font-size:.72rem;color:var(--text-muted);white-space:nowrap;">'+item.name+
+          (isFixed?'<span style="font-size:.65rem;color:#aaa;">固定</span>':'')+'</span>'+
           '<input type="number" class="form-input mi-varitem" '+
           'data-staff="'+s.id+'" data-item="'+item.name+'" '+
-          'placeholder="0" min="0" value="'+(found?found.amount:'')+'" '+
-          'style="margin:0;width:90px;text-align:right;"></div>';
+          'placeholder="'+(isFixed?(item.amount||0):'0')+'" min="0" '+
+          'value="'+(found?found.amount:(isFixed?'':''  ))+'" '+
+          'style="margin:0;width:90px;text-align:right;'+(isFixed?'background:#f8f8f8;':'')+'"'+
+          '></div>';
       });
       html += '<td>'+varHtml+'</td>';
     } else {
@@ -1840,6 +1851,7 @@ async function saveMonthlyInput() {
 
     var varItems = [];
     modal.querySelectorAll('.mi-varitem[data-staff="'+staffId+'"]').forEach(function(el){
+      // 空欄は保存しない（固定項目はデフォルト値を使用）
       if (el.value !== '') varItems.push({ name: el.dataset.item, amount: parseInt(el.value)||0 });
     });
 
