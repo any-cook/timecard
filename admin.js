@@ -255,8 +255,12 @@ async function loadAttendanceRecords(){
     var s=staffMap[r.staff_id]||{};
     var lunchBreak=s.lunch_break||false;
     var _outTime=r.clock_out_actual||r.clock_out_calc; // 実打刻優先
-    var workMins=_outTime?calcWorkMinutes(r.clock_in_calc,_outTime,(s&&s.lunch_break),(s&&s.lunch_start),(s&&s.lunch_end)):0;
-    var dailyWage=_outTime?calcDailyWage(r.clock_in_calc,_outTime,r.wage_at_date||0,r.is_special_day,(s&&s.lunch_break),(s&&s.lunch_start),(s&&s.lunch_end)):0;
+    // 昼休み：レコードに設定があればそちらを優先、なければスタッフ設定
+    var _lb=r.lunch_break!==undefined?r.lunch_break:(s&&s.lunch_break);
+    var _ls=r.lunch_start||(s&&s.lunch_start);
+    var _le=r.lunch_end||(s&&s.lunch_end);
+    var workMins=_outTime?calcWorkMinutes(r.clock_in_calc,_outTime,_lb,_ls,_le):0;
+    var dailyWage=_outTime?calcDailyWage(r.clock_in_calc,_outTime,r.wage_at_date||0,r.is_special_day,_lb,_ls,_le):0;
     var commuteAmt=r.clock_in_actual&&s.commute_daily_amount?s.commute_daily_amount:0;
     totalWage+=dailyWage;totalMins+=workMins;
     if(!staffSummary[r.staff_id])staffSummary[r.staff_id]={name:s.name||'不明',mins:0,wage:0,days:0,commute:0};
@@ -388,8 +392,22 @@ async function openAttendanceAddModal(preDate, preStaffId){
   document.getElementById('attendanceDate').value=preDate||todayStr();
   if(preStaffId){document.getElementById('attendanceStaff').value=preStaffId;}
   ['attendanceClockIn','attendanceClockOut','attendanceWage','attendanceNotes'].forEach(function(id){document.getElementById(id).value='';});
-  // スタッフが選択されていれば時給を自動セット
-  if(preStaffId){var s=staff.find(function(x){return x.id===preStaffId;});if(s&&s.wage)document.getElementById('attendanceWage').value=s.wage;}
+  // スタッフが選択されていれば時給・昼休み設定を自動セット
+  var preStaff = preStaffId ? staff.find(function(x){return x.id===preStaffId;}) : null;
+  if(preStaff){
+    if(preStaff.wage) document.getElementById('attendanceWage').value=preStaff.wage;
+    // スタッフの昼休み設定を引き継ぐ
+    var hasLunch = preStaff.lunch_break||false;
+    document.getElementById('attendanceLunchBreak').checked = hasLunch;
+    document.getElementById('attendanceLunchStart').value = preStaff.lunch_start||'12:00';
+    document.getElementById('attendanceLunchEnd').value   = preStaff.lunch_end||'13:00';
+    document.getElementById('attendanceLunchFields').style.display = hasLunch?'block':'none';
+  } else {
+    document.getElementById('attendanceLunchBreak').checked = false;
+    document.getElementById('attendanceLunchFields').style.display = 'none';
+    document.getElementById('attendanceLunchStart').value = '12:00';
+    document.getElementById('attendanceLunchEnd').value   = '13:00';
+  }
   document.getElementById('attendanceSpecial').checked=false;
   document.getElementById('btnDeleteAttendance').style.display='none';
   openModal('attendanceModal');
@@ -414,6 +432,12 @@ async function openAttendanceEditModal(id){
   var delBtn=document.getElementById('btnDeleteAttendance');
   delBtn.style.display='block';
   delBtn.dataset.id=r.id;
+  // 保存済みの昼休み設定を読み込む
+  var hasLunchEdit = r.lunch_break||false;
+  document.getElementById('attendanceLunchBreak').checked = hasLunchEdit;
+  document.getElementById('attendanceLunchStart').value = r.lunch_start||'12:00';
+  document.getElementById('attendanceLunchEnd').value   = r.lunch_end||'13:00';
+  document.getElementById('attendanceLunchFields').style.display = hasLunchEdit?'block':'none';
   openModal('attendanceModal');
 }
 async function saveAttendance(){
@@ -422,7 +446,18 @@ async function saveAttendance(){
   var clockOut=document.getElementById('attendanceClockOut').value;
   if(!date||!staff_id){showToast('日付とスタッフを入力してください','error');return;}
   if(!clockIn){showToast('出勤時刻を入力してください','error');return;}
-  var record={staff_id:staff_id,date:date,clock_in_actual:clockIn,clock_out_actual:clockOut||null,clock_in_calc:roundUpClockIn(clockIn),clock_out_calc:clockOut||null,wage_at_date:parseInt(document.getElementById('attendanceWage').value)||0,is_special_day:document.getElementById('attendanceSpecial').checked,notes:document.getElementById('attendanceNotes').value};
+  var lunchBreakEdit = document.getElementById('attendanceLunchBreak').checked;
+  var record={
+    staff_id:staff_id, date:date,
+    clock_in_actual:clockIn, clock_out_actual:clockOut||null,
+    clock_in_calc:roundUpClockIn(clockIn), clock_out_calc:clockOut||null,
+    wage_at_date:parseInt(document.getElementById('attendanceWage').value)||0,
+    is_special_day:document.getElementById('attendanceSpecial').checked,
+    notes:document.getElementById('attendanceNotes').value,
+    lunch_break: lunchBreakEdit,
+    lunch_start: lunchBreakEdit ? document.getElementById('attendanceLunchStart').value : null,
+    lunch_end:   lunchBreakEdit ? document.getElementById('attendanceLunchEnd').value   : null,
+  };
   if(id)record.id=id;
   await DB.saveAttendance(record);closeModal('attendanceModal');showToast('保存しました');
   loadAttendanceRecords();
@@ -473,7 +508,7 @@ async function loadPayrollSummary(){
     var staff=activeStaff[si];
     var staffRecords=records.filter(function(r){return r.staff_id===staff.id;});
     var grossPay=0,totalMins=0,workDays=0;
-    if(staff.type==='hourly'){staffRecords.forEach(function(r){var _o=r.clock_out_actual||r.clock_out_calc;var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,staff.lunch_break,staff.lunch_start,staff.lunch_end):0;totalMins+=mins;if(r.clock_in_actual)workDays++;grossPay+=_o?calcDailyWage(r.clock_in_calc,_o,r.wage_at_date||staff.wage,r.is_special_day,staff.lunch_break,staff.lunch_start,staff.lunch_end):0;});}
+    if(staff.type==='hourly'){staffRecords.forEach(function(r){var _o=r.clock_out_actual||r.clock_out_calc;var _lb2=r.lunch_break!==undefined?r.lunch_break:staff.lunch_break;var _ls2=r.lunch_start||staff.lunch_start;var _le2=r.lunch_end||staff.lunch_end;var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,_lb2,_ls2,_le2):0;totalMins+=mins;if(r.clock_in_actual)workDays++;grossPay+=_o?calcDailyWage(r.clock_in_calc,_o,r.wage_at_date||staff.wage,r.is_special_day,_lb2,_ls2,_le2):0;});}
     else{grossPay=staff.monthly_salary||0;workDays=staffRecords.filter(function(r){return r.clock_in_actual;}).length;}
     // 月次入力から出勤日数・時間数を取得
     var monthlyData=await getMonthlyInput(year,month,staff.id);
@@ -1177,7 +1212,10 @@ async function loadMonthlyTab() {
 
       if (r && r.clock_in_actual) {
         var _oc = r.clock_out_actual||r.clock_out_calc;
-        var mins = _oc ? calcWorkMinutes(r.clock_in_calc, _oc, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
+        var _rlb=r.lunch_break!==undefined?r.lunch_break:s.lunch_break;
+        var _rls=r.lunch_start||s.lunch_start;
+        var _rle=r.lunch_end||s.lunch_end;
+        var mins = _oc ? calcWorkMinutes(r.clock_in_calc, _oc, _rlb, _rls, _rle) : 0;
         totalDays++;
         totalMins += mins;
         var inTime  = r.clock_in_actual  || '-';
@@ -1553,6 +1591,23 @@ function downloadEmpInsCsvTemplate() {
   a.href = URL.createObjectURL(blob);
   a.download = '雇用保険料率テンプレート.csv';
   a.click();
+}
+
+// 打刻モーダルの昼休憩トグル
+function toggleAttendanceLunch(){
+  var chk = document.getElementById('attendanceLunchBreak').checked;
+  document.getElementById('attendanceLunchFields').style.display = chk ? 'block' : 'none';
+  updateAttendanceLunchPreview();
+}
+
+function updateAttendanceLunchPreview(){
+  var start = document.getElementById('attendanceLunchStart').value;
+  var end   = document.getElementById('attendanceLunchEnd').value;
+  var prev  = document.getElementById('attendanceLunchPreview');
+  if(start && end){
+    var mins = timeToMinutes(end) - timeToMinutes(start);
+    prev.textContent = '控除時間：' + (mins > 0 ? Math.floor(mins/60)+'時間'+mins%60+'分' : '-');
+  }
 }
 
 function toggleLunchBreak(){
