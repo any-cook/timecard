@@ -672,6 +672,19 @@ async function showPayslip(staffId,year,month){
   html += '<table class="ps-table">';
 
   // 勤怠行
+  // 課税額・非課税額の内訳計算
+  // 課税支給 = 基本給 + 課税通勤費 + 課税追加項目
+  var taxablePay = grossPay + commuteData.taxable;
+  extraPayItems.forEach(function(i){ if(i.tax_type!=='nontaxable' && i.calc_add!=='sub') taxablePay += (i.amount||0); });
+  if(contributionBonus > 0) taxablePay += contributionBonus;
+  // 非課税支給 = 非課税通勤費 + 非課税追加項目
+  var nontaxablePay = commuteData.taxFree;
+  extraPayItems.forEach(function(i){ if(i.tax_type==='nontaxable' && i.calc_add!=='sub') nontaxablePay += (i.amount||0); });
+  // 社会保険合計
+  var socialInsTotal2 = pension + health + nursingCare + childSupport + empIns;
+  // 控除額合計（所得税含む）
+  var totalDeductAll = totalDeduction; // tax + socialInsTotal2
+
   html += '<style>.ps-section-header th{background:'+clr.header+'!important;}.ps-total-label{color:'+clr.total+'!important;}.ps-total-val{color:'+clr.total+'!important;background:'+clr.totalBg+'!important;}.ps-total-row td{border-top:2px solid '+clr.total+'!important;}</style>';
   html += '<tr class="ps-section-header">';
   html += '<th colspan="2">勤　怠</th>';
@@ -786,12 +799,25 @@ async function showPayslip(staffId,year,month){
     html += '</tr>';
   });
 
-  // 合計行
+  // 合計行（詳細）
+  // 支給：課税額・非課税額・合計　控除：社会保険・控除合計
+  html += '<tr class="ps-subtotal-row" style="background:#fafafa;">';
+  html += '<td class="ps-label" style="font-size:.7rem;">扶養人数</td><td class="ps-val" style="font-size:.7rem;">' + (staff.dependents||0) + '人</td>';
+  html += '<td class="ps-label" style="font-size:.7rem;color:#555;">課税額</td><td class="ps-val" style="font-size:.7rem;">' + numFmt(taxablePay) + '</td>';
+  html += '<td class="ps-label" style="font-size:.7rem;color:#555;">社会保険計</td><td class="ps-val" style="font-size:.7rem;">' + numFmt(socialInsTotal2) + '</td>';
+  html += '<td class="ps-label" style="font-size:.7rem;">税額表</td><td class="ps-val" style="font-size:.7rem;">' + (staff.tax_type==='otsu'?'乙欄':'甲欄') + '</td>';
+  html += '</tr>';
+  html += '<tr class="ps-subtotal-row" style="background:#fafafa;">';
+  html += '<td class="ps-label" style="font-size:.7rem;"></td><td class="ps-val" style="font-size:.7rem;"></td>';
+  html += '<td class="ps-label" style="font-size:.7rem;color:#555;">非課税額</td><td class="ps-val" style="font-size:.7rem;">' + numFmt(nontaxablePay) + '</td>';
+  html += '<td class="ps-label" style="font-size:.7rem;color:#555;">所得税</td><td class="ps-val" style="font-size:.7rem;">' + numFmt(tax) + '</td>';
+  html += '<td class="ps-label" style="font-size:.7rem;"></td><td class="ps-val" style="font-size:.7rem;"></td>';
+  html += '</tr>';
   html += '<tr class="ps-total-row">';
-  html += '<td class="ps-label">扶養人数</td><td class="ps-val">' + (staff.dependents||0) + '</td>';
-  html += '<td class="ps-label ps-total-label">合　計</td><td class="ps-val ps-total-val">' + numFmt(totalPay) + '</td>';
-  html += '<td class="ps-label ps-total-label">合　計</td><td class="ps-val ps-total-val">' + numFmt(totalDeduction) + '</td>';
-  html += '<td class="ps-label">税額表</td><td class="ps-val">' + (staff.tax_type==='otsu'?'乙欄':'甲欄') + '</td>';
+  html += '<td class="ps-label">合計</td><td class="ps-val"></td>';
+  html += '<td class="ps-label ps-total-label">支給合計</td><td class="ps-val ps-total-val">' + numFmt(totalPay) + '</td>';
+  html += '<td class="ps-label ps-total-label">控除合計</td><td class="ps-val ps-total-val">' + numFmt(totalDeductAll) + '</td>';
+  html += '<td class="ps-label"></td><td class="ps-val"></td>';
   html += '</tr>';
 
   html += '</table>';

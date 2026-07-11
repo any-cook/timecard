@@ -1000,3 +1000,9 @@ select:focus, input:focus, textarea:focus {
   border-radius: 4px;
   margin-top: 2px;
 }
+
+/* 給与明細 サブ合計行 */
+.ps-subtotal-row td {
+  border-top: 1px dashed #ccc;
+  padding: 3px 6px;
+}
