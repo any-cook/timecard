@@ -412,12 +412,17 @@ async function openAttendanceAddModal(preDate, preStaffId){
   document.getElementById('btnDeleteAttendance').style.display='none';
   openModal('attendanceModal');
 }
-async function openAttendanceEditModal(id){
-  // 現在表示中の年月でフィルターして取得（Firestore対応）
-  var year=parseInt(document.getElementById('filterYear').value);
-  var month=parseInt(document.getElementById('filterMonth').value);
+async function openAttendanceEditModal(id, yearHint, monthHint){
+  // 年月を引数で受け取るか、現在のタブから取得
+  var year  = yearHint  || parseInt(document.getElementById('filterYear')  ? document.getElementById('filterYear').value  : document.getElementById('monthlyYear').value);
+  var month = monthHint || parseInt(document.getElementById('filterMonth') ? document.getElementById('filterMonth').value : document.getElementById('monthlyMonth').value);
   var records=await DB.getAttendance({year:year,month:month});
   var r=records.find(function(x){return x.id===id;});
+  // 見つからない場合は日付から年月を推定して再検索
+  if(!r){
+    var allRec=await DB.getAttendance({year:year,month:month});
+    r=allRec.find(function(x){return x.id===id;});
+  }
   if(!r){showToast('レコードが見つかりません','error');return;}
   document.getElementById('attendanceModalTitle').textContent='打刻の修正';document.getElementById('attendanceId').value=r.id;
   var staff=await DB.getStaff(),sel=document.getElementById('attendanceStaff');sel.innerHTML='';
@@ -1224,7 +1229,7 @@ async function loadMonthlyTab() {
         html += '<td class="monthly-cell '+cls+'" style="position:relative;">' +
           '<span class="monthly-in">'  + inTime  + '</span><br>' +
           '<span class="monthly-out '+outCls+'">' + outTime + '</span><br>' +
-          '<button class="monthly-edit-btn" onclick="openAttendanceEditModal(\'' + r.id + '\')">✏️</button>' +
+          '<button class="monthly-edit-btn" onclick="openAttendanceEditModal(\'' + r.id + '\',' + year + ',' + month + ')">✏️</button>' +
           '</td>';
       } else {
         html += '<td class="monthly-cell monthly-empty '+cls+'" style="position:relative;">' +
