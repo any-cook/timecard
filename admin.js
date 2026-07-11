@@ -860,23 +860,23 @@ async function showPayslip(staffId,year,month){
   html += '</table>';
 
   // 差引支給額ブロック
+  var netPayDisplay = netPayFinal; // 差引支給額 = 支給合計 - 控除合計
   html += '<div class="ps-bottom">';
+  // 課税支給額
   html += '<div class="ps-bottom-block">';
-  html += '<div class="ps-bottom-label">現金支給額</div><div class="ps-bottom-val">0</div>';
+  html += '<div class="ps-bottom-label">課税支給額</div>';
+  html += '<div class="ps-bottom-val">' + numFmt(taxablePay) + '</div>';
   html += '</div>';
+  // 控除合計額
+  html += '<div class="ps-bottom-block">';
+  html += '<div class="ps-bottom-label">控除合計額</div>';
+  html += '<div class="ps-bottom-val">' + numFmt(totalDeductAll) + '</div>';
+  html += '</div>';
+  // 差引支給額
   html += '<div class="ps-bottom-block ps-net">';
-  html += '<div class="ps-bottom-label">差引支給額</div><div class="ps-bottom-val ps-net-val">' + numFmt(netPayFinal) + '</div>';
+  html += '<div class="ps-bottom-label">差引支給額</div>';
+  html += '<div class="ps-bottom-val ps-net-val">' + numFmt(netPayDisplay) + '</div>';
   html += '</div>';
-  html += '<div class="ps-bottom-block">';
-  html += '<div class="ps-bottom-label">振込支給額</div><div class="ps-bottom-val">' + numFmt(netPayFinal) + '</div>';
-  html += '</div>';
-  html += '</div>';
-
-  // 累計・備考
-  html += '<div class="ps-footer">';
-  html += '<div class="ps-footer-item"><span>課税支給累計</span></div>';
-  html += '<div class="ps-footer-item"><span>社会保険累計</span></div>';
-  html += '<div class="ps-footer-item"><span>所得税累計</span></div>';
   html += '</div>';
 
   // 備考
@@ -1021,7 +1021,7 @@ function printPayslip(){
     '.ps-bottom{display:flex;border:1px solid #999;border-top:none;}' +
     '.ps-bottom-block{flex:1;border-right:1px solid #999;padding:0;}' +
     '.ps-bottom-block:last-child{border-right:none;}' +
-    '.ps-bottom-label{background:#e8e8e8;font-weight:700;text-align:center;font-size:.78rem;padding:4px;border-bottom:1px solid #999;}' +
+    '.ps-bottom-label{background:#e8e8e8;font-weight:900;text-align:center;font-size:.82rem;padding:5px;border-bottom:1px solid #999;}' +
     '.ps-bottom-val{text-align:right;font-weight:600;padding:6px 10px;font-size:.88rem;}' +
     '.ps-net{background:#fef9e7;}' +
     '.ps-net-val{font-size:1.1rem;font-weight:900;color:#c0392b;}' +
