@@ -645,16 +645,10 @@ async function showPayslip(staffId,year,month){
   var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
   // 正しい所得税計算：社会保険料等控除後の給与に税額表を適用
   var socialInsTotal=pension+health+nursingCare+childSupport+empIns;
-  // 課税所得 = 基本給 + 課税通勤費 + 課税手当（食事手当等の非課税項目は除外） - 社会保険計
-  var extraTaxableAmt = 0;
-  extraPayItems.forEach(function(i){
-    if(i.tax_type!=='nontaxable' && i.calc_add!=='sub') extraTaxableAmt += (i.amount||0);
-  });
-  // 貢献手当は課税
-  var taxableIncome = grossPay + commuteData.taxable + extraTaxableAmt + contributionBonus - socialInsTotal;
+  // 所得税計算はextraPayItems確定後に実施（下部で計算）
   var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
-  var tax=calcTax(Math.max(0,taxableIncome),taxRows,staff.tax_type||'kou',staff.dependents||0);
-  var netPay=grossPay+commuteData.taxFree-tax-pension-health-nursingCare-childSupport-empIns;
+  var tax=0; // 後で再計算
+  var netPay=0; // 後で再計算
   var age=calcAge(staff.birthdate);
   // 合計支給額（非課税通勤費含む）
   var totalPay = grossPay + commuteData.taxFree + commuteData.taxable;
@@ -720,6 +714,15 @@ async function showPayslip(staffId,year,month){
   }, 0);
   totalPay += extraTotalPay + contributionBonus;
   netPayFinal += extraTotalPay + contributionBonus;
+
+  // 所得税計算（extraPayItems確定後）
+  var extraTaxableAmt = 0;
+  extraPayItems.forEach(function(i){
+    if(i.tax_type!=='nontaxable' && i.calc_add!=='sub') extraTaxableAmt += (i.amount||0);
+  });
+  var taxableIncome = grossPay + commuteData.taxable + extraTaxableAmt + contributionBonus - socialInsTotal;
+  tax = calcTax(Math.max(0, taxableIncome), taxRows, staff.tax_type||'kou', staff.dependents||0);
+  netPay = grossPay + commuteData.taxFree - tax - pension - health - nursingCare - childSupport - empIns;
 
   // 課税額・非課税額の内訳計算（extraPayItems確定後）
   var taxablePay = grossPay + commuteData.taxable;
