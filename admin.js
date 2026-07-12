@@ -537,6 +537,10 @@ async function loadPayrollSummary(){
       totalMins = Math.round(monthlyData.work_hours * 60);
       grossPay  = Math.floor(monthlyData.work_hours * (staff.wage||0));
     }
+    // 有休時間を勤務時間合計に加算
+    if(monthlyData.leave_hours!==null && monthlyData.leave_hours!==undefined && monthlyData.leave_hours>0){
+      totalMins += Math.round(monthlyData.leave_hours * 60);
+    }
     // 役員は通勤費固定支給
     // 役員：距離の非課税限度額を固定支給（全額非課税）、それ以外：出勤日数×日額
     var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
@@ -629,6 +633,10 @@ async function showPayslip(staffId,year,month){
   }
   var monthlyVarItems = monthlyData.variable_items||[];
   var monthlyNote = monthlyData.note||'';
+  // 有休時間を勤務時間合計に加算
+  if(monthlyData.leave_hours!==null && monthlyData.leave_hours!==undefined && monthlyData.leave_hours>0){
+    totalMins += Math.round(monthlyData.leave_hours * 60);
+  }
 
   // 有給残日数・当月使用日数を計算
   var staffLeave = allLeave.filter(function(r){ return r.staff_id === staffId; });
@@ -1891,6 +1899,7 @@ async function openMonthlyInputModal() {
   html += '<th>出勤日数</th>';
   html += '<th>時間数<br><span style="font-size:.68rem;font-weight:400;">（時給のみ・空白=自動）</span></th>';
   html += '<th>変動手当（円）</th>';
+  html += '<th>有休時間<br><span style="font-size:.68rem;font-weight:400;">（追加時間）</span></th>';
   html += '<th>備考</th></tr></thead><tbody>';
 
   for (var i=0; i<staff.length; i++) {
@@ -1947,6 +1956,12 @@ async function openMonthlyInputModal() {
       html += '<td style="text-align:center;color:var(--text-muted);font-size:.75rem;">設定なし</td>';
     }
 
+    // 有休時間
+    var leaveHoursVal = monthly.leave_hours!==null&&monthly.leave_hours!==undefined ? monthly.leave_hours : '';
+    html += '<td><input type="number" class="form-input mi-leavehours" data-staff="'+s.id+'" '+
+      'placeholder="0" min="0" step="0.5" value="'+leaveHoursVal+'" '+
+      'style="margin:0;width:80px;text-align:center;"></td>';
+
     // 備考
     html += '<td><input type="text" class="form-input mi-note" data-staff="'+s.id+'" '+
       'placeholder="備考" value="'+(monthly.note||'')+'" style="margin:0;min-width:100px;"></td>';
@@ -1981,6 +1996,8 @@ async function saveMonthlyInput() {
     var workDays = workDaysEl ? (workDaysEl.value !== '' ? parseInt(workDaysEl.value) : null) : null;
     var workHoursEl = modal.querySelector('.mi-workhours[data-staff="'+staffId+'"]');
     var workHours = workHoursEl ? (workHoursEl.value !== '' ? parseFloat(workHoursEl.value) : null) : null;
+    var leaveHoursEl = modal.querySelector('.mi-leavehours[data-staff="'+staffId+'"]');
+    var leaveHours = leaveHoursEl ? (leaveHoursEl.value !== '' ? parseFloat(leaveHoursEl.value) : null) : null;
 
     var varItems = [];
     modal.querySelectorAll('.mi-varitem[data-staff="'+staffId+'"]').forEach(function(el){
@@ -1994,6 +2011,7 @@ async function saveMonthlyInput() {
     await saveMonthlyInputData(year, month, staffId, {
       work_days: workDays,
       work_hours: workHours,
+      leave_hours: leaveHours,
       variable_items: varItems,
       note: note
     });
