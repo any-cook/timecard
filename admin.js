@@ -1169,12 +1169,52 @@ async function loadLeaveList(){
   var used=leaves.filter(function(l){return l.type==='use';}).reduce(function(sum,l){return sum+(l.days||0);},0),remaining=granted-used;
   document.getElementById('leaveDetailSection').style.display='block';document.getElementById('leaveStaffName').textContent=s?s.name:'';document.getElementById('leaveGranted').textContent=granted+'日';document.getElementById('leaveUsed').textContent=used+'日';document.getElementById('leaveRemaining').textContent=remaining+'日';document.getElementById('leaveRemaining').style.color=remaining<3?'#dc2626':'#16a34a';
   tbody.closest('table').querySelector('thead tr').innerHTML='<th>日付</th><th>種別</th><th>日数</th><th>理由</th><th>操作</th>';tbody.innerHTML='';
-  leaves.slice().sort(function(a,b){return a.date>b.date?-1:1;}).forEach(function(l){var tr=document.createElement('tr');tr.innerHTML='<td>'+formatDateJP(l.date)+'</td><td><span class="badge '+(l.type==='grant'?'badge-active':'badge-special')+'">'+(l.type==='grant'?'付与':'使用')+'</span></td><td>'+l.days+'日</td><td>'+(l.reason||'-')+'</td><td><button class="btn-sm btn-delete" onclick="deleteLeave(\''+l.id+'\')">🗑️ 削除</button></td>';tbody.appendChild(tr);});
+  leaves.slice().sort(function(a,b){return a.date>b.date?-1:1;}).forEach(function(l){var tr=document.createElement('tr');tr.innerHTML='<td>'+formatDateJP(l.date)+'</td><td><span class="badge '+(l.type==='grant'?'badge-active':'badge-special')+'">'+(l.type==='grant'?'付与':'使用')+'</span></td><td>'+l.days+'日</td><td>'+(l.reason||'-')+'</td><td style="white-space:nowrap;"><button class="btn-sm btn-edit" onclick="openLeaveEditModal(\''+l.id+'\')" style="margin-right:4px;">✏️ 編集</button><button class="btn-sm btn-delete" onclick="deleteLeave(\''+l.id+'\')">🗑️ 削除</button></td>';tbody.appendChild(tr);});
   if(!leaves.length)tbody.innerHTML='<tr><td colspan="5" class="empty-cell">有休記録がありません</td></tr>';
 }
 function selectLeaveStaff(staffId){document.getElementById('leaveStaffSelect').value=staffId;loadLeaveList();}
-async function openLeaveModal(){var staffId=document.getElementById('leaveStaffSelect').value,staff=await DB.getStaff(),sel=document.getElementById('leaveModalStaff');sel.innerHTML='';staff.filter(function(s){return s.is_active;}).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;if(s.id===staffId)o.selected=true;sel.appendChild(o);});document.getElementById('leaveDate').value=todayStr();document.getElementById('leaveType').value='grant';document.getElementById('leaveDays').value='1';document.getElementById('leaveReason').value='';openModal('leaveModal');}
-async function saveLeave(){var staff_id=document.getElementById('leaveModalStaff').value,date=document.getElementById('leaveDate').value,type=document.getElementById('leaveType').value,days=parseFloat(document.getElementById('leaveDays').value)||0,reason=document.getElementById('leaveReason').value.trim();if(!staff_id||!date||days<=0){showToast('スタッフ・日付・日数を正しく入力してください','error');return;}await DB.saveLeave({staff_id:staff_id,date:date,type:type,days:days,reason:reason});closeModal('leaveModal');showToast('保存しました');loadLeaveList();}
+async function openLeaveModal(){
+  var staffId=document.getElementById('leaveStaffSelect').value,staff=await DB.getStaff(),sel=document.getElementById('leaveModalStaff');
+  sel.innerHTML='';
+  staff.filter(function(s){return s.is_active;}).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;if(s.id===staffId)o.selected=true;sel.appendChild(o);});
+  document.getElementById('leaveModalTitle').textContent='➕ 有休を追加';
+  document.getElementById('leaveEditId').value='';
+  document.getElementById('leaveDate').value=todayStr();
+  document.getElementById('leaveType').value='grant';
+  document.getElementById('leaveDays').value='1';
+  document.getElementById('leaveReason').value='';
+  openModal('leaveModal');
+}
+async function openLeaveEditModal(id){
+  var leaveData=await DB.getLeaveAll();
+  var l=leaveData.find(function(x){return x.id===id;});
+  if(!l){showToast('レコードが見つかりません','error');return;}
+  var staff=await DB.getStaff(),sel=document.getElementById('leaveModalStaff');
+  sel.innerHTML='';
+  staff.filter(function(s){return s.is_active;}).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;if(s.id===l.staff_id)o.selected=true;sel.appendChild(o);});
+  document.getElementById('leaveModalTitle').textContent='✏️ 有休を編集';
+  document.getElementById('leaveEditId').value=id;
+  document.getElementById('leaveDate').value=l.date||'';
+  document.getElementById('leaveType').value=l.type||'grant';
+  document.getElementById('leaveDays').value=l.days||'1';
+  document.getElementById('leaveReason').value=l.reason||'';
+  openModal('leaveModal');
+}
+async function saveLeave(){
+  var id=document.getElementById('leaveEditId').value;
+  var staff_id=document.getElementById('leaveModalStaff').value;
+  var date=document.getElementById('leaveDate').value;
+  var type=document.getElementById('leaveType').value;
+  var days=parseFloat(document.getElementById('leaveDays').value)||0;
+  var reason=document.getElementById('leaveReason').value.trim();
+  if(!staff_id||!date||days<=0){showToast('スタッフ・日付・日数を正しく入力してください','error');return;}
+  var record={staff_id:staff_id,date:date,type:type,days:days,reason:reason};
+  if(id) record.id=id;
+  await DB.saveLeave(record);
+  closeModal('leaveModal');
+  showToast(id?'更新しました':'保存しました');
+  loadLeaveList();
+}
 async function deleteLeave(id){if(!confirmAction('この有休記録を削除しますか？'))return;await DB.deleteLeave(id);showToast('削除しました');loadLeaveList();}
 
 // ============================================================

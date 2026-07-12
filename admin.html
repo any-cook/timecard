@@ -717,7 +717,8 @@
   <!-- モーダル: 有休 -->
   <div class="modal-overlay" id="leaveModal">
     <div class="modal-card" style="max-width:460px;">
-      <div class="modal-header"><h3 class="modal-title">🏖️ 有休の追加</h3><button class="modal-close" onclick="closeModal('leaveModal')">✕</button></div>
+      <div class="modal-header"><h3 class="modal-title" id="leaveModalTitle">🏖️ 有休を追加</h3><button class="modal-close" onclick="closeModal('leaveModal')">✕</button></div>
+      <input type="hidden" id="leaveEditId">
       <div class="form-grid">
         <div class="form-group full"><label class="form-label">スタッフ *</label><select id="leaveModalStaff" class="form-input"></select></div>
         <div class="form-group"><label class="form-label">日付 *</label><input type="date" id="leaveDate" class="form-input"></div>
@@ -824,11 +825,11 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="config.js?v=20260723"></script>
-  <script src="utils.js?v=20260723"></script>
-  <script src="holidays.js?v=20260723"></script>
-  <script src="demo-data.js?v=20260723"></script>
-  <script src="admin.js?v=20260723"></script>
+  <script src="config.js?v=20260713"></script>
+  <script src="utils.js?v=20260713"></script>
+  <script src="holidays.js?v=20260713"></script>
+  <script src="demo-data.js?v=20260713"></script>
+  <script src="admin.js?v=20260713"></script>
   <script>
     if (DEMO_MODE) { document.getElementById('demoBanner').style.display='block'; initDemoData(); }
     initPin();
