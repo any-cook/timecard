@@ -537,9 +537,14 @@ async function loadPayrollSummary(){
       totalMins = Math.round(monthlyData.work_hours * 60);
       grossPay  = Math.floor(monthlyData.work_hours * (staff.wage||0));
     }
-    // 有休時間を勤務時間合計に加算
+    // 有休時間を勤務時間合計・賃金に加算
     if(monthlyData.leave_hours!==null && monthlyData.leave_hours!==undefined && monthlyData.leave_hours>0){
-      totalMins += Math.round(monthlyData.leave_hours * 60);
+      var leaveAddMins = Math.round(monthlyData.leave_hours * 60);
+      totalMins += leaveAddMins;
+      // 時給スタッフの場合は有休時間分の賃金も加算
+      if(staff.type==='hourly'){
+        grossPay += Math.floor(monthlyData.leave_hours * (staff.wage||0));
+      }
     }
     // 役員は通勤費固定支給
     // 役員：距離の非課税限度額を固定支給（全額非課税）、それ以外：出勤日数×日額
@@ -633,9 +638,13 @@ async function showPayslip(staffId,year,month){
   }
   var monthlyVarItems = monthlyData.variable_items||[];
   var monthlyNote = monthlyData.note||'';
-  // 有休時間を勤務時間合計に加算
+  // 有休時間を勤務時間合計・賃金に加算
   if(monthlyData.leave_hours!==null && monthlyData.leave_hours!==undefined && monthlyData.leave_hours>0){
     totalMins += Math.round(monthlyData.leave_hours * 60);
+    // 時給スタッフの場合は有休時間分の賃金も加算
+    if(staff.type==='hourly'){
+      grossPay += Math.floor(monthlyData.leave_hours * (staff.wage||0));
+    }
   }
 
   // 有給残日数・当月使用日数を計算
