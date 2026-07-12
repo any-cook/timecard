@@ -567,7 +567,19 @@ async function loadPayrollSummary(){
     else{healthBase=healthTotal;nursingCare=0;}
     var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
     var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
-    var socialDeduction=pension+healthTotal+childSupport+empIns;
+    // 介護保険料を分離（給与明細と同じ計算）
+    var healthBase2=0,nursingCare2=0;
+    if(staff.health_table_type==='health_nursing'){
+      var _nRow2=healthNursingTable.find(function(r){return r.id===staff.health_grade_id;});
+      var _gNo2=_nRow2?_nRow2.grade:null;
+      var _bRow2=_gNo2?healthTable.find(function(r){return r.grade===_gNo2;}):null;
+      healthBase2=_bRow2?_bRow2.employee:0;
+      nursingCare2=Math.max(0,healthTotal-healthBase2);
+    } else {
+      healthBase2=healthTotal; nursingCare2=0;
+    }
+    // 給与明細と同じ社会保険合計
+    var socialDeduction=pension+healthBase2+nursingCare2+childSupport+empIns;
     // 正しい所得税計算：社会保険料等控除後の給与に税額表を適用
     // 明細設定から支給項目を取得して差引支給額に反映
     var _psType = staff.payslip_type||staff.type||'hourly';
