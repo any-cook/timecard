@@ -596,10 +596,17 @@ async function loadPayrollSummary(){
     });
     // 貢献手当
     var bonusAmt = staff.contribution_bonus ? 1000 : 0;
-    var taxableIncome = grossPay + commuteData.taxable + _extraTaxable + bonusAmt - socialDeduction;
+    // 有休時間の賃金も加算（時給スタッフ）
+    var leavePayAmt = 0;
+    if(staff.type==='hourly' && monthlyData.leave_hours>0){
+      leavePayAmt = Math.floor(monthlyData.leave_hours * (staff.wage||0));
+    }
+    var totalGross = grossPay + leavePayAmt;
+    var taxableIncome = totalGross + commuteData.taxable + _extraTaxable + bonusAmt - socialDeduction;
     var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
     var tax=calcTax(Math.max(0,taxableIncome),taxRows,staff.tax_type||'kou',staff.dependents||0);
-    var netPay=grossPay+commuteData.taxFree+_extraTotal+bonusAmt-tax-socialDeduction;
+    // 差引支給額 = 基本給+有休賃金+非課税通勤費+追加支給項目合計+貢献手当 - 所得税 - 社会保険
+    var netPay = totalGross + commuteData.taxFree + _extraTotal + bonusAmt - tax - socialDeduction;
     grandTotal+=grossPay;
     var tr=document.createElement('tr');
     tr.innerHTML='<td>'+staff.name+'</td><td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span></td>'+
@@ -755,7 +762,8 @@ async function showPayslip(staffId,year,month){
     return acc + (i.calc_add==='sub' ? -(i.amount||0) : (i.amount||0));
   }, 0);
   totalPay += extraTotalPay + contributionBonus;
-  netPayFinal += extraTotalPay + contributionBonus;
+  // netPayFinal に追加支給項目の合計を反映
+  netPayFinal += extraTotalPay;
 
   // 所得税計算（extraPayItems確定後）
   var extraTaxableAmt = 0;
@@ -768,10 +776,13 @@ async function showPayslip(staffId,year,month){
   });
   var taxableIncome = grossPay + commuteData.taxable + extraTaxableAmt + contributionBonus - socialInsTotal;
   tax = calcTax(Math.max(0, taxableIncome), taxRows, staff.tax_type||'kou', staff.dependents||0);
-  netPay = grossPay + commuteData.taxFree - tax - pension - health - nursingCare - childSupport - empIns;
   // tax確定後にtotalDeductionを再計算（所得税を含む）
   totalDeduction = tax + pension + health + nursingCare + childSupport + empIns;
-  netPayFinal = totalPay - totalDeduction;
+  // 差引支給額 = 基本給+非課税通勤費+課税通勤費+追加支給計+貢献手当 - 控除合計
+  // extraTotalPay は extraPayItems の加減算合計
+  var _netBase = grossPay + commuteData.taxFree + commuteData.taxable + contributionBonus;
+  netPayFinal = _netBase - totalDeduction;
+  netPay = netPayFinal; // 統一
 
   // 課税額・非課税額の内訳計算（extraPayItems確定後）
   var taxablePay = grossPay + commuteData.taxable;
