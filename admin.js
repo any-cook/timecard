@@ -527,7 +527,7 @@ async function loadPayrollSummary(){
     var staff=activeStaff[si];
     var staffRecords=records.filter(function(r){return r.staff_id===staff.id;});
     var grossPay=0,totalMins=0,workDays=0;
-    if(staff.type==='hourly'){staffRecords.forEach(function(r){var _o=r.clock_out_actual||r.clock_out_calc;var _lb2=r.lunch_break!==undefined?r.lunch_break:staff.lunch_break;var _ls2=r.lunch_start||staff.lunch_start;var _le2=r.lunch_end||staff.lunch_end;var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,_lb2,_ls2,_le2):0;totalMins+=mins;if(r.clock_in_actual)workDays++;grossPay+=_o?calcDailyWage(r.clock_in_calc,_o,r.wage_at_date||staff.wage,r.is_special_day,_lb2,_ls2,_le2):0;});}
+    if(staff.type==='hourly'){staffRecords.forEach(function(r){var _o=r.clock_out_actual||r.clock_out_calc;var _lb2=r.lunch_break!==undefined?r.lunch_break:staff.lunch_break;var _ls2=r.lunch_start||staff.lunch_start;var _le2=r.lunch_end||staff.lunch_end;var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,_lb2,_ls2,_le2):0;totalMins+=mins;if(r.clock_in_actual)workDays++;});}
     else{grossPay=staff.monthly_salary||0;workDays=staffRecords.filter(function(r){return r.clock_in_actual;}).length;}
     // 月次入力から出勤日数・時間数を取得
     var monthlyData=await getMonthlyInput(year,month,staff.id);
@@ -535,7 +535,10 @@ async function loadPayrollSummary(){
     // 時給スタッフ：時間数が月次入力されていれば上書き
     if(staff.type==='hourly' && monthlyData.work_hours!==null && monthlyData.work_hours!==undefined) {
       totalMins = Math.round(monthlyData.work_hours * 60);
-      grossPay  = Math.floor(monthlyData.work_hours * (staff.wage||0));
+    }
+    // 時給スタッフ：totalMins から grossPay を計算（給与明細と同じ方式・日別切り捨て誤差なし）
+    if(staff.type==='hourly'){
+      grossPay = Math.floor(totalMins / 60 * (staff.wage||0));
     }
     // 有休時間を勤務時間合計・賃金に加算
     if(monthlyData.leave_hours!==null && monthlyData.leave_hours!==undefined && monthlyData.leave_hours>0){
