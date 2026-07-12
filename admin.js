@@ -795,8 +795,10 @@ async function showPayslip(staffId,year,month){
   tax = calcTax(Math.max(0, taxableIncome), taxRows, staff.tax_type||'kou', staff.dependents||0);
   // tax確定後にtotalDeductionを再計算（所得税を含む）
   totalDeduction = tax + pension + health + nursingCare + childSupport + empIns;
-  // 差引支給額 = 基本給+非課税通勤費+追加支給項目+貢献手当 - 控除合計
-  netPayFinal = grossPay + commuteData.taxFree + extraTotalPay + contributionBonus - totalDeduction;
+  // 差引支給額 = 支給合計 - 控除合計
+  // totalPay には extraTotalPay + contributionBonus が加算済み
+  // totalPay = grossPay + commuteData.taxFree + commuteData.taxable + extraTotalPay + contributionBonus
+  netPayFinal = totalPay - commuteData.taxable - totalDeduction;
   netPay = netPayFinal;
   totalDeductAll = totalDeduction;
 
