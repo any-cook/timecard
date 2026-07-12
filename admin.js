@@ -617,11 +617,10 @@ async function loadPayrollSummary(){
     var taxableIncome = totalGross + commuteData.taxable + _extraTaxable + bonusAmt - socialDeduction;
     var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
     var tax=calcTax(Math.max(0,taxableIncome),taxRows,staff.tax_type||'kou',staff.dependents||0);
-    // 差引支給額 = 基本給+有休賃金+非課税通勤費+追加支給項目合計+貢献手当 - 所得税 - 社会保険
-    var netPay = totalGross + commuteData.taxFree + _extraTotal + bonusAmt - tax - socialDeduction;
-    // 支給合計・控除合計を計算
+    // 給与明細と同じ計算式で差引支給額・支給合計・控除合計を計算
     var payTotal = totalGross + commuteData.taxFree + commuteData.taxable + _extraTotal + bonusAmt;
-    var dedTotal = tax + socialDeduction;
+    var dedTotal = tax + healthBase2 + nursingCare2 + pension + childSupport + empIns;
+    var netPay   = payTotal - commuteData.taxable - dedTotal;
     grandTotal += netPay;
     var tr=document.createElement('tr');
     tr.innerHTML=
