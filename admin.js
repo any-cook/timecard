@@ -607,17 +607,23 @@ async function loadPayrollSummary(){
     var tax=calcTax(Math.max(0,taxableIncome),taxRows,staff.tax_type||'kou',staff.dependents||0);
     // 差引支給額 = 基本給+有休賃金+非課税通勤費+追加支給項目合計+貢献手当 - 所得税 - 社会保険
     var netPay = totalGross + commuteData.taxFree + _extraTotal + bonusAmt - tax - socialDeduction;
-    grandTotal+=grossPay;
+    // 支給合計・控除合計を計算
+    var payTotal = totalGross + commuteData.taxFree + commuteData.taxable + _extraTotal + bonusAmt;
+    var dedTotal = tax + socialDeduction;
+    grandTotal += netPay;
     var tr=document.createElement('tr');
-    tr.innerHTML='<td>'+staff.name+'</td><td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span></td>'+
-      '<td>'+(staff.type==='hourly'?formatWorkTime(totalMins):'月額固定')+'</td><td>'+workDays+'日</td>'+
-      '<td>'+formatCurrency(grossPay)+'</td><td>'+formatCurrency(commuteData.total)+'</td>'+
-      '<td>'+formatCurrency(tax)+'</td><td>'+formatCurrency(socialDeduction)+'</td>'+
-      '<td><strong>'+formatCurrency(netPay)+'</strong></td>'+
+    tr.innerHTML=
+      '<td><strong>'+staff.name+'</strong></td>'+
+      '<td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span></td>'+
+      '<td>'+workDays+'日</td>'+
+      '<td>'+(staff.type==='hourly'?formatWorkTime(totalMins):'月額固定')+'</td>'+
+      '<td>'+formatCurrency(payTotal)+'</td>'+
+      '<td>'+formatCurrency(dedTotal)+'</td>'+
+      '<td><strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong></td>'+
       '<td><button class="btn-sm btn-edit" onclick="showPayslip(\''+staff.id+'\','+year+','+month+')">📄 明細</button></td>';
     tbody.appendChild(tr);
   }
-  document.getElementById('payrollGrandTotal').textContent='支給合計: '+formatCurrency(grandTotal);
+  document.getElementById('payrollGrandTotal').textContent='差引支給額合計: '+formatCurrency(grandTotal);
 }
 async function showPayslip(staffId,year,month){
   // 毎回最新の設定を取得
