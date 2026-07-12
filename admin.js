@@ -780,10 +780,7 @@ async function showPayslip(staffId,year,month){
     return acc + (i.calc_add==='sub' ? -(i.amount||0) : (i.amount||0));
   }, 0);
   totalPay += extraTotalPay + contributionBonus;
-  // netPayFinal に追加支給項目の加減算合計を反映
-  netPayFinal += extraTotalPay;
-  // 最終的な差引支給額を totalDeductAll で確定
-  totalDeductAll = totalDeduction;
+  // totalDeductAll は tax確定後に更新
 
   // 所得税計算（extraPayItems確定後）
   var extraTaxableAmt = 0;
@@ -798,11 +795,10 @@ async function showPayslip(staffId,year,month){
   tax = calcTax(Math.max(0, taxableIncome), taxRows, staff.tax_type||'kou', staff.dependents||0);
   // tax確定後にtotalDeductionを再計算（所得税を含む）
   totalDeduction = tax + pension + health + nursingCare + childSupport + empIns;
-  // 差引支給額（集計と同じ計算式）
-  // grossPay には有休賃金が加算済み
-  // extraPayNetTotal は追加支給項目の加減算合計（extraTotalPayで後から加算）
-  netPayFinal = grossPay + commuteData.taxFree + contributionBonus - totalDeduction;
+  // 差引支給額 = 基本給+非課税通勤費+追加支給項目+貢献手当 - 控除合計
+  netPayFinal = grossPay + commuteData.taxFree + extraTotalPay + contributionBonus - totalDeduction;
   netPay = netPayFinal;
+  totalDeductAll = totalDeduction;
 
   // 課税額・非課税額の内訳計算（extraPayItems確定後）
   var taxablePay = grossPay + commuteData.taxable;
