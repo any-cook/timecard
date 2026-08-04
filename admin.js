@@ -279,7 +279,7 @@ async function loadAttendanceRecords(){
     var isMissingOut=r.clock_in_actual&&!r.clock_out_actual;
     var tr=document.createElement('tr');if(isMissingOut)tr.classList.add('missing-clockout');if(r.is_special_day)tr.classList.add('special-day-row');
     tr.innerHTML='<td>'+formatDateJP(r.date)+'</td><td>'+(s.name||'不明')+'</td>'+
-      '<td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||(isMissingOut?'<span class="alert-text">⚠️ 退勤忘れ</span>':'-'))+'</td>'+
+      '<td>'+(r.clock_in_actual||'-')+'</td>'+'<td>'+(r.clock_out_actual?r.clock_out_actual:(function(){if(!isMissingOut)return '-';var today=todayStr();if(r.date!==today)return '<span style="color:#dc2626;font-weight:700;">⚠️ 退勤忘れ</span>';var nowM=new Date().getHours()*60+new Date().getMinutes();var inM=timeToMinutes(r.clock_in_actual||'00:00');return (nowM-inM)>600?'<span style="color:#dc2626;font-weight:700;">⚠️ 退勤忘れ</span>':'<span style="color:#16a34a;font-weight:700;">🟢 勤務中</span>';})())+'</td>'+
       '<td>'+(r.clock_in_calc||'-')+'</td><td>'+((r.clock_out_actual||r.clock_out_calc)||'-')+'</td>'+
       '<td>'+(workMins?formatWorkTime(workMins):'-')+'</td>'+
       '<td>'+(r.clock_out_calc?formatCurrency(dailyWage):'-')+'</td>'+
