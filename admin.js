@@ -1258,10 +1258,19 @@ async function openLeaveModal(){
   document.getElementById('leaveModalTitle').textContent='➕ 有休を追加';
   document.getElementById('leaveEditId').value='';
   document.getElementById('leaveDate').value=todayStr();
-  document.getElementById('leaveType').value='grant';
+  document.getElementById('leaveType').value='use';
   document.getElementById('leaveDays').value='1';
+  document.getElementById('leaveHours').value='';
   document.getElementById('leaveReason').value='';
+  toggleLeaveHoursField(staff, staffId);
   openModal('leaveModal');
+}
+
+function toggleLeaveHoursField(staff, staffId){
+  var s = staff ? staff.find(function(x){return x.id===staffId;}) : null;
+  var isHourly = s && s.type==='hourly';
+  var row = document.getElementById('leaveHoursRow');
+  if(row) row.style.display = isHourly ? 'block' : 'none';
 }
 async function openLeaveEditModal(id){
   var leaveData=await DB.getLeaveAll();
@@ -1275,7 +1284,9 @@ async function openLeaveEditModal(id){
   document.getElementById('leaveDate').value=l.date||'';
   document.getElementById('leaveType').value=l.type||'grant';
   document.getElementById('leaveDays').value=l.days||'1';
+  document.getElementById('leaveHours').value=l.hours||'';
   document.getElementById('leaveReason').value=l.reason||'';
+  toggleLeaveHoursField(staff, l.staff_id);
   openModal('leaveModal');
 }
 async function saveLeave(){
@@ -1286,7 +1297,9 @@ async function saveLeave(){
   var days=parseFloat(document.getElementById('leaveDays').value)||0;
   var reason=document.getElementById('leaveReason').value.trim();
   if(!staff_id||!date||days<=0){showToast('スタッフ・日付・日数を正しく入力してください','error');return;}
+  var hours = parseFloat(document.getElementById('leaveHours').value)||0;
   var record={staff_id:staff_id,date:date,type:type,days:days,reason:reason};
+  if(hours>0 && type==='use') record.hours=hours;
   if(id) record.id=id;
   await DB.saveLeave(record);
   closeModal('leaveModal');

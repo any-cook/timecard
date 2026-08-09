@@ -727,6 +727,11 @@
         <div class="form-group"><label class="form-label">日付 *</label><input type="date" id="leaveDate" class="form-input"></div>
         <div class="form-group"><label class="form-label">種別 *</label><select id="leaveType" class="form-input"><option value="grant">付与</option><option value="use">使用</option></select></div>
         <div class="form-group"><label class="form-label">日数 *</label><input type="number" id="leaveDays" class="form-input" value="1" min="0.5" step="0.5"></div>
+        <div class="form-group" id="leaveHoursRow" style="display:none;">
+          <label class="form-label">時間数（パート・時給スタッフのみ）</label>
+          <input type="number" id="leaveHours" class="form-input" placeholder="例: 6.5" min="0" step="0.5">
+          <p style="font-size:.72rem;color:var(--text-muted);margin-top:4px;">入力した時間数が給与計算の勤務時間に加算されます</p>
+        </div>
         <div class="form-group full"><label class="form-label">理由・メモ</label><input type="text" id="leaveReason" class="form-input" placeholder="例: 法定付与、私用など"></div>
       </div>
       <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('leaveModal')">キャンセル</button><button class="btn btn-success" onclick="saveLeave()">💾 保存</button></div>
