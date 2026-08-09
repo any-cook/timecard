@@ -535,6 +535,8 @@ async function loadPayrollSummary(){
   var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support')]);
   var allStaff=res[0],records=res[1],taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7];
   var tbody=document.getElementById('payrollTableBody');tbody.innerHTML='';var grandTotal=0;
+  var allLeaveData=await DB.getLeaveAll();
+  var ymStr2=year+'-'+String(month).padStart(2,'0');
   var activeStaff=allStaff.filter(function(s){return s.is_active && s.type!=='contract';});
   // 登録番号順にソート
   activeStaff.sort(function(a,b){
@@ -567,10 +569,11 @@ async function loadPayrollSummary(){
     if(staff.type==='hourly' && monthlyData.work_hours!=null){
       totalMins = Math.round(monthlyData.work_hours * 60);
     }
-    // 有休時間を加算
-    if(monthlyData.leave_hours>0){
-      totalMins += Math.round(monthlyData.leave_hours * 60);
-    }
+    // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
+    var _paidLHPD = staff.paid_leave_hours || 7.5;
+    var _lht2 = monthlyData.leave_hours||0;
+    if(allLeaveData){ allLeaveData.filter(function(r){return r.staff_id===staff.id&&r.type==='use'&&r.date&&r.date.startsWith(ymStr2||'');}).forEach(function(r){_lht2 += (r.hours||0)>0 ? r.hours : (parseFloat(r.days)||1)*_paidLHPD;}); }
+    if(_lht2>0){ totalMins += Math.round(_lht2*60); }
     // 時給スタッフ：合計時間から基本給を計算（給与明細と同じ）
     if(staff.type==='hourly'){
       grossPay = Math.floor(totalMins / 60 * (staff.wage||0));
@@ -696,12 +699,15 @@ async function showPayslip(staffId,year,month){
   var monthlyVarItems = monthlyData.variable_items||[];
   var monthlyNote = monthlyData.note||'';
   // 有休時間を勤務時間合計・賃金に加算
-  if(monthlyData.leave_hours!==null && monthlyData.leave_hours!==undefined && monthlyData.leave_hours>0){
-    totalMins += Math.round(monthlyData.leave_hours * 60);
-    // 時給スタッフの場合は有休時間分の賃金も加算
-    if(staff.type==='hourly'){
-      grossPay += Math.floor(monthlyData.leave_hours * (staff.wage||0));
-    }
+  // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
+  var _paidLHPD2 = staff.paid_leave_hours || 7.5;
+  var _lht3 = monthlyData.leave_hours||0;
+  staffLeave.filter(function(r){return r.type==='use';}).forEach(function(r){
+    _lht3 += (r.hours||0)>0 ? r.hours : (parseFloat(r.days)||1)*_paidLHPD2;
+  });
+  if(_lht3>0){
+    totalMins += Math.round(_lht3*60);
+    if(staff.type==='hourly') grossPay += Math.floor(_lht3*(staff.wage||0));
   }
 
   // 有給残日数・当月使用日数を計算
