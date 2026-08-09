@@ -31,6 +31,23 @@ function staffTypeLabel(type) {
   return 'パート・時給';
 }
 
+// 社員の有給時間を一括更新
+async function updateEmployeePaidLeaveHours(){
+  if(!confirmAction('社員全員の有給1日の時間数を6時間に変更しますか？')) return;
+  var staff = await DB.getStaff();
+  var employees = staff.filter(function(s){ return s.type==='employee' && s.is_active; });
+  var updated = 0;
+  for(var i=0;i<employees.length;i++){
+    var s = employees[i];
+    if(s.paid_leave_hours !== 6){
+      await DB.saveStaff(Object.assign({}, s, { paid_leave_hours: 6 }));
+      updated++;
+    }
+  }
+  showToast('社員' + updated + '名の有給時間を6時間に更新しました');
+  loadStaffTab();
+}
+
 async function loadStaffTab(){
   var res=await Promise.all([DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support')]);
   _pensionTable=res[0];_healthTable=res[1];_healthNursingTable=res[2];_childSupportTable=res[3];
@@ -88,7 +105,8 @@ async function openStaffModal(id){
       document.getElementById('staffCommuteFixed').value=editingStaff.commute_fixed||0;
       toggleOfficerCommute();
       document.getElementById('staffPayslipNote').value=editingStaff.payslip_note||'';
-      document.getElementById('staffPaidLeaveHours').value=editingStaff.paid_leave_hours||7.5;
+      var defaultLeaveHours = editingStaff.type==='employee' ? 6 : 7.5;
+      document.getElementById('staffPaidLeaveHours').value=editingStaff.paid_leave_hours||defaultLeaveHours;
       document.getElementById('staffContributionBonus').checked=editingStaff.contribution_bonus||false;
       document.getElementById('staffName').value=editingStaff.name;
       document.getElementById('staffBirthdate').value=editingStaff.birthdate||'';
