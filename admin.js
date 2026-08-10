@@ -572,7 +572,7 @@ async function loadPayrollSummary(){
     // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
     var _paidLHPD = staff.paid_leave_hours || 7.5;
     var _lht2 = monthlyData.leave_hours||0;
-    if(allLeaveData){ allLeaveData.filter(function(r){return r.staff_id===staff.id&&r.type==='use'&&r.date&&r.date.startsWith(ymStr2||'');}).forEach(function(r){_lht2 += (r.hours||0)>0 ? r.hours : (parseFloat(r.days)||1)*_paidLHPD;}); }
+    if(allLeaveData){ allLeaveData.filter(function(r){return r.staff_id===staff.id&&r.type==='use'&&r.date&&r.date.startsWith(ymStr2||'');}).forEach(function(r){if((r.hours||0)>0){_lht2+=r.hours;}else if(staff.type!=='hourly'){_lht2+=(parseFloat(r.days)||1)*_paidLHPD;}}); }
     if(_lht2>0){ totalMins += Math.round(_lht2*60); }
     // 時給スタッフ：合計時間から基本給を計算（給与明細と同じ）
     if(staff.type==='hourly'){
@@ -703,7 +703,12 @@ async function showPayslip(staffId,year,month){
   var _paidLHPD2 = staff.paid_leave_hours || 7.5;
   var _lht3 = monthlyData.leave_hours||0;
   staffLeave.filter(function(r){return r.type==='use';}).forEach(function(r){
-    _lht3 += (r.hours||0)>0 ? r.hours : (parseFloat(r.days)||1)*_paidLHPD2;
+    if((r.hours||0)>0){
+      _lht3 += r.hours; // 時間数が登録されていればそれを使う
+    } else if(staff.type!=='hourly'){
+      _lht3 += (parseFloat(r.days)||1)*_paidLHPD2; // 社員・役員のみ補完
+    }
+    // パート・時給で時間数なしの場合は加算しない
   });
   if(_lht3>0){
     totalMins += Math.round(_lht3*60);
@@ -1272,11 +1277,32 @@ async function openLeaveModal(){
   openModal('leaveModal');
 }
 
+async function onLeaveStaffChange(){
+  var staffId = document.getElementById('leaveModalStaff').value;
+  var staff = await DB.getStaff();
+  toggleLeaveHoursField(staff, staffId);
+}
+
 function toggleLeaveHoursField(staff, staffId){
   var s = staff ? staff.find(function(x){return x.id===staffId;}) : null;
   var isHourly = s && s.type==='hourly';
   var row = document.getElementById('leaveHoursRow');
-  if(row) row.style.display = isHourly ? 'block' : 'none';
+  var label = document.getElementById('leaveHoursLabel');
+  var input = document.getElementById('leaveHours');
+  if(row) row.style.display = (isHourly || !s) ? 'block' : 'block'; // 全員表示
+  if(label){
+    if(isHourly){
+      label.textContent = '時間数 *（必須）';
+      label.style.color = '#dc2626';
+    } else {
+      label.textContent = '時間数（任意）';
+      label.style.color = '';
+    }
+  }
+  if(input){
+    input.required = isHourly;
+    input.placeholder = isHourly ? '例: 6.5（必須）' : '例: 6';
+  }
 }
 async function openLeaveEditModal(id){
   var leaveData=await DB.getLeaveAll();
@@ -1304,6 +1330,14 @@ async function saveLeave(){
   var reason=document.getElementById('leaveReason').value.trim();
   if(!staff_id||!date||days<=0){showToast('スタッフ・日付・日数を正しく入力してください','error');return;}
   var hours = parseFloat(document.getElementById('leaveHours').value)||0;
+  // パート・時給は使用時に時間数必須
+  var allStaffData = await DB.getStaff();
+  var targetStaff = allStaffData.find(function(s){ return s.id===staff_id; });
+  var isHourlyStaff = targetStaff && targetStaff.type==='hourly';
+  if(type==='use' && isHourlyStaff && hours<=0){
+    showToast('パート・時給スタッフの有休使用には時間数の入力が必要です','error');
+    return;
+  }
   var record={staff_id:staff_id,date:date,type:type,days:days,reason:reason};
   if(hours>0 && type==='use') record.hours=hours;
   if(id) record.id=id;
