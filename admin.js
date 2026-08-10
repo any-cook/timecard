@@ -596,7 +596,10 @@ async function loadPayrollSummary(){
     // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
     var _paidLHPD = staff.paid_leave_hours || 7.5;
     var _lht2 = monthlyData.leave_hours||0;
-    if(allLeaveData){ allLeaveData.filter(function(r){return r.staff_id===staff.id&&r.type==='use'&&r.date&&r.date.startsWith(ymStr2||'');}).forEach(function(r){if((r.hours||0)>0){_lht2+=r.hours;}else if(staff.type!=='hourly'){_lht2+=(parseFloat(r.days)||1)*_paidLHPD;}}); }
+    if(allLeaveData){ allLeaveData.filter(function(r){return r.staff_id===staff.id&&r.type==='use'&&r.date&&r.date.startsWith(ymStr2||'');}).forEach(function(r){
+      if((r.hours||0)>0){ _lht2+=r.hours; } // 手入力時間を使用
+      else if(staff.type!=='hourly'){ _lht2+=(parseFloat(r.days)||1)*_paidLHPD; } // 社員・役員のみpaid_leave_hoursで補完
+    }); }
     if(_lht2>0){ totalMins += Math.round(_lht2*60); }
     // 時給スタッフ：合計時間から基本給を計算（給与明細と同じ）
     if(staff.type==='hourly'){
@@ -1571,11 +1574,19 @@ async function loadMonthlyTab() {
       } else if (isLeaveDay) {
         // 有休取得日（出勤なし）
         var leaveDays = leaveDates[dateStr];
-        var leaveMins = Math.round(leaveDays * paidLeaveHours * 60);
+        // 有休管理の時間数を取得
+        var leaveRecsDay = allLeave.filter(function(r){return r.staff_id===s.id&&r.type==='use'&&r.date===dateStr;});
+        var leaveHoursDay = leaveRecsDay.reduce(function(a,r){return a+(r.hours||0);},0);
+        var isHourlyS = s.type==='hourly';
+        // パート・時給：手入力時間のみ、社員：paid_leave_hoursで計算
+        var leaveMins = isHourlyS ? Math.round(leaveHoursDay*60) : Math.round(leaveDays*paidLeaveHours*60);
         totalMins += leaveMins;
+        var leaveLabel = isHourlyS
+          ? (leaveHoursDay>0 ? leaveDays+'日（'+leaveHoursDay+'h）' : leaveDays+'日（時間未入力）')
+          : leaveDays+'日（'+paidLeaveHours+'h）';
         html += '<td class="monthly-cell monthly-leave '+cls+'" style="position:relative;">' +
           '<span class="monthly-leave-day">🌿 有休</span><br>' +
-          '<span class="monthly-leave-time">' + leaveDays + '日（' + paidLeaveHours + 'h）</span><br>' +
+          '<span class="monthly-leave-time">' + leaveLabel + '</span><br>' +
           '<button class="monthly-add-btn" onclick="openAttendanceAddModal(\'' + dateStr + '\',\'' + s.id + '\')">➕</button>' +
           '</td>';
       } else {
