@@ -105,10 +105,15 @@ async function openStaffModal(id){
       document.getElementById('staffCommuteFixed').value=editingStaff.commute_fixed||0;
       toggleOfficerCommute();
       // 家族構成
-      document.getElementById('familySpouse').value   = editingStaff.family_spouse||'none';
-      document.getElementById('familyOver16').value   = editingStaff.family_over16||0;
-      document.getElementById('familyUnder16').value  = editingStaff.family_under16||0;
-      document.getElementById('familyDisabled').value = editingStaff.family_disabled||0;
+      document.getElementById('familySpouse').value      = editingStaff.family_spouse||'none';
+      document.getElementById('familyOver16').value      = editingStaff.family_over16||0;
+      document.getElementById('familyUnder16').value     = editingStaff.family_under16||0;
+      document.getElementById('familyDisabled').value    = editingStaff.family_disabled||0;
+      document.getElementById('familyCohabDisabled').value = editingStaff.family_cohab_disabled||0;
+      document.getElementById('selfDisabled').checked      = editingStaff.self_disabled||false;
+      document.getElementById('selfWidow').checked         = editingStaff.self_widow||false;
+      document.getElementById('selfSingleParent').checked  = editingStaff.self_single_parent||false;
+      document.getElementById('selfStudent').checked       = editingStaff.self_student||false;
       calcDependents();
       document.getElementById('staffPayslipNote').value=editingStaff.payslip_note||'';
       var defaultLeaveHours = editingStaff.type==='employee' ? 6 : 7.5;
@@ -234,10 +239,15 @@ async function saveStaff(){
     hire_date:document.getElementById('staffHireDate').value,
     payslip_type:document.getElementById('staffPayslipType').value,
     commute_fixed:parseInt(document.getElementById('staffCommuteFixed').value)||0,
-    family_spouse:  document.getElementById('familySpouse').value||'none',
-    family_over16:  parseInt(document.getElementById('familyOver16').value)||0,
-    family_under16: parseInt(document.getElementById('familyUnder16').value)||0,
-    family_disabled:parseInt(document.getElementById('familyDisabled').value)||0,
+    family_spouse:      document.getElementById('familySpouse').value||'none',
+    family_over16:      parseInt(document.getElementById('familyOver16').value)||0,
+    family_under16:     parseInt(document.getElementById('familyUnder16').value)||0,
+    family_disabled:    parseInt(document.getElementById('familyDisabled').value)||0,
+    family_cohab_disabled: parseInt(document.getElementById('familyCohabDisabled').value)||0,
+    self_disabled:      document.getElementById('selfDisabled').checked,
+    self_widow:         document.getElementById('selfWidow').checked,
+    self_single_parent: document.getElementById('selfSingleParent').checked,
+    self_student:       document.getElementById('selfStudent').checked,
     payslip_note:document.getElementById('staffPayslipNote').value.trim(),
     paid_leave_hours:parseFloat(document.getElementById('staffPaidLeaveHours').value)||7.5,
     contribution_bonus:document.getElementById('staffContributionBonus').checked,
@@ -1994,28 +2004,53 @@ function updateAttendanceLunchPreview(){
   }
 }
 
-// 家族構成から扶養人数を自動計算
+// 家族構成から扶養人数を自動計算（国税庁・源泉徴収税額表ルール）
 function calcDependents(){
-  var spouse   = document.getElementById('familySpouse').value;
-  var over16   = parseInt(document.getElementById('familyOver16').value)||0;
-  var disabled = parseInt(document.getElementById('familyDisabled').value)||0;
-  // 扶養人数 = 配偶者（控除対象のみ）+ 16歳以上の子・親族 + 障害者
+  var spouse       = document.getElementById('familySpouse').value;
+  var over16       = parseInt(document.getElementById('familyOver16').value)||0;
+  var under16      = parseInt(document.getElementById('familyUnder16').value)||0;
+  var disabled     = parseInt(document.getElementById('familyDisabled').value)||0;
+  var cohabDis     = parseInt(document.getElementById('familyCohabDisabled').value)||0;
+  var selfDisabled = document.getElementById('selfDisabled').checked;
+  var selfWidow    = document.getElementById('selfWidow').checked;
+  var selfSingle   = document.getElementById('selfSingleParent').checked;
+  var selfStudent  = document.getElementById('selfStudent').checked;
+
+  // 扶養人数の計算（国税庁ルール）
   var count = 0;
+  // 配偶者（源泉控除対象のみ）
   if(spouse === 'dependent') count++;
+  // 16歳以上の扶養親族
   count += over16;
+  // 扶養親族のうち障害者（1人につき+1）
   count += disabled;
+  // 同居特別障害者（1人につき+2）
+  count += cohabDis * 2;
+  // 本人区分（各1人加算）
+  if(selfDisabled) count++;
+  if(selfWidow)    count++;
+  if(selfSingle)   count++;
+  if(selfStudent)  count++;
+
   document.getElementById('staffDependents').value = count;
-  // プレビュー表示
-  var under16 = parseInt(document.getElementById('familyUnder16').value)||0;
+
+  // プレビュー
   var desc = [];
-  if(spouse==='dependent') desc.push('配偶者（控除対象）');
-  if(spouse==='non_dependent') desc.push('配偶者（控除対象外）');
-  if(over16>0) desc.push('16歳以上の扶養親族 '+over16+'人');
-  if(under16>0) desc.push('16歳未満の子 '+under16+'人（扶養人数に含まず）');
-  if(disabled>0) desc.push('障害者等 '+disabled+'人');
+  if(spouse==='dependent')    desc.push('配偶者（控除対象）+1');
+  if(spouse==='non_dependent')desc.push('配偶者（控除対象外）');
+  if(over16>0)    desc.push('扶養親族 '+over16+'人 +'+over16);
+  if(under16>0)   desc.push('16歳未満の子 '+under16+'人（加算なし）');
+  if(disabled>0)  desc.push('扶養親族の障害者 '+disabled+'人 +'+disabled);
+  if(cohabDis>0)  desc.push('同居特別障害者 '+cohabDis+'人 +'+(cohabDis*2));
+  if(selfDisabled)desc.push('本人：障害者 +1');
+  if(selfWidow)   desc.push('本人：寡婦 +1');
+  if(selfSingle)  desc.push('本人：ひとり親 +1');
+  if(selfStudent) desc.push('本人：勤労学生 +1');
+
   var preview = document.getElementById('dependentsPreview');
   if(preview){
-    preview.textContent = '扶養親族等の人数：' + count + '人　' + (desc.length?'（'+desc.join('、')+'）':'');
+    preview.innerHTML = '<strong>扶養親族等の人数：' + count + '人</strong><br>' +
+      '<span style="font-size:.75rem;font-weight:400;">' + (desc.length ? desc.join('　') : '基本0人') + '</span>';
   }
 }
 

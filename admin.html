@@ -513,11 +513,26 @@
               <input type="number" id="familyUnder16" class="form-input" value="0" min="0" max="10" onchange="calcDependents()">
               <p style="font-size:.72rem;color:var(--text-muted);margin-top:2px;">扶養人数には含まれません</p>
             </div>
-            <div class="form-group"><label class="form-label">障害者・特別障害者</label>
+            <div class="form-group"><label class="form-label">扶養親族のうち障害者</label>
               <input type="number" id="familyDisabled" class="form-input" value="0" min="0" max="10" onchange="calcDependents()">
+              <p style="font-size:.72rem;color:var(--text-muted);margin-top:2px;">一般障害者・特別障害者（同居特別障害者は+1追加）</p>
+            </div>
+            <div class="form-group"><label class="form-label">扶養親族のうち同居特別障害者</label>
+              <input type="number" id="familyCohabDisabled" class="form-input" value="0" min="0" max="10" onchange="calcDependents()">
+              <p style="font-size:.72rem;color:var(--text-muted);margin-top:2px;">同居特別障害者は2人加算</p>
             </div>
           </div>
-          <div id="dependentsPreview" style="margin-top:8px;padding:8px 12px;background:#eff6ff;border-radius:8px;font-size:.82rem;color:#1d4ed8;font-weight:700;"></div>
+          <!-- 本人区分 -->
+          <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
+            <div style="font-weight:700;font-size:.82rem;margin-bottom:8px;color:#555;">👤 本人区分（該当するものにチェック）</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+              <label class="form-check"><input type="checkbox" id="selfDisabled" onchange="calcDependents()"> 本人が障害者（一般・特別）</label>
+              <label class="form-check"><input type="checkbox" id="selfWidow" onchange="calcDependents()"> 寡婦</label>
+              <label class="form-check"><input type="checkbox" id="selfSingleParent" onchange="calcDependents()"> ひとり親</label>
+              <label class="form-check"><input type="checkbox" id="selfStudent" onchange="calcDependents()"> 勤労学生</label>
+            </div>
+          </div>
+          <div id="dependentsPreview" style="margin-top:10px;padding:8px 12px;background:#eff6ff;border-radius:8px;font-size:.82rem;color:#1d4ed8;font-weight:700;"></div>
         </div>
         <div class="form-section-title">📍 住所・連絡先</div>
         <div class="form-grid">
