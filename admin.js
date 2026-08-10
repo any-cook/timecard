@@ -1496,6 +1496,7 @@ async function loadMonthlyTab() {
   var wrap  = document.getElementById('monthlyTableWrap');
   wrap.innerHTML = '<p style="padding:20px;color:var(--text-muted);">読み込み中...</p>';
 
+  // Firestoreから最新のスタッフデータを取得（paid_leave_hoursを確実に反映）
   var staff   = await DB.getStaff();
   var active  = staff.filter(function(s){ return s.is_active && s.type !== 'officer' && s.type !== 'contract'; });
   var records = await DB.getAttendance({ year: year, month: month });
@@ -1531,7 +1532,9 @@ async function loadMonthlyTab() {
   active.forEach(function(s) {
     var staffRecords = records.filter(function(r){ return r.staff_id === s.id; });
     var totalDays = 0, totalMins = 0;
-    var paidLeaveHours = s.paid_leave_hours || 7.5;
+    // paid_leave_hoursが未設定の場合：社員は6時間、それ以外は7.5時間
+    var defaultLeaveH = (s.type==='employee') ? 6 : 7.5;
+    var paidLeaveHours = s.paid_leave_hours || defaultLeaveH;
 
     // 当月の有給使用日データ
     var staffLeave = allLeave.filter(function(r){ return r.staff_id === s.id && r.type === 'use' && r.date && r.date.startsWith(ymStr); });
