@@ -950,7 +950,11 @@ async function showPayslip(staffId,year,month){
     ['所得税', numFmt(tax)],
   ];
   if(empIns>0) dedRows.push(['雇用保険料', numFmt(empIns)]);
-  extraDeduction.forEach(function(i){dedRows.push([i.name, numFmt(i.amount)]);});
+  extraDeduction.forEach(function(i){
+    // 所得税・健康保険・厚生年金等は dedRows に既に追加済みのため重複を除外
+    var skipNames = ['所得税','健康保険料','介護保険料','厚生年金保険','子育て支援金','雇用保険料','雇用保険'];
+    if(skipNames.indexOf(i.name) === -1) dedRows.push([i.name, numFmt(i.amount)]);
+  });
   // その他列
   var otherRows = [['年末調整還付','0'],['年末調整徴収','0']];
   extraOther.forEach(function(i){otherRows.push([i.name, numFmt(i.amount)]);});
