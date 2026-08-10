@@ -104,6 +104,12 @@ async function openStaffModal(id){
       document.getElementById('staffPayslipType').value=editingStaff.payslip_type||editingStaff.type||'hourly';
       document.getElementById('staffCommuteFixed').value=editingStaff.commute_fixed||0;
       toggleOfficerCommute();
+      // 家族構成
+      document.getElementById('familySpouse').value   = editingStaff.family_spouse||'none';
+      document.getElementById('familyOver16').value   = editingStaff.family_over16||0;
+      document.getElementById('familyUnder16').value  = editingStaff.family_under16||0;
+      document.getElementById('familyDisabled').value = editingStaff.family_disabled||0;
+      calcDependents();
       document.getElementById('staffPayslipNote').value=editingStaff.payslip_note||'';
       var defaultLeaveHours = editingStaff.type==='employee' ? 6 : 7.5;
       document.getElementById('staffPaidLeaveHours').value=editingStaff.paid_leave_hours||defaultLeaveHours;
@@ -228,6 +234,10 @@ async function saveStaff(){
     hire_date:document.getElementById('staffHireDate').value,
     payslip_type:document.getElementById('staffPayslipType').value,
     commute_fixed:parseInt(document.getElementById('staffCommuteFixed').value)||0,
+    family_spouse:  document.getElementById('familySpouse').value||'none',
+    family_over16:  parseInt(document.getElementById('familyOver16').value)||0,
+    family_under16: parseInt(document.getElementById('familyUnder16').value)||0,
+    family_disabled:parseInt(document.getElementById('familyDisabled').value)||0,
     payslip_note:document.getElementById('staffPayslipNote').value.trim(),
     paid_leave_hours:parseFloat(document.getElementById('staffPaidLeaveHours').value)||7.5,
     contribution_bonus:document.getElementById('staffContributionBonus').checked,
@@ -1981,6 +1991,31 @@ function updateAttendanceLunchPreview(){
   if(start && end){
     var mins = timeToMinutes(end) - timeToMinutes(start);
     prev.textContent = '控除時間：' + (mins > 0 ? Math.floor(mins/60)+'時間'+mins%60+'分' : '-');
+  }
+}
+
+// 家族構成から扶養人数を自動計算
+function calcDependents(){
+  var spouse   = document.getElementById('familySpouse').value;
+  var over16   = parseInt(document.getElementById('familyOver16').value)||0;
+  var disabled = parseInt(document.getElementById('familyDisabled').value)||0;
+  // 扶養人数 = 配偶者（控除対象のみ）+ 16歳以上の子・親族 + 障害者
+  var count = 0;
+  if(spouse === 'dependent') count++;
+  count += over16;
+  count += disabled;
+  document.getElementById('staffDependents').value = count;
+  // プレビュー表示
+  var under16 = parseInt(document.getElementById('familyUnder16').value)||0;
+  var desc = [];
+  if(spouse==='dependent') desc.push('配偶者（控除対象）');
+  if(spouse==='non_dependent') desc.push('配偶者（控除対象外）');
+  if(over16>0) desc.push('16歳以上の扶養親族 '+over16+'人');
+  if(under16>0) desc.push('16歳未満の子 '+under16+'人（扶養人数に含まず）');
+  if(disabled>0) desc.push('障害者等 '+disabled+'人');
+  var preview = document.getElementById('dependentsPreview');
+  if(preview){
+    preview.textContent = '扶養親族等の人数：' + count + '人　' + (desc.length?'（'+desc.join('、')+'）':'');
   }
 }
 
