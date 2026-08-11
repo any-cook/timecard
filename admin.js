@@ -1603,6 +1603,13 @@ async function loadMonthlyTab() {
         var mins = _oc ? calcWorkMinutes(r.clock_in_calc, _oc, _rlb, _rls, _rle) : 0;
         totalDays++;
         totalMins += mins;
+        // 出勤日に有休もある場合は有休時間も加算
+        if(isLeaveDay){
+          var leaveRecsSameDay = allLeave.filter(function(lr){return lr.staff_id===s.id&&lr.type==='use'&&lr.date===dateStr;});
+          var leaveHoursSameDay = leaveRecsSameDay.reduce(function(a,lr){return a+(lr.hours||0);},0);
+          if(s.type==='hourly' && leaveHoursSameDay>0) totalMins += Math.floor(leaveHoursSameDay*60);
+          else if(s.type!=='hourly') totalMins += Math.floor((leaveDates[dateStr]||0)*paidLeaveHours*60);
+        }
         var inTime  = r.clock_in_actual  || '-';
         var outTime = r.clock_out_actual || '未退勤';
         var outCls  = r.clock_out_actual ? '' : 'monthly-missing';
@@ -1638,8 +1645,8 @@ async function loadMonthlyTab() {
     });
 
     // 合計（有休時間含む）
-    var totalH = Math.floor(totalMins/60), totalM = totalMins%60;
-    var totalStr = totalH + ':' + String(totalM).padStart(2,'0');
+    var totalHoursM = Math.round(totalMins / 60 * 100) / 100;
+    var totalStr = totalHoursM + '時間';
     var totalLeave = Object.values(leaveDates).reduce(function(a,b){return a+b;},0);
     html += '<td class="monthly-total-cell">' + totalDays + '日' + (totalLeave>0?'<br><span style="font-size:.7rem;color:#16a34a;">有休'+totalLeave+'日</span>':'') + '</td>';
     html += '<td class="monthly-total-cell">' + totalStr  + '</td>';
