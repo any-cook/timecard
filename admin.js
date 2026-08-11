@@ -794,9 +794,7 @@ async function showPayslip(staffId,year,month){
   var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
   var health=healthBase; // 健康保険料（介護保険料除く）
   var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
-  // 雇用保険は総支給額ベース（基本給+追加支給項目+通勤費（課税分）+貢献手当）
-  var _empInsBase = grossPay + extraTotalPay + contributionBonus + commuteData.taxable;
-  var empIns=calcEmploymentInsurance(_empInsBase,staff.employment_insurance);
+  var empIns=0; // extraPayItems確定後に計算
   // 正しい所得税計算：社会保険料等控除後の給与に税額表を適用
   var socialInsTotal=pension+health+nursingCare+childSupport+empIns;
   // 所得税計算はextraPayItems確定後に実施（下部で計算）
@@ -870,6 +868,9 @@ async function showPayslip(staffId,year,month){
     return acc + (i.calc_add==='sub' ? -(i.amount||0) : (i.amount||0));
   }, 0);
   totalPay += extraTotalPay + contributionBonus;
+  // 雇用保険：extraPayItems確定後に総支給額ベースで計算
+  var _empInsBase = grossPay + extraTotalPay + contributionBonus + commuteData.taxable;
+  empIns = calcEmploymentInsurance(_empInsBase, staff.employment_insurance);
   // totalDeductAll は tax確定後に更新
 
   // 所得税計算（extraPayItems確定後）
@@ -915,6 +916,9 @@ async function showPayslip(staffId,year,month){
     var isSubtract = item.calc_add === 'sub';
     // 減算項目：支給欄に表示して差引支給額から控除
     if(isSubtract){ extraTotalDeductExtra += (item.amount||0); }
+    // 社会保険・税金は自動計算されるため重複表示を防ぐ
+    var _skipItems = ['所得税','健康保険料','介護保険料','厚生年金保険','子育て支援金','雇用保険料','雇用保険'];
+    if(_skipItems.indexOf(item.name) !== -1) return; // スキップ
     if(cat==='attendance') extraAttendance.push(item);
     else if(cat==='deduction') extraDeduction.push(item);
     else if(cat==='other') extraOther.push(item);
