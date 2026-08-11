@@ -624,7 +624,7 @@ async function loadPayrollSummary(){
       if((r.hours||0)>0){ _lht2+=r.hours; } // 手入力時間を使用
       else if(staff.type!=='hourly'){ _lht2+=(parseFloat(r.days)||1)*_paidLHPD; } // 社員・役員のみpaid_leave_hoursで補完
     }); }
-    if(_lht2>0){ totalMins += Math.round(_lht2*60); }
+    if(_lht2>0){ totalMins += Math.floor(_lht2*60); }
     // 時給スタッフ：合計時間から基本給を計算（給与明細と同じ）
     if(staff.type==='hourly'){
       grossPay = Math.floor(totalMins / 60 * (staff.wage||0));
@@ -766,7 +766,7 @@ async function showPayslip(staffId,year,month){
     }
   });
   if(_lht3>0){
-    totalMins += Math.round(_lht3*60);
+    totalMins += Math.floor(_lht3*60);
     if(staff.type==='hourly') grossPay += Math.floor(_lht3*(staff.wage||0));
   }
 
@@ -1617,7 +1617,7 @@ async function loadMonthlyTab() {
         var leaveHoursDay = leaveRecsDay.reduce(function(a,r){return a+(r.hours||0);},0);
         var isHourlyS = s.type==='hourly';
         // パート・時給：手入力時間のみ、社員：paid_leave_hoursで計算
-        var leaveMins = isHourlyS ? Math.round(leaveHoursDay*60) : Math.round(leaveDays*paidLeaveHours*60);
+        var leaveMins = isHourlyS ? Math.floor(leaveHoursDay*60) : Math.floor(leaveDays*paidLeaveHours*60);
         totalMins += leaveMins;
         var leaveLabel = isHourlyS
           ? (leaveHoursDay>0 ? leaveDays+'日（'+leaveHoursDay+'h）' : leaveDays+'日（時間未入力）')
