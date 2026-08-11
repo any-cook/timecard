@@ -1012,7 +1012,7 @@ async function showPayslip(staffId,year,month){
   html += '<tr class="ps-subtotal-row" style="background:#fafafa;">';
   html += '<td class="ps-label" style="font-size:.7rem;"></td><td class="ps-val" style="font-size:.7rem;"></td>';
   html += '<td class="ps-label" style="font-size:.7rem;color:#555;">非課税額</td><td class="ps-val" style="font-size:.7rem;">' + numFmt(nontaxablePay) + '</td>';
-  html += '<td class="ps-label" style="font-size:.7rem;color:#555;">所得税</td><td class="ps-val" style="font-size:.7rem;">' + numFmt(tax) + '</td>';
+  html += '<td class="ps-label" style="font-size:.7rem;color:#555;"></td><td class="ps-val" style="font-size:.7rem;"></td>';
   html += '<td class="ps-label" style="font-size:.7rem;"></td><td class="ps-val" style="font-size:.7rem;"></td>';
   html += '</tr>';
   html += '<tr class="ps-total-row">';
