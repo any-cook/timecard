@@ -649,8 +649,8 @@ async function loadPayrollSummary(){
     }
     else{healthBase=healthTotal;nursingCare=0;}
     var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
-    // 雇用保険は総支給額（基本給+追加支給項目+通勤費（課税分）+貢献手当）ベース
-    var empInsBase = grossPay + _extraTotal + bonusAmt + commuteData.taxable;
+    // 雇用保険は総支給額（非課税通勤費含む）ベースで計算
+    var empInsBase = grossPay + _extraTotal + bonusAmt + commuteData.taxFree + commuteData.taxable;
     var empIns=calcEmploymentInsurance(empInsBase,staff.employment_insurance);
     // 介護保険料を分離（給与明細と同じ計算）
     var healthBase2=0,nursingCare2=0;
@@ -868,8 +868,8 @@ async function showPayslip(staffId,year,month){
     return acc + (i.calc_add==='sub' ? -(i.amount||0) : (i.amount||0));
   }, 0);
   totalPay += extraTotalPay + contributionBonus;
-  // 雇用保険：extraPayItems確定後に総支給額ベースで計算
-  var _empInsBase = grossPay + extraTotalPay + contributionBonus + commuteData.taxable;
+  // 雇用保険：総支給額（非課税通勤費含む）ベースで計算
+  var _empInsBase = grossPay + extraTotalPay + contributionBonus + commuteData.taxFree + commuteData.taxable;
   empIns = calcEmploymentInsurance(_empInsBase, staff.employment_insurance);
   // empIns確定後にsocialInsTotalを再計算（所得税計算に使用）
   socialInsTotal = pension + health + nursingCare + childSupport + empIns;
