@@ -649,7 +649,9 @@ async function loadPayrollSummary(){
     }
     else{healthBase=healthTotal;nursingCare=0;}
     var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
-    var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
+    // 雇用保険は総支給額（基本給+追加支給項目+通勤費（課税分）+貢献手当）ベース
+    var empInsBase = grossPay + _extraTotal + bonusAmt + commuteData.taxable;
+    var empIns=calcEmploymentInsurance(empInsBase,staff.employment_insurance);
     // 介護保険料を分離（給与明細と同じ計算）
     var healthBase2=0,nursingCare2=0;
     if(staff.health_table_type==='health_nursing'){
@@ -792,7 +794,9 @@ async function showPayslip(staffId,year,month){
   var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
   var health=healthBase; // 健康保険料（介護保険料除く）
   var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
-  var empIns=calcEmploymentInsurance(grossPay,staff.employment_insurance);
+  // 雇用保険は総支給額ベース（基本給+追加支給項目+通勤費（課税分）+貢献手当）
+  var _empInsBase = grossPay + extraTotalPay + contributionBonus + commuteData.taxable;
+  var empIns=calcEmploymentInsurance(_empInsBase,staff.employment_insurance);
   // 正しい所得税計算：社会保険料等控除後の給与に税額表を適用
   var socialInsTotal=pension+health+nursingCare+childSupport+empIns;
   // 所得税計算はextraPayItems確定後に実施（下部で計算）
