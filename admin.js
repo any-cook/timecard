@@ -695,10 +695,7 @@ async function loadPayrollSummary(){
     }
     else{healthBase=healthTotal;nursingCare=0;}
     var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
-    // 雇用保険は総支給額（非課税通勤費含む）ベースで計算
-    var empInsBase = grossPay + _extraTotal + bonusAmt + commuteData.taxFree + commuteData.taxable;
-    var empIns=calcEmploymentInsurance(empInsBase,staff.employment_insurance);
-    // 介護保険料を分離（給与明細と同じ計算）
+    // 介護保険料を分離
     var healthBase2=0,nursingCare2=0;
     if(staff.health_table_type==='health_nursing'){
       var _nRow2=healthNursingTable.find(function(r){return r.id===staff.health_grade_id;});
@@ -709,14 +706,10 @@ async function loadPayrollSummary(){
     } else {
       healthBase2=healthTotal; nursingCare2=0;
     }
-    // 給与明細と同じ社会保険合計
-    var socialDeduction=pension+healthBase2+nursingCare2+childSupport+empIns;
-    // 正しい所得税計算：社会保険料等控除後の給与に税額表を適用
-    // 明細設定から支給項目を取得して差引支給額に反映
+    // 明細設定から支給項目を取得（先に計算してからempInsに使用）
     var _psType = staff.payslip_type||staff.type||'hourly';
     var _typeKey = _psType==='officer'?'pay_items_officer':_psType==='employee'?'pay_items_employee':'pay_items_hourly';
     var _payItemsBase = (window._payslipSettings && window._payslipSettings[_typeKey]) ? window._payslipSettings[_typeKey] : [];
-    // 月次入力の変動項目で金額を上書き
     var _payItems = _payItemsBase.map(function(item){
       if(item.wage_fixed==='variable'){
         var mi = (monthlyData.variable_items||[]).find(function(x){return x.name===item.name;});
@@ -724,7 +717,6 @@ async function loadPayrollSummary(){
       }
       return item;
     });
-    // 課税所得計算（減算項目は引く・非課税項目は除外）
     var _extraTaxable = 0;
     var _extraTotal = 0;
     _payItems.forEach(function(item){
@@ -739,6 +731,11 @@ async function loadPayrollSummary(){
     });
     // 貢献手当
     var bonusAmt = staff.contribution_bonus ? 1000 : 0;
+    // 雇用保険は総支給額（extraTotal・bonusAmt確定後）ベースで計算
+    var empInsBase = grossPay + _extraTotal + bonusAmt + commuteData.taxFree + commuteData.taxable;
+    var empIns=calcEmploymentInsurance(empInsBase,staff.employment_insurance);
+    // 社会保険合計
+    var socialDeduction=pension+healthBase2+nursingCare2+childSupport+empIns;
     // grossPay には有休賃金が含まれている（totalMinsベースで計算済み）
     var taxableIncome = grossPay + commuteData.taxable + _extraTaxable + bonusAmt - socialDeduction;
     var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
