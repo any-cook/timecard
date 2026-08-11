@@ -746,7 +746,7 @@ async function loadPayrollSummary(){
     // 給与明細と同じ計算式で差引支給額・支給合計・控除合計を計算
     var payTotal = grossPay + commuteData.taxFree + commuteData.taxable + _extraTotal + bonusAmt;
     var dedTotal = tax + healthBase2 + nursingCare2 + pension + childSupport + empIns;
-    var netPay   = payTotal - commuteData.taxable - dedTotal;
+    var netPay   = payTotal - dedTotal; // 課税通勤費は支給合計に含まれているため引かない
     grandTotal += netPay;
     var tr=document.createElement('tr');
     tr.innerHTML=
