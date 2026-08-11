@@ -953,9 +953,9 @@ async function showPayslip(staffId,year,month){
   // tax確定後にtotalDeductionを再計算（所得税を含む）
   totalDeduction = tax + pension + health + nursingCare + childSupport + empIns;
   // 差引支給額 = 支給合計 - 控除合計
-  // totalPay には extraTotalPay + contributionBonus が加算済み
   // totalPay = grossPay + commuteData.taxFree + commuteData.taxable + extraTotalPay + contributionBonus
-  netPayFinal = totalPay - commuteData.taxable - totalDeduction;
+  // 手取りは課税通勤費も含む（源泉税・社保控除後の全支給額）
+  netPayFinal = totalPay - totalDeduction;
   netPay = netPayFinal;
   totalDeductAll = totalDeduction;
 
