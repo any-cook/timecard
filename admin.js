@@ -72,7 +72,7 @@ async function loadStaffTab(){
       '<td>'+s.name+lunchMark+'</td><td><span class="badge badge-type">'+staffTypeLabel(s.type)+'</span></td>'+
       '<td>'+(s.type==='hourly'?formatCurrency(s.wage)+'/時':formatCurrency(s.monthly_salary)+'/月')+'</td>'+
       '<td>'+hireDateStr+'</td><td>'+ageStr+'</td><td>'+nursing+'</td><td>'+emp+'</td>'+
-      '<td><span class="badge '+(s.is_active===true||s.is_active===1?'badge-active':'badge-inactive')+'" style="white-space:nowrap;min-width:48px;display:inline-block;text-align:center;">'+(s.is_active===true||s.is_active===1?'在籍':'退職')+'</span></td>'+
+      '<td><span class="badge '+(s.is_active===true||s.is_active===1?'badge-active':'badge-inactive')+'" style="white-space:nowrap;min-width:48px;display:inline-block;text-align:center;">'+(s.is_active===true||s.is_active===1?'在籍':'退職')+'</span>'+((!s.is_active&&s.retire_date)?'<br><span style="font-size:.65rem;color:var(--text-muted);">'+s.retire_date+'</span>':'')+'</td>'+
       '<td><button class="btn-sm btn-edit" onclick="openStaffModal(\''+s.id+'\')">✏️ 編集</button> '+
       '<button class="btn-sm btn-toggle" onclick="toggleStaffActive(\''+s.id+'\','+(!s.is_active)+')">'+(s.is_active?'退職処理':'在籍に戻す')+'</button></td>';
     tbody.appendChild(tr);
@@ -81,8 +81,42 @@ async function loadStaffTab(){
 
 async function toggleStaffActive(id,newState){
   var staff=await DB.getStaff(),s=staff.find(function(x){return x.id===id;});
-  if(!s||!confirmAction(s.name+' さんを'+(newState?'在籍に戻します':'退職処理します')+'。よろしいですか？'))return;
-  s.is_active=newState;await DB.saveStaff(s);showToast('更新しました');loadStaffTab();
+  if(!s)return;
+  // 在籍に戻す場合はそのまま処理
+  if(newState){
+    if(!confirmAction(s.name+' さんを在籍に戻します。よろしいですか？'))return;
+    s.is_active=true;
+    await DB.saveStaff(s);
+    showToast('在籍に戻しました');
+    loadStaffTab();
+    return;
+  }
+  // 退職処理はモーダルを表示
+  document.getElementById('retireStaffId').value=id;
+  document.getElementById('retireStaffName').textContent='👤 '+s.name+' さんの退職処理';
+  document.getElementById('retireDate').value='';
+  document.getElementById('retireReason').value='';
+  openModal('retireModal');
+}
+
+async function confirmRetire(){
+  var id     = document.getElementById('retireStaffId').value;
+  var date   = document.getElementById('retireDate').value;
+  var reason = document.getElementById('retireReason').value.trim();
+  if(!date){
+    showToast('退職日を入力してください','error');
+    document.getElementById('retireDate').focus();
+    return;
+  }
+  var staff=await DB.getStaff(),s=staff.find(function(x){return x.id===id;});
+  if(!s)return;
+  s.is_active     = false;
+  s.retire_date   = date;
+  s.retire_reason = reason;
+  await DB.saveStaff(s);
+  closeModal('retireModal');
+  showToast(s.name+' さんの退職処理が完了しました（退職日：'+date+'）');
+  loadStaffTab();
 }
 
 async function openStaffModal(id){
@@ -105,6 +139,16 @@ async function openStaffModal(id){
       document.getElementById('staffCommuteFixed').value=editingStaff.commute_fixed||0;
       document.getElementById('staffPensionNumber').value=editingStaff.pension_number||'';
       document.getElementById('staffHealthInsNumber').value=editingStaff.health_ins_number||'';
+      // 退職情報
+      if(editingStaff.retire_date){
+        document.getElementById('staffRetireDate').value=editingStaff.retire_date;
+        document.getElementById('staffRetireReason').value=editingStaff.retire_reason||'';
+        document.getElementById('retireInfoSection').style.display='block';
+      } else {
+        document.getElementById('staffRetireDate').value='';
+        document.getElementById('staffRetireReason').value='';
+        document.getElementById('retireInfoSection').style.display='none';
+      }
       toggleOfficerCommute();
       // 家族構成
       document.getElementById('familySpouse').value      = editingStaff.family_spouse||'none';
@@ -243,6 +287,8 @@ async function saveStaff(){
     commute_fixed:parseInt(document.getElementById('staffCommuteFixed').value)||0,
     pension_number:    document.getElementById('staffPensionNumber').value.trim(),
     health_ins_number: document.getElementById('staffHealthInsNumber').value.trim(),
+    retire_date:   document.getElementById('staffRetireDate').value||null,
+    retire_reason: document.getElementById('staffRetireReason').value.trim()||null,
     family_spouse:      document.getElementById('familySpouse').value||'none',
     family_over16:      parseInt(document.getElementById('familyOver16').value)||0,
     family_under16:     parseInt(document.getElementById('familyUnder16').value)||0,
