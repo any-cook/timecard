@@ -871,6 +871,8 @@ async function showPayslip(staffId,year,month){
   // 雇用保険：extraPayItems確定後に総支給額ベースで計算
   var _empInsBase = grossPay + extraTotalPay + contributionBonus + commuteData.taxable;
   empIns = calcEmploymentInsurance(_empInsBase, staff.employment_insurance);
+  // empIns確定後にsocialInsTotalを再計算（所得税計算に使用）
+  socialInsTotal = pension + health + nursingCare + childSupport + empIns;
   // totalDeductAll は tax確定後に更新
 
   // 所得税計算（extraPayItems確定後）
