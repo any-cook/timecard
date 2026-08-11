@@ -618,7 +618,7 @@ async function loadPayrollSummary(){
       totalMins = Math.round(monthlyData.work_hours * 60);
     }
     // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
-    var _paidLHPD = staff.paid_leave_hours || 7.5;
+    var _paidLHPD = staff.paid_leave_hours || (staff.type==='employee' ? 6 : 7.5);
     var _lht2 = 0; // 有休時間は有休管理から取得（月次入力値は使用しない）
     if(allLeaveData){ allLeaveData.filter(function(r){return r.staff_id===staff.id&&r.type==='use'&&r.date&&r.date.startsWith(ymStr2||'');}).forEach(function(r){
       if((r.hours||0)>0){ _lht2+=r.hours; } // 手入力時間を使用
@@ -761,7 +761,7 @@ async function showPayslip(staffId,year,month){
   var ymStrPS = year + '-' + String(month).padStart(2,'0');
   var staffLeaveMonth = staffLeave.filter(function(r){ return r.date && r.date.startsWith(ymStrPS); });
   // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
-  var _paidLHPD2 = staff.paid_leave_hours || 7.5;
+  var _paidLHPD2 = staff.paid_leave_hours || (staff.type==='employee' ? 6 : 7.5);
   var _lht3 = 0; // 有休時間は有休管理から取得（月次入力値は使用しない）
   staffLeaveMonth.filter(function(r){return r.type==='use';}).forEach(function(r){
     if((r.hours||0)>0){
