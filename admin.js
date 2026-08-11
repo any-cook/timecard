@@ -619,7 +619,7 @@ async function loadPayrollSummary(){
     }
     // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
     var _paidLHPD = staff.paid_leave_hours || 7.5;
-    var _lht2 = monthlyData.leave_hours||0;
+    var _lht2 = 0; // 有休時間は有休管理から取得（月次入力値は使用しない）
     if(allLeaveData){ allLeaveData.filter(function(r){return r.staff_id===staff.id&&r.type==='use'&&r.date&&r.date.startsWith(ymStr2||'');}).forEach(function(r){
       if((r.hours||0)>0){ _lht2+=r.hours; } // 手入力時間を使用
       else if(staff.type!=='hourly'){ _lht2+=(parseFloat(r.days)||1)*_paidLHPD; } // 社員・役員のみpaid_leave_hoursで補完
@@ -760,7 +760,7 @@ async function showPayslip(staffId,year,month){
   var staffLeaveMonth = staffLeave.filter(function(r){ return r.date && r.date.startsWith(ymStrPS); });
   // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
   var _paidLHPD2 = staff.paid_leave_hours || 7.5;
-  var _lht3 = monthlyData.leave_hours||0;
+  var _lht3 = 0; // 有休時間は有休管理から取得（月次入力値は使用しない）
   staffLeaveMonth.filter(function(r){return r.type==='use';}).forEach(function(r){
     if((r.hours||0)>0){
       _lht3 += r.hours;
@@ -2159,7 +2159,7 @@ async function openMonthlyInputModal() {
   html += '<th>出勤日数</th>';
   html += '<th>時間数<br><span style="font-size:.68rem;font-weight:400;">（時給のみ・空白=自動）</span></th>';
   html += '<th>変動手当（円）</th>';
-  html += '<th>有休時間<br><span style="font-size:.68rem;font-weight:400;">（追加時間）</span></th>';
+  // 有休時間列は有休管理から自動取得するため非表示
   html += '<th>備考</th></tr></thead><tbody>';
 
   for (var i=0; i<staff.length; i++) {
@@ -2216,11 +2216,7 @@ async function openMonthlyInputModal() {
       html += '<td style="text-align:center;color:var(--text-muted);font-size:.75rem;">設定なし</td>';
     }
 
-    // 有休時間
-    var leaveHoursVal = monthly.leave_hours!==null&&monthly.leave_hours!==undefined ? monthly.leave_hours : '';
-    html += '<td><input type="number" class="form-input mi-leavehours" data-staff="'+s.id+'" '+
-      'placeholder="0" min="0" step="0.5" value="'+leaveHoursVal+'" '+
-      'style="margin:0;width:80px;text-align:center;"></td>';
+    // 有休時間は有休管理から自動取得（月次入力欄は使用しない）
 
     // 備考
     html += '<td><input type="text" class="form-input mi-note" data-staff="'+s.id+'" '+
@@ -2256,8 +2252,7 @@ async function saveMonthlyInput() {
     var workDays = workDaysEl ? (workDaysEl.value !== '' ? parseInt(workDaysEl.value) : null) : null;
     var workHoursEl = modal.querySelector('.mi-workhours[data-staff="'+staffId+'"]');
     var workHours = workHoursEl ? (workHoursEl.value !== '' ? parseFloat(workHoursEl.value) : null) : null;
-    var leaveHoursEl = modal.querySelector('.mi-leavehours[data-staff="'+staffId+'"]');
-    var leaveHours = leaveHoursEl ? (leaveHoursEl.value !== '' ? parseFloat(leaveHoursEl.value) : null) : null;
+    var leaveHours = null; // 有休時間は有休管理から取得するため月次入力では保存しない
 
     var varItems = [];
     modal.querySelectorAll('.mi-varitem[data-staff="'+staffId+'"]').forEach(function(el){
