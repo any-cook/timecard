@@ -753,12 +753,15 @@ async function showPayslip(staffId,year,month){
   var monthlyVarItems = monthlyData.variable_items||[];
   var monthlyNote = monthlyData.note||'';
   // 有休時間を勤務時間合計・賃金に加算
-  // staffLeave を先に定義（有休計算で使用）
+  // staffLeave：全期間（残日数計算用）
   var staffLeave = allLeave.filter(function(r){ return r.staff_id === staffId; });
+  // 当月の有休使用レコードのみ（勤務時間計算用）
+  var ymStrPS = year + '-' + String(month).padStart(2,'0');
+  var staffLeaveMonth = staffLeave.filter(function(r){ return r.date && r.date.startsWith(ymStrPS); });
   // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
   var _paidLHPD2 = staff.paid_leave_hours || 7.5;
   var _lht3 = monthlyData.leave_hours||0;
-  staffLeave.filter(function(r){return r.type==='use';}).forEach(function(r){
+  staffLeaveMonth.filter(function(r){return r.type==='use';}).forEach(function(r){
     if((r.hours||0)>0){
       _lht3 += r.hours;
     } else if(staff.type!=='hourly'){
