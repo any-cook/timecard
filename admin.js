@@ -624,11 +624,93 @@ async function saveSpecialDay(){var id=document.getElementById('specialEditId').
 async function deleteSpecialDay(id){if(!confirmAction('削除しますか？'))return;await DB.deleteSpecialDay(id);showToast('削除しました');loadSpecialTab();}
 
 async function loadPayrollTab(){document.getElementById('payrollYear').value=currentYear();document.getElementById('payrollMonth').value=currentMonth();await loadPayrollSummary();}
+// 給与確定
+function showPayslipFromConfirmed(btn){
+  var sid   = btn.dataset.sid;
+  var year  = parseInt(btn.dataset.year);
+  var month = parseInt(btn.dataset.month);
+  showPayslipAndSync(btn, sid, year, month);
+}
+
+async function confirmPayroll(){
+  var year  = parseInt(document.getElementById('payrollYear').value);
+  var month = parseInt(document.getElementById('payrollMonth').value);
+  if(!confirmAction(year+'年'+month+'月分の給与を確定します。確定後は税率等が変わっても金額が変更されません。よろしいですか？')) return;
+  // 現在の集計データを全スタッフ分取得して保存
+  showToast('確定データを保存中...');
+  var confirmedData = { year:year, month:month, confirmed_at: new Date().toISOString(), staffData:{} };
+  var rows = document.querySelectorAll('#payrollTableBody tr[data-staff-id]');
+  rows.forEach(function(row){
+    var sid = row.dataset.staffId;
+    var cells = row.querySelectorAll('td');
+    confirmedData.staffData[sid] = {
+      name:     cells[0] ? cells[0].textContent : '',
+      type:     cells[1] ? cells[1].textContent : '',
+      workDays: cells[2] ? cells[2].textContent : '',
+      workTime: cells[3] ? cells[3].textContent : '',
+      payTotal: cells[4] ? cells[4].textContent : '',
+      dedTotal: cells[5] ? cells[5].textContent : '',
+      netPay:   cells[6] ? cells[6].textContent : '',
+    };
+  });
+  await DB.savePayrollConfirmed(year, month, confirmedData);
+  showToast(year+'年'+month+'月分の給与を確定しました');
+  loadPayrollSummary();
+}
+
+// 給与確定解除
+async function unconfirmPayroll(){
+  var year  = parseInt(document.getElementById('payrollYear').value);
+  var month = parseInt(document.getElementById('payrollMonth').value);
+  if(!confirmAction(year+'年'+month+'月分の給与確定を解除します。よろしいですか？')) return;
+  await DB.deletePayrollConfirmed(year, month);
+  showToast('確定を解除しました');
+  loadPayrollSummary();
+}
+
 async function loadPayrollSummary(){
   var year=parseInt(document.getElementById('payrollYear').value),month=parseInt(document.getElementById('payrollMonth').value);
   var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support')]);
   var allStaff=res[0],records=res[1],taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7];
   var tbody=document.getElementById('payrollTableBody');tbody.innerHTML='';var grandTotal=0;
+
+  // 確定済みデータがあれば表示
+  var confirmed = await DB.getPayrollConfirmed(year, month);
+  var banner = document.getElementById('payrollConfirmedBanner');
+  var btnConfirm   = document.getElementById('btnConfirmPayroll');
+  var btnUnconfirm = document.getElementById('btnUnconfirmPayroll');
+  if(confirmed && confirmed.staffData){
+    if(banner) banner.style.display='block';
+    if(btnConfirm)   btnConfirm.style.display='none';
+    if(btnUnconfirm) btnUnconfirm.style.display='inline-flex';
+    // 確定データを表示
+    Object.keys(confirmed.staffData).forEach(function(sid){
+      var d = confirmed.staffData[sid];
+      var tr = document.createElement('tr');
+      tr.style.background = '#f0fdf4';
+      tr.setAttribute('data-staff-id', sid);
+      tr.setAttribute('data-year', year);
+      tr.setAttribute('data-month', month);
+      tr.innerHTML =
+        '<td><strong>'+d.name+'</strong></td>'+
+        '<td><span class="badge badge-type">'+d.type+'</span></td>'+
+        '<td>'+d.workDays+'</td>'+
+        '<td>'+d.workTime+'</td>'+
+        '<td class="payroll-pay-total">'+d.payTotal+'</td>'+
+        '<td class="payroll-ded-total">'+d.dedTotal+'</td>'+
+        '<td class="payroll-net-pay"><strong style="color:var(--accent);">'+d.netPay+'</strong></td>'+
+        '<td><button class="btn-sm btn-edit" data-sid="'+sid+'" data-year="'+year+'" data-month="'+month+'" onclick="showPayslipFromConfirmed(this)">📄 明細</button></td>';
+      tbody.appendChild(tr);
+    });
+    document.getElementById('payrollGrandTotal').textContent='（確定済み）';
+    return; // 確定データのみ表示して終了
+  }
+
+  // 未確定：通常の集計処理
+  if(banner) banner.style.display='none';
+  if(btnConfirm)   btnConfirm.style.display='inline-flex';
+  if(btnUnconfirm) btnUnconfirm.style.display='none';
+
   var allLeaveData=await DB.getLeaveAll();
   var ymStr2=year+'-'+String(month).padStart(2,'0');
   var activeStaff=allStaff.filter(function(s){return s.is_active && s.type!=='contract';});

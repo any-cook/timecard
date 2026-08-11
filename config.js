@@ -318,6 +318,27 @@ const DB = {
     }
   },
   // 雇用保険料率
+  // 給与確定データ
+  async getPayrollConfirmed(year, month) {
+    const key = `payroll_confirmed_${year}_${month}`;
+    if (DEMO_MODE) return JSON.parse(localStorage.getItem(key) || '{}');
+    try {
+      const snap = await getDB().collection('payroll_confirmed').doc(`${year}_${month}`).get();
+      if (snap.exists) return snap.data();
+    } catch(e) {}
+    return {};
+  },
+  async savePayrollConfirmed(year, month, data) {
+    const key = `payroll_confirmed_${year}_${month}`;
+    if (DEMO_MODE) { localStorage.setItem(key, JSON.stringify(data)); return; }
+    await getDB().collection('payroll_confirmed').doc(`${year}_${month}`).set(data);
+  },
+  async deletePayrollConfirmed(year, month) {
+    const key = `payroll_confirmed_${year}_${month}`;
+    if (DEMO_MODE) { localStorage.removeItem(key); return; }
+    await getDB().collection('payroll_confirmed').doc(`${year}_${month}`).delete();
+  },
+
   async getEmpInsRates() {
     const key = 'emp_ins_rates';
     if (DEMO_MODE) return JSON.parse(localStorage.getItem(key) || '[]');
