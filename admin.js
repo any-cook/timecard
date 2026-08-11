@@ -103,6 +103,8 @@ async function openStaffModal(id){
       document.getElementById('staffNumber').value=editingStaff.staff_number||'';
       document.getElementById('staffPayslipType').value=editingStaff.payslip_type||editingStaff.type||'hourly';
       document.getElementById('staffCommuteFixed').value=editingStaff.commute_fixed||0;
+      document.getElementById('staffPensionNumber').value=editingStaff.pension_number||'';
+      document.getElementById('staffHealthInsNumber').value=editingStaff.health_ins_number||'';
       toggleOfficerCommute();
       // 家族構成
       document.getElementById('familySpouse').value      = editingStaff.family_spouse||'none';
@@ -239,6 +241,8 @@ async function saveStaff(){
     hire_date:document.getElementById('staffHireDate').value,
     payslip_type:document.getElementById('staffPayslipType').value,
     commute_fixed:parseInt(document.getElementById('staffCommuteFixed').value)||0,
+    pension_number:    document.getElementById('staffPensionNumber').value.trim(),
+    health_ins_number: document.getElementById('staffHealthInsNumber').value.trim(),
     family_spouse:      document.getElementById('familySpouse').value||'none',
     family_over16:      parseInt(document.getElementById('familyOver16').value)||0,
     family_under16:     parseInt(document.getElementById('familyUnder16').value)||0,
@@ -2056,6 +2060,13 @@ function calcDependents(){
     preview.innerHTML = '<strong>扶養親族等の人数：' + count + '人</strong><br>' +
       '<span style="font-size:.75rem;font-weight:400;">' + (desc.length ? desc.join('　') : '基本0人') + '</span>';
   }
+}
+
+// 基礎年金番号の自動ハイフン挿入
+function formatPensionNumber(input){
+  var v = input.value.replace(/[^0-9]/g,'');
+  if(v.length > 4) v = v.slice(0,4) + '-' + v.slice(4,10);
+  input.value = v;
 }
 
 function toggleOfficerCommute(){
