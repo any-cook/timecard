@@ -746,19 +746,110 @@ async function loadPayrollSummary(){
     var netPay   = payTotal - dedTotal; // 課税通勤費は支給合計に含まれているため引かない
     grandTotal += netPay;
     var tr=document.createElement('tr');
+    tr.setAttribute('data-staff-id', staff.id);
+    tr.setAttribute('data-year', year);
+    tr.setAttribute('data-month', month);
     tr.innerHTML=
       '<td><strong>'+staff.name+'</strong></td>'+
       '<td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span></td>'+
       '<td>'+workDays+'日</td>'+
       '<td>'+(staff.type==='hourly'?formatWorkTime(totalMins):'月額固定')+'</td>'+
-      '<td>'+formatCurrency(payTotal)+'</td>'+
-      '<td>'+formatCurrency(dedTotal)+'</td>'+
-      '<td><strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong></td>'+
-      '<td><button class="btn-sm btn-edit" onclick="showPayslip(\''+staff.id+'\','+year+','+month+')">📄 明細</button></td>';
+      '<td class="payroll-pay-total">'+formatCurrency(payTotal)+'</td>'+
+      '<td class="payroll-ded-total">'+formatCurrency(dedTotal)+'</td>'+
+      '<td class="payroll-net-pay"><strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong></td>'+
+      '<td><button class="btn-sm btn-edit" onclick="showPayslipAndSync(this,\''+staff.id+'\','+year+','+month+')">📄 明細</button></td>';
     tbody.appendChild(tr);
   }
   document.getElementById('payrollGrandTotal').textContent='差引支給額合計: '+formatCurrency(grandTotal);
+  // 全スタッフの給与明細計算を実行して集計行を更新
+  setTimeout(async function(){
+    for(var i=0;i<activeStaff.length;i++){
+      try{
+        var s=activeStaff[i];
+        await calcPayslipForSync(s.id,year,month);
+      }catch(e){}
+    }
+  },100);
 }
+// 給与明細を表示しつつ集計行の金額を給与明細の計算結果で更新
+async function showPayslipAndSync(btn, staffId, year, month){
+  await showPayslip(staffId, year, month);
+}
+
+// 集計用：給与明細の計算のみ実行してsyncPayrollRowを呼ぶ
+async function calcPayslipForSync(staffId, year, month){
+  _payslipSettings = null;
+  var settings = await getPayslipSettings();
+  var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support'),DB.getLeaveAll()]);
+  var allStaff=res[0],records=res[1].filter(function(r){return r.staff_id===staffId;}),taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7],allLeave=res[8];
+  var staff=allStaff.find(function(s){return s.id===staffId;});
+  if(!staff)return;
+  // showPayslip と同じ計算を実行
+  var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
+  var healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
+  var healthBase=0,nursingCare=0;
+  if(staff.health_table_type==='health_nursing'){
+    var nr=healthNursingTable.find(function(r){return r.id===staff.health_grade_id;});
+    var gn=nr?nr.grade:null;
+    var br=gn?healthTable.find(function(r){return r.grade===gn;}):null;
+    healthBase=br?br.employee:0; nursingCare=Math.max(0,healthTotal-healthBase);
+  } else { healthBase=healthTotal; nursingCare=0; }
+  var grossPay=0,totalMins=0,workDays=0;
+  if(staff.type==='hourly'){
+    records.forEach(function(r){var _o=r.clock_out_actual||r.clock_out_calc;var _lb=r.lunch_break!==undefined?r.lunch_break:staff.lunch_break;var _ls=r.lunch_start||staff.lunch_start;var _le=r.lunch_end||staff.lunch_end;var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,_lb,_ls,_le):0;totalMins+=mins;if(r.clock_in_actual)workDays++;});
+    grossPay=Math.floor(totalMins/60*(staff.wage||0));
+  } else {
+    grossPay=staff.monthly_salary||0;
+    records.forEach(function(r){var _o=r.clock_out_actual||r.clock_out_calc;var _lb=r.lunch_break!==undefined?r.lunch_break:staff.lunch_break;var _ls=r.lunch_start||staff.lunch_start;var _le=r.lunch_end||staff.lunch_end;var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,_lb,_ls,_le):0;totalMins+=mins;if(r.clock_in_actual)workDays++;});
+  }
+  var monthlyData=await getMonthlyInput(year,month,staffId);
+  if(monthlyData.work_days!==null)workDays=monthlyData.work_days;
+  if(staff.type==='hourly'&&monthlyData.work_hours!=null){totalMins=Math.round(monthlyData.work_hours*60);grossPay=Math.floor(monthlyData.work_hours*(staff.wage||0));}
+  var ymStrS=year+'-'+String(month).padStart(2,'0');
+  var staffLeaveS=allLeave.filter(function(r){return r.staff_id===staffId&&r.date&&r.date.startsWith(ymStrS);});
+  var _paidLH=staff.paid_leave_hours||(staff.type==='employee'?6:7.5);
+  var _lht=0;
+  staffLeaveS.filter(function(r){return r.type==='use';}).forEach(function(r){if((r.hours||0)>0){_lht+=r.hours;}else if(staff.type!=='hourly'){_lht+=(parseFloat(r.days)||1)*_paidLH;}});
+  if(_lht>0){totalMins+=Math.floor(_lht*60);if(staff.type==='hourly')grossPay+=Math.floor(_lht*(staff.wage||0));}
+  var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
+  var commuteData=isOfficer?calcOfficerCommuteFixed(staff):(staff.commute_daily_amount?calcCommuteAllowance(staff.commute_daily_amount,workDays,staff.commute_distance||0):{total:0,taxFree:0,taxable:0});
+  var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
+  var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
+  var health=healthBase; var contributionBonus=staff.contribution_bonus?1000:0;
+  var psType=staff.payslip_type||staff.type||'hourly';
+  var typeKey=psType==='officer'?'pay_items_officer':psType==='employee'?'pay_items_employee':'pay_items_hourly';
+  var payItemsS=(settings[typeKey]||settings.pay_items||[]).map(function(item){var v=item.amount||0;if(item.wage_fixed==='variable'){var mi=(monthlyData.variable_items||[]).find(function(x){return x.name===item.name;});if(mi)v=mi.amount;}return Object.assign({},item,{amount:v});});
+  var extraTotalS=0;
+  payItemsS.filter(function(i){var skip=['所得税','健康保険料','介護保険料','厚生年金保険','子育て支援金','雇用保険料','雇用保険'];return skip.indexOf(i.name)===-1;}).forEach(function(i){extraTotalS+=i.calc_add==='sub'?-(i.amount||0):(i.amount||0);});
+  var empInsBaseS=grossPay+extraTotalS+contributionBonus+commuteData.taxFree+commuteData.taxable;
+  var empIns=calcEmploymentInsurance(empInsBaseS,staff.employment_insurance);
+  var socialInsS=pension+health+nursingCare+childSupport+empIns;
+  var extraTaxS=0;
+  payItemsS.forEach(function(i){if(i.calc_add==='sub')extraTaxS-=(i.amount||0);else if(i.tax_type!=='nontaxable')extraTaxS+=(i.amount||0);});
+  var taxableInc=grossPay+commuteData.taxable+extraTaxS+contributionBonus-socialInsS;
+  var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
+  var tax=calcTax(Math.max(0,taxableInc),taxRows,staff.tax_type||'kou',staff.dependents||0);
+  var totalDeductS=tax+pension+health+nursingCare+childSupport+empIns;
+  var totalPayS=grossPay+commuteData.taxFree+commuteData.taxable+extraTotalS+contributionBonus;
+  var netPayS=totalPayS-totalDeductS;
+  syncPayrollRow(staffId,year,month,totalPayS,totalDeductS,netPayS);
+}
+
+// 給与明細計算完了後に集計行を更新する関数
+function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay){
+  var rows = document.querySelectorAll('#payrollTableBody tr[data-staff-id="'+staffId+'"]');
+  rows.forEach(function(row){
+    if(parseInt(row.dataset.year)===year && parseInt(row.dataset.month)===month){
+      var payCell = row.querySelector('.payroll-pay-total');
+      var dedCell = row.querySelector('.payroll-ded-total');
+      var netCell = row.querySelector('.payroll-net-pay');
+      if(payCell) payCell.textContent = formatCurrency(payTotal);
+      if(dedCell) dedCell.textContent = formatCurrency(dedTotal);
+      if(netCell) netCell.innerHTML = '<strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong>';
+    }
+  });
+}
+
 async function showPayslip(staffId,year,month){
   try {
   // 毎回最新の設定を取得
@@ -1178,6 +1269,8 @@ async function showPayslip(staffId,year,month){
   // デフォルトは新フォーマット
   switchPayslip('new');
   openModal('payslipModal');
+  // 集計行を給与明細の計算結果で更新
+  syncPayrollRow(staffId, year, month, totalPay, totalDeductAll, netPayFinal);
   } catch(e) { console.error('showPayslip error:', e); showToast('給与明細の表示でエラーが発生しました: '+e.message,'error'); }
 }
 function numFmt(n){ return Number(n||0).toLocaleString(); }
