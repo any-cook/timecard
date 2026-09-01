@@ -759,14 +759,15 @@ async function loadPayrollSummary(){
     tr.setAttribute('data-staff-id', staff.id);
     tr.setAttribute('data-year', year);
     tr.setAttribute('data-month', month);
+    var sid_ = staff.id;
     tr.innerHTML=
       '<td><strong>'+staff.name+'</strong></td>'+
       '<td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span></td>'+
-      '<td>計算中...</td>'+
-      '<td class="payroll-work-time">-</td>'+
-      '<td class="payroll-pay-total">-</td>'+
-      '<td class="payroll-ded-total">-</td>'+
-      '<td class="payroll-net-pay"><strong style="color:var(--accent);">-</strong></td>'+
+      '<td id="pr-days-'+sid_+'">計算中...</td>'+
+      '<td id="pr-time-'+sid_+'" class="payroll-work-time">-</td>'+
+      '<td id="pr-pay-'+sid_+'" class="payroll-pay-total">-</td>'+
+      '<td id="pr-ded-'+sid_+'" class="payroll-ded-total">-</td>'+
+      '<td id="pr-net-'+sid_+'" class="payroll-net-pay"><strong style="color:var(--accent);">-</strong></td>'+
       '<td><button class="btn-sm btn-edit" onclick="showPayslipAndSync(this,\''+staff.id+'\','+year+','+month+')">📄 明細</button></td>';
     tbody.appendChild(tr);
   }
@@ -851,28 +852,18 @@ async function calcPayslipForSync(staffId, year, month){
 
 // 給与明細計算完了後に集計行を更新する関数
 function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalMins, workDays){
-  var allRows = document.querySelectorAll('#payrollTableBody tr');
-  var updated = false;
-  allRows.forEach(function(row){
-    var rowSid   = row.getAttribute('data-staff-id');
-    var rowYear  = parseInt(row.getAttribute('data-year'));
-    var rowMonth = parseInt(row.getAttribute('data-month'));
-    if(rowSid == staffId && rowYear===year && rowMonth===month){
-      var cells    = row.querySelectorAll('td');
-      var daysCell = cells[2]; // 出勤日数
-      var timeCell = row.querySelector('.payroll-work-time');
-      var payCell  = row.querySelector('.payroll-pay-total');
-      var dedCell  = row.querySelector('.payroll-ded-total');
-      var netCell  = row.querySelector('.payroll-net-pay');
-      if(daysCell && workDays!==undefined) daysCell.textContent = workDays+'日';
-      if(timeCell && totalMins!==undefined) timeCell.textContent = formatWorkTime(totalMins);
-      if(payCell) payCell.textContent = formatCurrency(payTotal);
-      if(dedCell) dedCell.textContent = formatCurrency(dedTotal);
-      if(netCell) netCell.innerHTML = '<strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong>';
-      updated = true;
-    }
-  });
-  if(!updated) console.warn('syncPayrollRow: row not found for staffId='+staffId);
+  // ID直接参照で確実に更新
+  var daysEl = document.getElementById('pr-days-'+staffId);
+  var timeEl = document.getElementById('pr-time-'+staffId);
+  var payEl  = document.getElementById('pr-pay-'+staffId);
+  var dedEl  = document.getElementById('pr-ded-'+staffId);
+  var netEl  = document.getElementById('pr-net-'+staffId);
+  if(!daysEl){ console.warn('syncPayrollRow: element not found for staffId='+staffId); return; }
+  if(workDays!==undefined) daysEl.textContent = workDays+'日';
+  if(totalMins!==undefined) timeEl.textContent = formatWorkTime(totalMins);
+  payEl.textContent = formatCurrency(payTotal);
+  dedEl.textContent = formatCurrency(dedTotal);
+  netEl.innerHTML = '<strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong>';
 }
 
 async function showPayslip(staffId,year,month){
