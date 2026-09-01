@@ -824,8 +824,12 @@ async function calcPayslipForSync(staffId, year, month){
   var staffLeaveS=allLeave.filter(function(r){return r.staff_id===staffId&&r.date&&r.date.startsWith(ymStrS);});
   var _paidLH=staff.paid_leave_hours||(staff.type==='employee'?6:7.5);
   var _lht=0;
-  staffLeaveS.filter(function(r){return r.type==='use';}).forEach(function(r){if((r.hours||0)>0){_lht+=r.hours;}else if(staff.type!=='hourly'){_lht+=(parseFloat(r.days)||1)*_paidLH;}});
-  if(_lht>0){totalMins+=Math.floor(_lht*60);if(staff.type==='hourly')grossPay+=Math.floor(_lht*(staff.wage||0));}
+  // 月次入力で時間数が入力されている場合は有休を加算しない（既に含まれているため）
+  var hasManualHours = (monthlyData.work_hours!=null);
+  if(!hasManualHours){
+    staffLeaveS.filter(function(r){return r.type==='use';}).forEach(function(r){if((r.hours||0)>0){_lht+=r.hours;}else if(staff.type!=='hourly'){_lht+=(parseFloat(r.days)||1)*_paidLH;}});
+    if(_lht>0){totalMins+=Math.floor(_lht*60);if(staff.type==='hourly')grossPay+=Math.floor(_lht*(staff.wage||0));}
+  }
   var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
   var commuteData=isOfficer?calcOfficerCommuteFixed(staff):(staff.commute_daily_amount?calcCommuteAllowance(staff.commute_daily_amount,workDays,staff.commute_distance||0):{total:0,taxFree:0,taxable:0});
   var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
@@ -847,7 +851,6 @@ async function calcPayslipForSync(staffId, year, month){
   var totalDeductS=tax+pension+health+nursingCare+childSupport+empIns;
   var totalPayS=grossPay+commuteData.taxFree+commuteData.taxable+extraTotalS+contributionBonus;
   var netPayS=totalPayS-totalDeductS;
-  console.log('[syncCall] '+staffId+' totalMins='+totalMins+' lht='+_lht+' workDays='+workDays);
   syncPayrollRow(staffId,year,month,totalPayS,totalDeductS,netPayS,totalMins,workDays);
 }
 
@@ -928,17 +931,18 @@ async function showPayslip(staffId,year,month){
   var staffLeaveMonth = staffLeave.filter(function(r){ return r.date && r.date.startsWith(ymStrPS); });
   // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
   var _paidLHPD2 = staff.paid_leave_hours || (staff.type==='employee' ? 6 : 7.5);
-  var _lht3 = 0; // 有休時間は有休管理から取得（月次入力値は使用しない）
-  staffLeaveMonth.filter(function(r){return r.type==='use';}).forEach(function(r){
-    if((r.hours||0)>0){
-      _lht3 += r.hours;
-    } else if(staff.type!=='hourly'){
-      _lht3 += (parseFloat(r.days)||1)*_paidLHPD2;
+  var _lht3 = 0;
+  // 月次入力で時間数が入力されている場合は有休を加算しない
+  var hasManualHoursP = (monthlyData.work_hours!==null && monthlyData.work_hours!==undefined);
+  if(!hasManualHoursP){
+    staffLeaveMonth.filter(function(r){return r.type==='use';}).forEach(function(r){
+      if((r.hours||0)>0){ _lht3 += r.hours; }
+      else if(staff.type!=='hourly'){ _lht3 += (parseFloat(r.days)||1)*_paidLHPD2; }
+    });
+    if(_lht3>0){
+      totalMins += Math.floor(_lht3*60);
+      if(staff.type==='hourly') grossPay += Math.floor(_lht3*(staff.wage||0));
     }
-  });
-  if(_lht3>0){
-    totalMins += Math.floor(_lht3*60);
-    if(staff.type==='hourly') grossPay += Math.floor(_lht3*(staff.wage||0));
   }
 
   // 有給残日数・当月使用日数を計算（staffLeaveは上で定義済み）
