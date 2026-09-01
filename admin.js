@@ -764,7 +764,8 @@ async function loadPayrollSummary(){
     // 時給スタッフ：月次入力の時間数があれば上書き
     if(staff.type==='hourly' && monthlyData.work_hours!=null){
       var wh2 = monthlyData.work_hours;
-      totalMins = (wh2 >= 60 || wh2 === Math.floor(wh2)) ? wh2 : Math.round(wh2 * 60);
+      // 整数=分単位（新形式）、小数=時間単位（旧形式）
+      totalMins = Number.isInteger(wh2) ? wh2 : Math.round(wh2 * 60);
     }
     // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
     var _paidLHPD = staff.paid_leave_hours || (staff.type==='employee' ? 6 : 7.5);
@@ -907,7 +908,7 @@ async function calcPayslipForSync(staffId, year, month){
   }
   var monthlyData=await getMonthlyInput(year,month,staffId);
   if(monthlyData.work_days!==null)workDays=monthlyData.work_days;
-  if(staff.type==='hourly'&&monthlyData.work_hours!=null){var wh3=monthlyData.work_hours;totalMins=(wh3>=60||wh3===Math.floor(wh3))?wh3:Math.round(wh3*60);grossPay=Math.floor(totalMins/60*(staff.wage||0));}
+  if(staff.type==='hourly'&&monthlyData.work_hours!=null){var wh3=monthlyData.work_hours;totalMins=Number.isInteger(wh3)?wh3:Math.round(wh3*60);grossPay=Math.floor(totalMins/60*(staff.wage||0));}
   var ymStrS=year+'-'+String(month).padStart(2,'0');
   var staffLeaveS=allLeave.filter(function(r){return r.staff_id===staffId&&r.date&&r.date.startsWith(ymStrS);});
   var _paidLH=staff.paid_leave_hours||(staff.type==='employee'?6:7.5);
@@ -1001,8 +1002,8 @@ async function showPayslip(staffId,year,month){
   // 時給スタッフ：時間数が月次入力されていれば上書き
   if(staff.type==='hourly' && monthlyData.work_hours!==null && monthlyData.work_hours!==undefined) {
     var wh = monthlyData.work_hours;
-    // 分単位（新形式：>=60 or 整数）か小数時間（旧形式）かを判定
-    totalMins = (wh >= 60 || wh === Math.floor(wh)) ? wh : Math.round(wh * 60);
+    // 整数=分単位（新形式）、小数=時間単位（旧形式）
+    totalMins = Number.isInteger(wh) ? wh : Math.round(wh * 60);
     grossPay  = Math.floor(totalMins / 60 * (staff.wage||0));
     detailRows = '<tr><td colspan="8" style="text-align:center;color:var(--accent);">月次入力：'+formatWorkTime(totalMins)+'（自動計算を上書き）</td></tr>';
   }
@@ -2453,12 +2454,12 @@ async function openMonthlyInputModal() {
       // work_hours は分単位（新形式）または小数時間（旧形式）
       var hHour = '', hMin = '';
       if(hTotal!==null){
-        if(hTotal >= 60 || hTotal === Math.floor(hTotal)){
-          // 分単位で保存されている（新形式）
+        if(Number.isInteger(hTotal)){
+          // 整数=分単位（新形式）
           hHour = Math.floor(hTotal / 60);
           hMin  = hTotal % 60;
         } else {
-          // 小数時間で保存されている（旧形式）→ 変換
+          // 小数=時間単位（旧形式）→ 変換
           hHour = Math.floor(hTotal);
           hMin  = Math.round((hTotal - Math.floor(hTotal)) * 60);
         }
