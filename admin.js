@@ -826,6 +826,7 @@ async function calcPayslipForSync(staffId, year, month){
   var _lht=0;
   // 月次入力で時間数が入力されている場合は有休を加算しない（既に含まれているため）
   var hasManualHours = (monthlyData.work_hours!=null);
+  console.log('[leave] '+staffId+' hasManualHours='+hasManualHours+' work_hours='+monthlyData.work_hours+' leave_count='+staffLeaveS.filter(function(r){return r.type==='use';}).length);
   if(!hasManualHours){
     staffLeaveS.filter(function(r){return r.type==='use';}).forEach(function(r){if((r.hours||0)>0){_lht+=r.hours;}else if(staff.type!=='hourly'){_lht+=(parseFloat(r.days)||1)*_paidLH;}});
     if(_lht>0){totalMins+=Math.floor(_lht*60);if(staff.type==='hourly')grossPay+=Math.floor(_lht*(staff.wage||0));}
