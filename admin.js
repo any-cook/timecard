@@ -417,8 +417,8 @@ async function loadAttendanceRecords(){
     if(!staffSummary[r.staff_id]) staffSummary[r.staff_id]={name:s.name||'不明',mins:0,wage:0,days:0,commute:0};
     var paidLH = s.paid_leave_hours||(s.type==='employee'?6:7.5);
     var leaveH = (r.hours||0)>0 ? r.hours : (s.type!=='hourly' ? (parseFloat(r.days)||1)*paidLH : 0);
-    staffSummary[r.staff_id].mins += Math.floor(leaveH*60);
-    totalMins += Math.floor(leaveH*60);
+    // 有休時間は勤務時間に加算しない（含み済み）
+    // 有休時間totalMins加算なし
   });
   document.getElementById('attendanceTotalTime').textContent=formatWorkTime(totalMins);
   document.getElementById('attendanceTotalWage').textContent=formatCurrency(totalWage);
@@ -940,7 +940,7 @@ async function showPayslip(staffId,year,month){
       else if(staff.type!=='hourly'){ _lht3 += (parseFloat(r.days)||1)*_paidLHPD2; }
     });
     if(_lht3>0){
-      totalMins += Math.floor(_lht3*60);
+      // 有休時間は勤務時間・基本給に加算しない（月次入力に含み済み）
       // 有休時間は勤務時間表示に含めるが、基本給計算からは除外
     }
   }
@@ -1780,8 +1780,8 @@ async function loadMonthlyTab() {
         if(isLeaveDay){
           var leaveRecsSameDay = allLeave.filter(function(lr){return lr.staff_id===s.id&&lr.type==='use'&&lr.date===dateStr;});
           var leaveHoursSameDay = leaveRecsSameDay.reduce(function(a,lr){return a+(lr.hours||0);},0);
-          if(s.type==='hourly' && leaveHoursSameDay>0) totalMins += Math.floor(leaveHoursSameDay*60);
-          else if(s.type!=='hourly') totalMins += Math.floor((leaveDates[dateStr]||0)*paidLeaveHours*60);
+          // 有休時間は加算しない（含み済み）
+          // 有休時間は加算しない（含み済み）
         }
         var inTime  = r.clock_in_actual  || '-';
         var outTime = r.clock_out_actual || '未退勤';
@@ -1801,7 +1801,7 @@ async function loadMonthlyTab() {
         var isHourlyS = s.type==='hourly';
         // パート・時給：手入力時間のみ、社員：paid_leave_hoursで計算
         var leaveMins = isHourlyS ? Math.floor(leaveHoursDay*60) : Math.floor(leaveDays*paidLeaveHours*60);
-        totalMins += leaveMins;
+        // 有休時間は勤務時間に加算しない（含み済み）
         var leaveLabel = isHourlyS
           ? (leaveHoursDay>0 ? leaveDays+'日（'+leaveHoursDay+'h）' : leaveDays+'日（時間未入力）')
           : leaveDays+'日（'+paidLeaveHours+'h）';
