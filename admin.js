@@ -735,7 +735,19 @@ async function loadPayrollSummary(){
         '<td><button class="btn-sm btn-edit" data-sid="'+sid+'" data-year="'+year+'" data-month="'+month+'" onclick="showPayslipFromConfirmed(this)">📄 明細</button></td>';
       tbody.appendChild(tr);
     });
-    document.getElementById('payrollGrandTotal').textContent='（確定済み）';
+    // 合計を計算して表示
+    var totalPay=0, totalDed=0, totalNet=0;
+    Object.keys(confirmed.staffData).forEach(function(sid){
+      var d=confirmed.staffData[sid];
+      totalPay += parseInt((d.payTotal||'0').replace(/[^0-9]/g,''))||0;
+      totalDed += parseInt((d.dedTotal||'0').replace(/[^0-9]/g,''))||0;
+      totalNet += parseInt((d.netPay||'0').replace(/[^0-9]/g,''))||0;
+    });
+    document.getElementById('payrollGrandTotal').innerHTML =
+      '<span style="margin-right:24px;">支給合計: <strong>'+formatCurrency(totalPay)+'</strong></span>'+
+      '<span style="margin-right:24px;">控除合計: <strong>'+formatCurrency(totalDed)+'</strong></span>'+
+      '差引支給額合計: <strong style="color:var(--accent);">'+formatCurrency(totalNet)+'</strong>'+
+      '<span style="margin-left:16px;font-size:.75rem;color:#16a34a;">🔒 確定済み</span>';
     return; // 確定データのみ表示して終了
   }
 
@@ -783,7 +795,20 @@ async function loadPayrollSummary(){
       var v = parseInt((el.textContent||'0').replace(/[^0-9\-]/g,''))||0;
       totalNet += v;
     });
-    document.getElementById('payrollGrandTotal').textContent='差引支給額合計: '+formatCurrency(totalNet);
+    // 支給合計・控除合計・差引支給額合計を計算
+    var sumPay=0, sumDed=0, sumNet=0;
+    document.querySelectorAll('#payrollTableBody tr[data-staff-id]').forEach(function(row){
+      var p=document.getElementById('pr-pay-'+row.getAttribute('data-staff-id'));
+      var d=document.getElementById('pr-ded-'+row.getAttribute('data-staff-id'));
+      var n=document.getElementById('pr-net-'+row.getAttribute('data-staff-id'));
+      if(p) sumPay += parseInt((p.textContent||'0').replace(/[^0-9]/g,''))||0;
+      if(d) sumDed += parseInt((d.textContent||'0').replace(/[^0-9]/g,''))||0;
+      if(n) sumNet += parseInt((n.textContent||'0').replace(/[^0-9]/g,''))||0;
+    });
+    document.getElementById('payrollGrandTotal').innerHTML =
+      '<span style="margin-right:24px;">支給合計: <strong>'+formatCurrency(sumPay)+'</strong></span>'+
+      '<span style="margin-right:24px;">控除合計: <strong>'+formatCurrency(sumDed)+'</strong></span>'+
+      '差引支給額合計: <strong style="color:var(--accent);">'+formatCurrency(sumNet)+'</strong>';
   })();
 }
 // 給与明細を表示しつつ集計行の金額を給与明細の計算結果で更新
