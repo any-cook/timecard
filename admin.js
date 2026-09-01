@@ -380,6 +380,16 @@ async function loadAttendanceRecords(){
     var _ls=r.lunch_start||(s&&s.lunch_start);
     var _le=r.lunch_end||(s&&s.lunch_end);
     var workMins=_outTime?calcWorkMinutes(r.clock_in_calc,_outTime,_lb,_ls,_le):0;
+    // 出勤日に有休もある場合は有休時間を加算（月別出勤表と統一）
+    var leaveSameDay = allLeaveAtt.filter(function(lr){return lr.staff_id===r.staff_id&&lr.type==='use'&&lr.date===r.date;});
+    var leaveHSameDay = leaveSameDay.reduce(function(a,lr){return a+(lr.hours||0);},0);
+    var paidLHAtt = (s.paid_leave_hours)||(s.type==='employee'?6:7.5);
+    var leaveAddMins = 0;
+    if(leaveSameDay.length>0){
+      if(s.type==='hourly') leaveAddMins = Math.floor(leaveHSameDay*60);
+      else leaveAddMins = Math.floor(leaveSameDay.reduce(function(a,lr){return a+(parseFloat(lr.days)||1);},0)*paidLHAtt*60);
+    }
+    workMins += leaveAddMins;
     var dailyWage=_outTime?calcDailyWage(r.clock_in_calc,_outTime,r.wage_at_date||0,r.is_special_day,_lb,_ls,_le):0;
     var commuteAmt=r.clock_in_actual&&s.commute_daily_amount?s.commute_daily_amount:0;
     totalWage+=dailyWage;totalMins+=workMins;
