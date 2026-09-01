@@ -2375,20 +2375,20 @@ function monthlyKey(year, month, staffId) {
 
 // 月次データ取得
 async function getMonthlyInput(year, month, staffId) {
-  var key = 'monthly_' + monthlyKey(year, month, staffId);
-  var stored = localStorage.getItem(key);
-  if (stored) return JSON.parse(stored);
+  // 常にFirestoreから最新データを取得（localStorageキャッシュは使わない）
   try {
     var db = getDB();
     if (db) {
       var snap = await db.collection('monthly_inputs').doc(monthlyKey(year, month, staffId)).get();
       if (snap.exists) {
-        var data = snap.data();
-        localStorage.setItem(key, JSON.stringify(data));
-        return data;
+        return snap.data();
       }
     }
   } catch(e) {}
+  // Fistore失敗時はlocalStorageを参照
+  var key = 'monthly_' + monthlyKey(year, month, staffId);
+  var stored = localStorage.getItem(key);
+  if (stored) return JSON.parse(stored);
   return { work_days: null, variable_items: [] };
 }
 
