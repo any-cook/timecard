@@ -763,7 +763,7 @@ async function loadPayrollSummary(){
     if(monthlyData.work_days!==null) workDays=monthlyData.work_days;
     // 時給スタッフ：月次入力の時間数があれば上書き
     if(staff.type==='hourly' && monthlyData.work_hours!=null){
-      totalMins = Math.round(monthlyData.work_hours * 60);
+      totalMins = monthlyData.work_hours; // 分単位で保存済み
     }
     // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
     var _paidLHPD = staff.paid_leave_hours || (staff.type==='employee' ? 6 : 7.5);
@@ -906,7 +906,7 @@ async function calcPayslipForSync(staffId, year, month){
   }
   var monthlyData=await getMonthlyInput(year,month,staffId);
   if(monthlyData.work_days!==null)workDays=monthlyData.work_days;
-  if(staff.type==='hourly'&&monthlyData.work_hours!=null){totalMins=Math.round(monthlyData.work_hours*60);grossPay=Math.floor(monthlyData.work_hours*(staff.wage||0));}
+  if(staff.type==='hourly'&&monthlyData.work_hours!=null){totalMins=monthlyData.work_hours;grossPay=Math.floor(totalMins/60*(staff.wage||0));}
   var ymStrS=year+'-'+String(month).padStart(2,'0');
   var staffLeaveS=allLeave.filter(function(r){return r.staff_id===staffId&&r.date&&r.date.startsWith(ymStrS);});
   var _paidLH=staff.paid_leave_hours||(staff.type==='employee'?6:7.5);
@@ -999,9 +999,10 @@ async function showPayslip(staffId,year,month){
   if(monthlyData.work_days!==null) workDays=monthlyData.work_days;
   // 時給スタッフ：時間数が月次入力されていれば上書き
   if(staff.type==='hourly' && monthlyData.work_hours!==null && monthlyData.work_hours!==undefined) {
-    totalMins = Math.round(monthlyData.work_hours * 60);
-    grossPay  = Math.floor(monthlyData.work_hours * (staff.wage||0));
-    detailRows = '<tr><td colspan="8" style="text-align:center;color:var(--accent);">月次入力：'+monthlyData.work_hours+'時間（自動計算を上書き）</td></tr>';
+    // work_hours は分単位で保存
+    totalMins = monthlyData.work_hours;
+    grossPay  = Math.floor(totalMins / 60 * (staff.wage||0));
+    detailRows = '<tr><td colspan="8" style="text-align:center;color:var(--accent);">月次入力：'+formatWorkTime(totalMins)+'（自動計算を上書き）</td></tr>';
   }
   var monthlyVarItems = monthlyData.variable_items||[];
   var monthlyNote = monthlyData.note||'';
@@ -2444,12 +2445,21 @@ async function openMonthlyInputModal() {
       html += '<td style="text-align:center;color:var(--text-muted);font-size:.75rem;">自動</td>';
     }
 
-    // 時間数：時給スタッフのみ入力可
+    // 時間数：時給スタッフのみ入力可（時間と分を別欄）
     if (s.type==='hourly') {
-      var hVal = monthly.work_hours!==null&&monthly.work_hours!==undefined ? monthly.work_hours : '';
-      html += '<td><input type="number" class="form-input mi-workhours" data-staff="'+s.id+'" '+
-        'placeholder="空白=自動" min="0" step="0.5" value="'+hVal+'" '+
-        'style="margin:0;width:88px;text-align:center;"></td>';
+      var hTotal = monthly.work_hours!==null&&monthly.work_hours!==undefined ? monthly.work_hours : null;
+      var hHour = hTotal!==null ? Math.floor(hTotal) : '';
+      var hMin  = hTotal!==null ? Math.round((hTotal - Math.floor(hTotal)) * 60) : '';
+      html += '<td style="white-space:nowrap;">'+
+        '<input type="number" class="form-input mi-workhours-h" data-staff="'+s.id+'" '+
+        'placeholder="時" min="0" value="'+hHour+'" '+
+        'style="margin:0;width:54px;text-align:center;display:inline-block;">'+
+        '<span style="margin:0 2px;">時間</span>'+
+        '<input type="number" class="form-input mi-workhours-m" data-staff="'+s.id+'" '+
+        'placeholder="分" min="0" max="59" value="'+hMin+'" '+
+        'style="margin:0;width:44px;text-align:center;display:inline-block;">'+
+        '<span style="margin-left:2px;">分</span>'+
+        '</td>';
     } else {
       html += '<td style="text-align:center;color:var(--text-muted);font-size:.75rem;">-</td>';
     }
@@ -2511,8 +2521,15 @@ async function saveMonthlyInput() {
   for (var staffId of staffIds) {
     var workDaysEl = modal.querySelector('.mi-workdays[data-staff="'+staffId+'"]');
     var workDays = workDaysEl ? (workDaysEl.value !== '' ? parseInt(workDaysEl.value) : null) : null;
-    var workHoursEl = modal.querySelector('.mi-workhours[data-staff="'+staffId+'"]');
-    var workHours = workHoursEl ? (workHoursEl.value !== '' ? parseFloat(workHoursEl.value) : null) : null;
+    var workHoursHEl = modal.querySelector('.mi-workhours-h[data-staff="'+staffId+'"]');
+    var workHoursMEl = modal.querySelector('.mi-workhours-m[data-staff="'+staffId+'"]');
+    var workHours = null;
+    if(workHoursHEl && (workHoursHEl.value!=='' || (workHoursMEl&&workHoursMEl.value!==''))){
+      var wH = workHoursHEl.value!=='' ? parseInt(workHoursHEl.value)||0 : 0;
+      var wM = workHoursMEl && workHoursMEl.value!=='' ? parseInt(workHoursMEl.value)||0 : 0;
+      // work_hours を分単位の整数で保存（hours×60+mins）
+      workHours = wH * 60 + wM; // 分単位で保存
+    }
     var leaveHours = null; // 有休時間は有休管理から取得するため月次入力では保存しない
 
     var varItems = [];
