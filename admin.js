@@ -752,11 +752,9 @@ async function loadPayrollSummary(){
     var na=parseInt(a.staff_number||9999), nb=parseInt(b.staff_number||9999);
     return na-nb;
   });
+  // まず全行を作成（空の状態で）
   for(var si=0;si<activeStaff.length;si++){
     var staff=activeStaff[si];
-    var grossPay=0,totalMins=0,workDays=0;
-    // 行のみ作成・金額は calcPayslipForSync で更新
-    var payTotal = 0, dedTotal = 0, netPay = 0;
     var tr=document.createElement('tr');
     tr.setAttribute('data-staff-id', staff.id);
     tr.setAttribute('data-year', year);
@@ -764,16 +762,16 @@ async function loadPayrollSummary(){
     tr.innerHTML=
       '<td><strong>'+staff.name+'</strong></td>'+
       '<td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span></td>'+
-      '<td>'+workDays+'日</td>'+
-      '<td class="payroll-work-time">'+formatWorkTime(totalMins)+'</td>'+
-      '<td class="payroll-pay-total">'+formatCurrency(payTotal)+'</td>'+
-      '<td class="payroll-ded-total">'+formatCurrency(dedTotal)+'</td>'+
-      '<td class="payroll-net-pay"><strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong></td>'+
+      '<td>計算中...</td>'+
+      '<td class="payroll-work-time">-</td>'+
+      '<td class="payroll-pay-total">-</td>'+
+      '<td class="payroll-ded-total">-</td>'+
+      '<td class="payroll-net-pay"><strong style="color:var(--accent);">-</strong></td>'+
       '<td><button class="btn-sm btn-edit" onclick="showPayslipAndSync(this,\''+staff.id+'\','+year+','+month+')">📄 明細</button></td>';
     tbody.appendChild(tr);
   }
-  document.getElementById('payrollGrandTotal').textContent='差引支給額合計: '+formatCurrency(grandTotal);
-  // 全スタッフの正確な計算を実行して集計行を更新
+  document.getElementById('payrollGrandTotal').textContent='計算中...';
+  // 全行作成後に順番に計算して更新
   (async function(){
     for(var i=0;i<activeStaff.length;i++){
       try{ await calcPayslipForSync(activeStaff[i].id,year,month); }catch(e){ console.warn(e); }
@@ -781,7 +779,8 @@ async function loadPayrollSummary(){
     // 合計を再計算
     var totalNet=0;
     document.querySelectorAll('#payrollTableBody .payroll-net-pay strong').forEach(function(el){
-      totalNet += parseInt((el.textContent||'0').replace(/[^0-9]/g,''))||0;
+      var v = parseInt((el.textContent||'0').replace(/[^0-9\-]/g,''))||0;
+      totalNet += v;
     });
     document.getElementById('payrollGrandTotal').textContent='差引支給額合計: '+formatCurrency(totalNet);
   })();
@@ -854,13 +853,11 @@ async function calcPayslipForSync(staffId, year, month){
 function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalMins){
   // 全行をチェックしてdata-staff-idが一致する行を更新
   var allRows = document.querySelectorAll('#payrollTableBody tr');
-  console.log('[syncPayrollRow] staffId='+staffId+' year='+year+' month='+month+' rows='+allRows.length+' totalMins='+totalMins);
   var updated = false;
   allRows.forEach(function(row){
     var rowSid = row.getAttribute('data-staff-id');
     var rowYear = parseInt(row.getAttribute('data-year'));
     var rowMonth = parseInt(row.getAttribute('data-month'));
-    console.log('[row] sid='+rowSid+' year='+rowYear+' month='+rowMonth+' match='+(rowSid==staffId&&rowYear===year&&rowMonth===month));
     if(rowSid == staffId && rowYear===year && rowMonth===month){
       var timeCell = row.querySelector('.payroll-work-time');
       var payCell  = row.querySelector('.payroll-pay-total');
