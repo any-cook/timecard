@@ -854,11 +854,13 @@ async function calcPayslipForSync(staffId, year, month){
 function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalMins){
   // 全行をチェックしてdata-staff-idが一致する行を更新
   var allRows = document.querySelectorAll('#payrollTableBody tr');
+  console.log('[syncPayrollRow] staffId='+staffId+' year='+year+' month='+month+' rows='+allRows.length+' totalMins='+totalMins);
   var updated = false;
   allRows.forEach(function(row){
     var rowSid = row.getAttribute('data-staff-id');
     var rowYear = parseInt(row.getAttribute('data-year'));
     var rowMonth = parseInt(row.getAttribute('data-month'));
+    console.log('[row] sid='+rowSid+' year='+rowYear+' month='+rowMonth+' match='+(rowSid==staffId&&rowYear===year&&rowMonth===month));
     if(rowSid == staffId && rowYear===year && rowMonth===month){
       var timeCell = row.querySelector('.payroll-work-time');
       var payCell  = row.querySelector('.payroll-pay-total');
