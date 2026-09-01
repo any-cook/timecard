@@ -846,23 +846,25 @@ async function calcPayslipForSync(staffId, year, month){
   var totalDeductS=tax+pension+health+nursingCare+childSupport+empIns;
   var totalPayS=grossPay+commuteData.taxFree+commuteData.taxable+extraTotalS+contributionBonus;
   var netPayS=totalPayS-totalDeductS;
-  syncPayrollRow(staffId,year,month,totalPayS,totalDeductS,netPayS,totalMins);
+  syncPayrollRow(staffId,year,month,totalPayS,totalDeductS,netPayS,totalMins,workDays);
 }
 
 // 給与明細計算完了後に集計行を更新する関数
-function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalMins){
-  // 全行をチェックしてdata-staff-idが一致する行を更新
+function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalMins, workDays){
   var allRows = document.querySelectorAll('#payrollTableBody tr');
   var updated = false;
   allRows.forEach(function(row){
-    var rowSid = row.getAttribute('data-staff-id');
-    var rowYear = parseInt(row.getAttribute('data-year'));
+    var rowSid   = row.getAttribute('data-staff-id');
+    var rowYear  = parseInt(row.getAttribute('data-year'));
     var rowMonth = parseInt(row.getAttribute('data-month'));
     if(rowSid == staffId && rowYear===year && rowMonth===month){
+      var cells    = row.querySelectorAll('td');
+      var daysCell = cells[2]; // 出勤日数
       var timeCell = row.querySelector('.payroll-work-time');
       var payCell  = row.querySelector('.payroll-pay-total');
       var dedCell  = row.querySelector('.payroll-ded-total');
       var netCell  = row.querySelector('.payroll-net-pay');
+      if(daysCell && workDays!==undefined) daysCell.textContent = workDays+'日';
       if(timeCell && totalMins!==undefined) timeCell.textContent = formatWorkTime(totalMins);
       if(payCell) payCell.textContent = formatCurrency(payTotal);
       if(dedCell) dedCell.textContent = formatCurrency(dedTotal);
@@ -1294,7 +1296,7 @@ async function showPayslip(staffId,year,month){
   switchPayslip('new');
   openModal('payslipModal');
   // 集計行を給与明細の計算結果で更新
-  syncPayrollRow(staffId, year, month, totalPay, totalDeductAll, netPayFinal, totalMins);
+  syncPayrollRow(staffId, year, month, totalPay, totalDeductAll, netPayFinal, totalMins, workDays);
   } catch(e) { console.error('showPayslip error:', e); showToast('給与明細の表示でエラーが発生しました: '+e.message,'error'); }
 }
 function numFmt(n){ return Number(n||0).toLocaleString(); }
