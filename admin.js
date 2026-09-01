@@ -756,20 +756,19 @@ async function loadPayrollSummary(){
     var staff=activeStaff[si];
     var staffRecords=records.filter(function(r){return r.staff_id===staff.id;});
     var grossPay=0,totalMins=0,workDays=0;
-    // 打刻データから勤務時間と出勤日数を集計
-    if(staff.type==='hourly'){
-      staffRecords.forEach(function(r){
-        var _o=r.clock_out_actual||r.clock_out_calc;
-        var _lb2=r.lunch_break!==undefined?r.lunch_break:staff.lunch_break;
-        var _ls2=r.lunch_start||staff.lunch_start;
-        var _le2=r.lunch_end||staff.lunch_end;
-        var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,_lb2,_ls2,_le2):0;
-        totalMins+=mins;
-        if(r.clock_in_actual)workDays++;
-      });
-    } else {
+    // 全種別で打刻データから勤務時間・出勤日数を集計
+    staffRecords.forEach(function(r){
+      var _o=r.clock_out_actual||r.clock_out_calc;
+      var _lb2=r.lunch_break!==undefined?r.lunch_break:staff.lunch_break;
+      var _ls2=r.lunch_start||staff.lunch_start;
+      var _le2=r.lunch_end||staff.lunch_end;
+      var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,_lb2,_ls2,_le2):0;
+      totalMins+=mins;
+      if(r.clock_in_actual)workDays++;
+    });
+    // 月額固定の場合は基本給を設定
+    if(staff.type!=='hourly'){
       grossPay=staff.monthly_salary||0;
-      workDays=staffRecords.filter(function(r){return r.clock_in_actual;}).length;
     }
     // 月次入力から取得
     var monthlyData=await getMonthlyInput(year,month,staff.id);
@@ -878,7 +877,18 @@ async function loadPayrollSummary(){
     tbody.appendChild(tr);
   }
   document.getElementById('payrollGrandTotal').textContent='差引支給額合計: '+formatCurrency(grandTotal);
-  // ※ 正確な金額は各スタッフの「📄 明細」ボタンを押すと更新されます
+  // 全スタッフの正確な計算を実行して集計行を更新
+  (async function(){
+    for(var i=0;i<activeStaff.length;i++){
+      try{ await calcPayslipForSync(activeStaff[i].id,year,month); }catch(e){ console.warn(e); }
+    }
+    // 合計を再計算
+    var totalNet=0;
+    document.querySelectorAll('#payrollTableBody .payroll-net-pay strong').forEach(function(el){
+      totalNet += parseInt((el.textContent||'0').replace(/[^0-9]/g,''))||0;
+    });
+    document.getElementById('payrollGrandTotal').textContent='差引支給額合計: '+formatCurrency(totalNet);
+  })();
 }
 // 給与明細を表示しつつ集計行の金額を給与明細の計算結果で更新
 async function showPayslipAndSync(btn, staffId, year, month){
