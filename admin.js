@@ -1898,8 +1898,8 @@ async function loadMonthlyTab() {
     });
 
     // 合計（有休時間含む）
-    var totalHoursM = Math.round(totalMins / 60 * 100) / 100;
-    var totalStr = totalHoursM + '時間';
+    // 勤怠管理と同じ時間:分形式で表示
+    var totalStr = formatWorkTime(totalMins);
     var totalLeave = Object.values(leaveDates).reduce(function(a,b){return a+b;},0);
     html += '<td class="monthly-total-cell">' + totalDays + '日' + (totalLeave>0?'<br><span style="font-size:.7rem;color:#16a34a;">有休'+totalLeave+'日</span>':'') + '</td>';
     html += '<td class="monthly-total-cell">' + totalStr  + '</td>';
