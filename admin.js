@@ -819,7 +819,7 @@ async function calcPayslipForSync(staffId, year, month){
   }
   var monthlyData=await getMonthlyInput(year,month,staffId);
   if(monthlyData.work_days!==null)workDays=monthlyData.work_days;
-  if(staff.type==='hourly'&&monthlyData.work_hours!=null){var wh3=monthlyData.work_hours;totalMins=Number.isInteger(wh3)?wh3:Math.round(wh3*60);grossPay=Math.floor(totalMins/60*(staff.wage||0));}
+  if(staff.type==='hourly'&&monthlyData.work_hours!=null){var wh3=monthlyData.work_hours;totalMins=Number.isInteger(wh3)?wh3:Math.round(wh3*60);grossPay=Math.floor(totalMins/60*(staff.wage||0));console.log('[sync] '+staffId+' wh3='+wh3+' totalMins='+totalMins);}
   var ymStrS=year+'-'+String(month).padStart(2,'0');
   var staffLeaveS=allLeave.filter(function(r){return r.staff_id===staffId&&r.date&&r.date.startsWith(ymStrS);});
   var _paidLH=staff.paid_leave_hours||(staff.type==='employee'?6:7.5);
@@ -852,9 +852,14 @@ async function calcPayslipForSync(staffId, year, month){
 
 // 給与明細計算完了後に集計行を更新する関数
 function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalMins){
-  var rows = document.querySelectorAll('#payrollTableBody tr[data-staff-id="'+staffId+'"]');
-  rows.forEach(function(row){
-    if(parseInt(row.dataset.year)===year && parseInt(row.dataset.month)===month){
+  // 全行をチェックしてdata-staff-idが一致する行を更新
+  var allRows = document.querySelectorAll('#payrollTableBody tr');
+  var updated = false;
+  allRows.forEach(function(row){
+    var rowSid = row.getAttribute('data-staff-id');
+    var rowYear = parseInt(row.getAttribute('data-year'));
+    var rowMonth = parseInt(row.getAttribute('data-month'));
+    if(rowSid == staffId && rowYear===year && rowMonth===month){
       var timeCell = row.querySelector('.payroll-work-time');
       var payCell  = row.querySelector('.payroll-pay-total');
       var dedCell  = row.querySelector('.payroll-ded-total');
@@ -863,8 +868,10 @@ function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalM
       if(payCell) payCell.textContent = formatCurrency(payTotal);
       if(dedCell) dedCell.textContent = formatCurrency(dedTotal);
       if(netCell) netCell.innerHTML = '<strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong>';
+      updated = true;
     }
   });
+  if(!updated) console.warn('syncPayrollRow: row not found for staffId='+staffId);
 }
 
 async function showPayslip(staffId,year,month){
@@ -2281,20 +2288,26 @@ function monthlyKey(year, month, staffId) {
 
 // 月次データ取得
 async function getMonthlyInput(year, month, staffId) {
-  // 常にFirestoreから最新データを取得（localStorageキャッシュは使わない）
+  // 常にFirestoreから最新データを取得
   try {
     var db = getDB();
     if (db) {
       var snap = await db.collection('monthly_inputs').doc(monthlyKey(year, month, staffId)).get();
       if (snap.exists) {
-        return snap.data();
+        var data = snap.data();
+        console.log('[monthly] '+staffId+' work_hours='+data.work_hours);
+        return data;
       }
     }
-  } catch(e) {}
-  // Fistore失敗時はlocalStorageを参照
+  } catch(e) { console.error('[monthly] error:', e); }
+  // Firestore失敗時はlocalStorageを参照
   var key = 'monthly_' + monthlyKey(year, month, staffId);
   var stored = localStorage.getItem(key);
-  if (stored) return JSON.parse(stored);
+  if (stored) {
+    var d = JSON.parse(stored);
+    console.log('[monthly-ls] '+staffId+' work_hours='+d.work_hours);
+    return d;
+  }
   return { work_days: null, variable_items: [] };
 }
 
