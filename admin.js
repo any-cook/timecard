@@ -400,6 +400,16 @@ async function loadAttendanceRecords(){
       '<td><button class="btn-sm btn-edit" onclick="openAttendanceEditModal(\''+r.id+'\')">✏️</button> <button class="btn-sm btn-delete" onclick="deleteAttendance(\''+r.id+'\')">🗑️</button></td>';
     tbody.appendChild(tr);
   });
+  // 有休時間を staffSummary に加算
+  allLeaveAtt.filter(function(r){return r.type==='use'&&r.date&&r.date.startsWith(ymStr2b)&&(!attendanceFilters.staff_id||r.staff_id===attendanceFilters.staff_id);}).forEach(function(r){
+    var s=staffMap[r.staff_id];
+    if(!s)return;
+    if(!staffSummary[r.staff_id]) staffSummary[r.staff_id]={name:s.name||'不明',mins:0,wage:0,days:0,commute:0};
+    var paidLH = s.paid_leave_hours||(s.type==='employee'?6:7.5);
+    var leaveH = (r.hours||0)>0 ? r.hours : (s.type!=='hourly' ? (parseFloat(r.days)||1)*paidLH : 0);
+    staffSummary[r.staff_id].mins += Math.floor(leaveH*60);
+    totalMins += Math.floor(leaveH*60);
+  });
   document.getElementById('attendanceTotalTime').textContent=formatWorkTime(totalMins);
   document.getElementById('attendanceTotalWage').textContent=formatCurrency(totalWage);
   var sb=document.getElementById('staffSummaryBody');sb.innerHTML='';
