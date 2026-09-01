@@ -652,6 +652,19 @@ function showPayslipFromConfirmed(btn){
   showPayslipAndSync(btn, sid, year, month);
 }
 
+async function syncAllPayroll(){
+  var year  = parseInt(document.getElementById('payrollYear').value);
+  var month = parseInt(document.getElementById('payrollMonth').value);
+  var rows = document.querySelectorAll('#payrollTableBody tr[data-staff-id]');
+  if(!rows.length){ showToast('先に集計を表示してください','error'); return; }
+  showToast('計算中...');
+  for(var i=0;i<rows.length;i++){
+    var sid = rows[i].dataset.staffId;
+    try{ await calcPayslipForSync(sid, year, month); }catch(e){}
+  }
+  showToast('全員の明細を更新しました');
+}
+
 async function confirmPayroll(){
   var year  = parseInt(document.getElementById('payrollYear').value);
   var month = parseInt(document.getElementById('payrollMonth').value);
@@ -865,15 +878,7 @@ async function loadPayrollSummary(){
     tbody.appendChild(tr);
   }
   document.getElementById('payrollGrandTotal').textContent='差引支給額合計: '+formatCurrency(grandTotal);
-  // 全スタッフの給与明細計算を実行して集計行を更新
-  setTimeout(async function(){
-    for(var i=0;i<activeStaff.length;i++){
-      try{
-        var s=activeStaff[i];
-        await calcPayslipForSync(s.id,year,month);
-      }catch(e){}
-    }
-  },100);
+  // ※ 正確な金額は各スタッフの「📄 明細」ボタンを押すと更新されます
 }
 // 給与明細を表示しつつ集計行の金額を給与明細の計算結果で更新
 async function showPayslipAndSync(btn, staffId, year, month){
