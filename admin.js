@@ -847,6 +847,7 @@ async function calcPayslipForSync(staffId, year, month){
   var totalDeductS=tax+pension+health+nursingCare+childSupport+empIns;
   var totalPayS=grossPay+commuteData.taxFree+commuteData.taxable+extraTotalS+contributionBonus;
   var netPayS=totalPayS-totalDeductS;
+  console.log('[syncCall] '+staffId+' totalMins='+totalMins+' lht='+_lht+' workDays='+workDays);
   syncPayrollRow(staffId,year,month,totalPayS,totalDeductS,netPayS,totalMins,workDays);
 }
 
