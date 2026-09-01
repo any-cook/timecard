@@ -855,7 +855,7 @@ async function loadPayrollSummary(){
       '<td><strong>'+staff.name+'</strong></td>'+
       '<td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span></td>'+
       '<td>'+workDays+'日</td>'+
-      '<td>'+(staff.type==='hourly'?formatWorkTime(totalMins):'月額固定')+'</td>'+
+      '<td class="payroll-work-time">'+formatWorkTime(totalMins)+'</td>'+
       '<td class="payroll-pay-total">'+formatCurrency(payTotal)+'</td>'+
       '<td class="payroll-ded-total">'+formatCurrency(dedTotal)+'</td>'+
       '<td class="payroll-net-pay"><strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong></td>'+
@@ -934,17 +934,19 @@ async function calcPayslipForSync(staffId, year, month){
   var totalDeductS=tax+pension+health+nursingCare+childSupport+empIns;
   var totalPayS=grossPay+commuteData.taxFree+commuteData.taxable+extraTotalS+contributionBonus;
   var netPayS=totalPayS-totalDeductS;
-  syncPayrollRow(staffId,year,month,totalPayS,totalDeductS,netPayS);
+  syncPayrollRow(staffId,year,month,totalPayS,totalDeductS,netPayS,totalMins);
 }
 
 // 給与明細計算完了後に集計行を更新する関数
-function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay){
+function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalMins){
   var rows = document.querySelectorAll('#payrollTableBody tr[data-staff-id="'+staffId+'"]');
   rows.forEach(function(row){
     if(parseInt(row.dataset.year)===year && parseInt(row.dataset.month)===month){
-      var payCell = row.querySelector('.payroll-pay-total');
-      var dedCell = row.querySelector('.payroll-ded-total');
-      var netCell = row.querySelector('.payroll-net-pay');
+      var timeCell = row.querySelector('.payroll-work-time');
+      var payCell  = row.querySelector('.payroll-pay-total');
+      var dedCell  = row.querySelector('.payroll-ded-total');
+      var netCell  = row.querySelector('.payroll-net-pay');
+      if(timeCell && totalMins!==undefined) timeCell.textContent = formatWorkTime(totalMins);
       if(payCell) payCell.textContent = formatCurrency(payTotal);
       if(dedCell) dedCell.textContent = formatCurrency(dedTotal);
       if(netCell) netCell.innerHTML = '<strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong>';
@@ -1183,9 +1185,8 @@ async function showPayslip(staffId,year,month){
   // ※減算分は extraTotalPay の計算で既に netPayFinal に反映済み
 
   // 勤怠列
-  // 勤務時間合計を小数表示（例：78.18時間）
-  var totalHoursDecimal = Math.round(totalMins / 60 * 100) / 100;
-  var totalTimeStr2 = totalHoursDecimal + '時間';
+  // 勤務時間合計を時間:分形式（勤怠管理・月別出勤表と統一）
+  var totalTimeStr2 = formatWorkTime(totalMins);
   // 勤怠列：労働日数 → 勤務時間合計 → 有休使用（使用時のみ） → 有休残
   var attRows = [workDays+'日', totalTimeStr2];
   extraAttendance.forEach(function(i){ attRows.push(i.name+'：'+numFmt(i.amount)); });
@@ -1372,7 +1373,7 @@ async function showPayslip(staffId,year,month){
   switchPayslip('new');
   openModal('payslipModal');
   // 集計行を給与明細の計算結果で更新
-  syncPayrollRow(staffId, year, month, totalPay, totalDeductAll, netPayFinal);
+  syncPayrollRow(staffId, year, month, totalPay, totalDeductAll, netPayFinal, totalMins);
   } catch(e) { console.error('showPayslip error:', e); showToast('給与明細の表示でエラーが発生しました: '+e.message,'error'); }
 }
 function numFmt(n){ return Number(n||0).toLocaleString(); }
