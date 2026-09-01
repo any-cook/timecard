@@ -826,10 +826,9 @@ async function calcPayslipForSync(staffId, year, month){
   var _lht=0;
   // 月次入力で時間数が入力されている場合は有休を加算しない（既に含まれているため）
   var hasManualHours = (monthlyData.work_hours!=null);
-  console.log('[leave] '+staffId+' hasManualHours='+hasManualHours+' work_hours='+monthlyData.work_hours+' leave_count='+staffLeaveS.filter(function(r){return r.type==='use';}).length);
   if(!hasManualHours){
     staffLeaveS.filter(function(r){return r.type==='use';}).forEach(function(r){if((r.hours||0)>0){_lht+=r.hours;}else if(staff.type!=='hourly'){_lht+=(parseFloat(r.days)||1)*_paidLH;}});
-    if(_lht>0){totalMins+=Math.floor(_lht*60);if(staff.type==='hourly')grossPay+=Math.floor(_lht*(staff.wage||0));}
+      // 有休時間は勤務時間表示に含めるが、基本給計算からは除外
   }
   var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
   var commuteData=isOfficer?calcOfficerCommuteFixed(staff):(staff.commute_daily_amount?calcCommuteAllowance(staff.commute_daily_amount,workDays,staff.commute_distance||0):{total:0,taxFree:0,taxable:0});
@@ -942,7 +941,7 @@ async function showPayslip(staffId,year,month){
     });
     if(_lht3>0){
       totalMins += Math.floor(_lht3*60);
-      if(staff.type==='hourly') grossPay += Math.floor(_lht3*(staff.wage||0));
+      // 有休時間は勤務時間表示に含めるが、基本給計算からは除外
     }
   }
 
@@ -2293,8 +2292,7 @@ async function getMonthlyInput(year, month, staffId) {
       var snap = await db.collection('monthly_inputs').doc(monthlyKey(year, month, staffId)).get();
       if (snap.exists) {
         var data = snap.data();
-        console.log('[monthly] '+staffId+' work_hours='+data.work_hours);
-        return data;
+              return data;
       }
     }
   } catch(e) { console.error('[monthly] error:', e); }
