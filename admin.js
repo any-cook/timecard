@@ -139,6 +139,7 @@ async function openStaffModal(id){
       document.getElementById('staffCommuteFixed').value=editingStaff.commute_fixed||0;
       document.getElementById('staffPensionNumber').value=editingStaff.pension_number||'';
       document.getElementById('staffHealthInsNumber').value=editingStaff.health_ins_number||'';
+      document.getElementById('staffEmpInsNumber').value=editingStaff.emp_ins_number||'';
       // 退職情報
       if(editingStaff.retire_date){
         document.getElementById('staffRetireDate').value=editingStaff.retire_date;
@@ -287,6 +288,7 @@ async function saveStaff(){
     commute_fixed:parseInt(document.getElementById('staffCommuteFixed').value)||0,
     pension_number:    document.getElementById('staffPensionNumber').value.trim(),
     health_ins_number: document.getElementById('staffHealthInsNumber').value.trim(),
+    emp_ins_number:    document.getElementById('staffEmpInsNumber').value.trim(),
     retire_date:   document.getElementById('staffRetireDate').value||null,
     retire_reason: document.getElementById('staffRetireReason').value.trim()||null,
     family_spouse:      document.getElementById('familySpouse').value||'none',
@@ -2278,6 +2280,14 @@ function calcDependents(){
     preview.innerHTML = '<strong>扶養親族等の人数：' + count + '人</strong><br>' +
       '<span style="font-size:.75rem;font-weight:400;">' + (desc.length ? desc.join('　') : '基本0人') + '</span>';
   }
+}
+
+// 雇用保険番号の自動ハイフン挿入（XXXX-XXXXXX-X）
+function formatEmpInsNumber(input){
+  var v = input.value.replace(/[^0-9]/g,'');
+  if(v.length > 4) v = v.slice(0,4) + '-' + v.slice(4);
+  if(v.length > 11) v = v.slice(0,11) + '-' + v.slice(11,12);
+  input.value = v;
 }
 
 // 基礎年金番号の自動ハイフン挿入

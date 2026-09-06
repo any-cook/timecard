@@ -601,6 +601,12 @@
                   <label class="form-label">健康保険証番号</label>
                   <input type="text" id="staffHealthInsNumber" class="form-input" placeholder="記号・番号を入力">
                 </div>
+                <div class="form-group">
+                  <label class="form-label">雇用保険番号</label>
+                  <input type="text" id="staffEmpInsNumber" class="form-input" placeholder="1234-567890-1" maxlength="14"
+                    oninput="formatEmpInsNumber(this)" style="font-family:monospace;letter-spacing:.05em;">
+                  <p style="font-size:.72rem;color:var(--text-muted);margin-top:3px;">形式：XXXX-XXXXXX-X（自動ハイフン挿入）</p>
+                </div>
               </div>
               <div style="margin-bottom:10px;"><button type="button" class="btn btn-secondary" onclick="autoSelectGradeByMonthly()" style="font-size:.8rem;padding:6px 14px;">💡 報酬月額から等級を自動選択</button></div>
               <div class="form-grid">
@@ -933,11 +939,11 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="config.js?v=20260919"></script>
-  <script src="utils.js?v=20260919"></script>
-  <script src="holidays.js?v=20260919"></script>
-  <script src="demo-data.js?v=20260919"></script>
-  <script src="admin.js?v=20260919"></script>
+  <script src="config.js?v=20260920"></script>
+  <script src="utils.js?v=20260920"></script>
+  <script src="holidays.js?v=20260920"></script>
+  <script src="demo-data.js?v=20260920"></script>
+  <script src="admin.js?v=20260920"></script>
   <script>
     if (DEMO_MODE) { document.getElementById('demoBanner').style.display='block'; initDemoData(); }
     initPin();
