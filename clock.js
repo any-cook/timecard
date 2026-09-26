@@ -11,7 +11,15 @@ async function initClock() {
   // 祝日データを事前ロード
   window._holidayCache = null;
   fetchHolidays().then(function(h){ window._holidayCache = h; }).catch(function(){ window._holidayCache = new Set(); });
-  allStaff = await DB.getStaff();
+  // 匿名ログイン（Firebase側で有効化されていなければそのまま続行）
+  var auth = getFirebaseAuth();
+  if (auth) {
+    try { if (!auth.currentUser) await auth.signInAnonymously(); }
+    catch (e) { console.warn('anonymous sign-in skipped:', e.code || e.message); }
+  }
+  // 公開名簿（氏名・番号のみ）を使う。まだ作られていなければ従来のスタッフ台帳
+  try { allStaff = await DB.getStaffPublic(); } catch (e) { allStaff = []; }
+  if (!allStaff.length) allStaff = await DB.getStaff();
   allStaff = allStaff.filter(function(s) {
     return s.is_active && s.type !== 'officer';
   });
@@ -242,22 +250,9 @@ async function clockOut() {
       return;
     }
 
-    // 退勤情報を上書き保存
-    var updated = {
-      id:               r.id,
-      staff_id:         r.staff_id,
-      date:             r.date,
-      clock_in_actual:  r.clock_in_actual,
-      clock_in_calc:    r.clock_in_calc,
-      clock_out_actual: now,
-      clock_out_calc:   now, // 分単位そのまま（繰り上げ・繰り下げなし）
-      wage_at_date:     r.wage_at_date,
-      is_special_day:   r.is_special_day,
-      notes:            r.notes || ''
-    };
-
-    await DB.saveAttendance(updated);
-    cachedRecord = updated;
+    // 退勤時刻だけを更新（分単位そのまま・繰り上げ繰り下げなし）
+    await DB.updateAttendanceFields(r.id, { clock_out_actual: now, clock_out_calc: now });
+    cachedRecord = Object.assign({}, r, { clock_out_actual: now, clock_out_calc: now });
 
     await updateClockStatus();
     showPunchMessage('✅ 退勤しました！', now, '#dc2626', '本日もご苦労様でした。🌸');
@@ -296,8 +291,9 @@ function showPunchMessage(msg, time, color, subMsg) {
 // 特別日判定
 // ============================================================
 function isSpecialDay(dateStr, specialDays) {
-  var day = new Date(dateStr).getDay();
+  var day = parseDate(dateStr).getDay();
   if (day === 0) return true;
   if (window._holidayCache && window._holidayCache.has(dateStr)) return true;
+  if ((specialDays || []).some(function(d){ return d.date === dateStr; })) return true;
   return false;
 }

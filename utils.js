@@ -61,8 +61,8 @@ function formatWorkTime(mins) {
 // 日給計算（勤務時間×時給）
 function calcDailyWage(clockInCalc, clockOutCalc, wage, isSpecialDay, lunchBreak, lunchStart, lunchEnd) {
   var workMins = calcWorkMinutes(clockInCalc, clockOutCalc, lunchBreak, lunchStart, lunchEnd);
-  var effectiveWage = isSpecialDay ? Math.ceil(wage * 1.25) : wage; // 日曜・祝日は25%割増（法定）
-  return Math.floor((workMins / 60) * effectiveWage);
+  // 特別日の割増は給与計算に含めていないため、表示もしない（給与明細と一致させる）
+  return Math.floor((workMins / 60) * (wage || 0));
 }
 
 function formatCurrency(amount) { return '¥' + Number(amount || 0).toLocaleString(); }
@@ -149,13 +149,18 @@ var EMP_INS_RATE_EMPLOYEE = 0.005; // 令和8年度 一般の事業：5/1000
 function calcEmploymentInsurance(grossPay, isEnrolled, category) {
   if (!isEnrolled) return 0;
   // 雇用保険料率キャッシュから事業区分別料率を取得
-  var rate = EMP_INS_RATE_EMPLOYEE;
-  if (window._empInsRatesCache && window._empInsRatesCache.length) {
+  var num = EMP_INS_RATE_EMPLOYEE * 1000, den = 1000;
+  var cache = (typeof window !== 'undefined') ? window._empInsRatesCache : null;
+  if (cache && cache.length) {
     var cat = category || '一般の事業';
-    var found = window._empInsRatesCache.find(function(r){ return r.category === cat; });
-    if (found) rate = found.employee_numerator / (found.employee_denominator || 1000);
+    var found = cache.find(function(r){ return r.category === cat; });
+    if (found) { num = parseFloat(found.employee_numerator) || 0; den = parseFloat(found.employee_denominator) || 1000; }
   }
-  return Math.floor((grossPay || 0) * rate);
+  // 端数処理：給与から控除する場合は 50銭以下切り捨て・50銭超切り上げ
+  var sen = Math.round((grossPay || 0) * num * 100 / den); // 銭単位
+  var yen = Math.floor(sen / 100);
+  if (sen % 100 > 50) yen++;
+  return yen;
 }
 
 // ============================================================
@@ -194,7 +199,10 @@ function calcOfficerCommuteFixed(staff) {
   var distAmt  = staff.commute_distance ? getCommuteTaxFreeLimit(staff.commute_distance) : 0;
   var amount   = fixedAmt > 0 ? fixedAmt : distAmt;
   if (amount <= 0) return { total:0, taxFree:0, taxable:0 };
-  return { total: amount, taxFree: amount, taxable: 0 };
+  // 非課税限度額：距離登録があれば距離別の限度額、なければ交通機関利用の上限（月15万円）
+  var limit = staff.commute_distance ? getCommuteTaxFreeLimit(staff.commute_distance) : 150000;
+  var taxFree = Math.min(amount, limit);
+  return { total: amount, taxFree: taxFree, taxable: amount - taxFree };
 }
 
 function calcOfficerCommuteAllowance(distanceKm) {

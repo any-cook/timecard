@@ -25,8 +25,16 @@
 </head>
 <body>
   <div id="pinScreen">
-    <div class="pin-logo"><h1>📊 タイムカード管理</h1><p>管理者PINコードを入力してください</p></div>
-    <div class="pin-card">
+    <div class="pin-logo"><h1>📊 タイムカード管理</h1><p id="loginSubtitle">管理者アカウントでログインしてください</p></div>
+    <div class="pin-card" id="loginCard" style="display:none;">
+      <div class="pin-label">管理者ログイン</div>
+      <input type="email" id="loginEmail" class="form-input" placeholder="メールアドレス" autocomplete="username" style="width:100%;margin-bottom:10px;">
+      <input type="password" id="loginPassword" class="form-input" placeholder="パスワード" autocomplete="current-password" style="width:100%;margin-bottom:14px;" onkeydown="if(event.key==='Enter')doLogin()">
+      <button class="btn btn-primary" id="btnLogin" onclick="doLogin()" style="width:100%;justify-content:center;">ログイン</button>
+      <div class="pin-error" id="loginError" style="margin-top:12px;"></div>
+      <div style="text-align:center;margin-top:14px;"><a href="#" onclick="showPinFallback();return false;" style="font-size:.75rem;color:rgba(255,255,255,.55);">暗証番号で入る（ログイン設定前のみ）</a></div>
+    </div>
+    <div class="pin-card" id="pinCard" style="display:none;">
       <div class="pin-label">暗証番号 (4桁)</div>
       <div class="pin-dots">
         <div class="pin-dot" id="dot0"></div><div class="pin-dot" id="dot1"></div>
@@ -48,8 +56,13 @@
     <div class="demo-banner" id="demoBanner" style="display:none;">🔧 デモモード動作中</div>
     <header class="admin-header">
       <span class="admin-logo">📊 タイムカード管理システム</span>
-      <a href="index.html" class="clock-link">⏰ 打刻画面へ</a>
+      <span style="display:flex;gap:8px;align-items:center;">
+        <span id="loginUserLabel" style="font-size:.75rem;color:var(--text-muted);"></span>
+        <a href="index.html" class="clock-link">⏰ 打刻画面へ</a>
+        <button class="clock-link" id="btnLogout" onclick="doLogout()" style="display:none;cursor:pointer;">🚪 ログアウト</button>
+      </span>
     </header>
+    <div id="securityWarning" style="display:none;margin:0 0 12px;padding:10px 16px;background:#fef3c7;border:1px solid #d97706;border-radius:10px;font-size:.8rem;color:#92400e;">⚠️ Firebaseのログイン認証がまだ設定されていません（暗証番号で入っています）。データを保護するには、ログイン設定とセキュリティルールの適用が必要です。</div>
     <nav class="tab-nav">
       <button class="tab-btn active" data-tab="staff"      onclick="switchTab('staff')">👥 スタッフ管理</button>
       <button class="tab-btn"        data-tab="attendance" onclick="switchTab('attendance')">📋 勤怠管理</button>
@@ -141,8 +154,8 @@
       <h3 style="font-size:.9rem;font-weight:700;margin-bottom:10px;color:var(--text-muted);">👤 個人別集計</h3>
       <div class="table-scroll" style="margin-bottom:20px;">
         <table class="data-table">
-          <thead><tr><th>スタッフ</th><th>出勤日数</th><th>勤務時間</th><th>支給額合計</th><th>通勤費合計</th></tr></thead>
-          <tbody id="staffSummaryBody"><tr><td colspan="5" class="empty-cell">データがありません</td></tr></tbody>
+          <thead><tr><th>スタッフ</th><th>出勤日数</th><th>勤務時間</th><th>日給合計（時給）</th><th>通勤費合計</th><th>詳細</th></tr></thead>
+          <tbody id="staffSummaryBody"><tr><td colspan="6" class="empty-cell">データがありません</td></tr></tbody>
         </table>
       </div>
       <h3 style="font-size:.9rem;font-weight:700;margin-bottom:10px;color:var(--text-muted);">📋 打刻一覧</h3>
@@ -157,7 +170,8 @@
 
     <!-- タブ3: 特別日設定 -->
     <div class="tab-panel" id="tab-special">
-      <h2 class="section-title" style="margin-bottom:20px;">⭐ 特別日設定（時給 +50円 対象日）</h2>
+      <h2 class="section-title" style="margin-bottom:20px;">⭐ 特別日設定</h2>
+      <p style="font-size:.8rem;color:var(--text-muted);margin:-12px 0 16px;">※ 特別日は勤怠記録に⭐印を付けるためのものです。現在、給与計算に割増・加算はしていません。</p>
       <div class="special-rules-card"><h3>🤖 自動判定されるルール</h3><ul id="autoRulesList"></ul></div>
       <div class="add-special-form">
         <div class="form-group"><label class="form-label">日付</label><input type="date" id="newSpecialDate"></div>
@@ -939,14 +953,16 @@
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="config.js?v=20260920"></script>
-  <script src="utils.js?v=20260920"></script>
-  <script src="holidays.js?v=20260920"></script>
-  <script src="demo-data.js?v=20260920"></script>
-  <script src="admin.js?v=20260920"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="config.js?v=20260926"></script>
+  <script src="utils.js?v=20260926"></script>
+  <script src="holidays.js?v=20260926"></script>
+  <script src="demo-data.js?v=20260926"></script>
+  <script src="payroll.js?v=20260926"></script>
+  <script src="admin.js?v=20260926"></script>
   <script>
     if (DEMO_MODE) { document.getElementById('demoBanner').style.display='block'; initDemoData(); }
-    initPin();
+    initAuth();
   </script>
 </body>
 </html>

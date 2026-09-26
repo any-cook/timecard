@@ -20,7 +20,8 @@ const FIREBASE_CONFIG = {
   appId:             "1:275551647409:web:a1348e6ab28ae060f15490"
 };
 
-// 管理者PINコード（初期値: 1234 — 必ず変更してください）
+// 管理者PINコード：Firebase認証（メール/パスワード）が未設定の間だけ使う予備の入口
+// 認証を設定し firestore.rules を適用すると、PINで入ってもデータは読めなくなる
 const ADMIN_PIN = '1234';
 
 // ============================================================
@@ -39,6 +40,18 @@ function getDB() {
   }
   _db = firebase.firestore();
   return _db;
+}
+
+// Firebase Authentication
+function getFirebaseAuth() {
+  if (DEMO_MODE || typeof firebase === 'undefined' || !firebase.auth) return null;
+  if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+  return firebase.auth();
+}
+
+// 打刻画面に公開してよい項目だけ（個人情報・給与は含めない）
+function staffPublicData(s) {
+  return { staff_number: s.staff_number || '', name: s.name || '', is_active: !!s.is_active, type: s.type || '' };
 }
 
 // ============================================================
@@ -69,13 +82,36 @@ const DB = {
     const db = getDB();
     const { id, ...data } = staff;
     data.created_at = data.created_at || firebase.firestore.FieldValue.serverTimestamp();
+    let saved;
     if (id) {
       await db.collection('staff').doc(id).set(data, { merge: true });
-      return { id, ...data };
+      saved = { id, ...data };
     } else {
       const ref = await db.collection('staff').add(data);
-      return { id: ref.id, ...data };
+      saved = { id: ref.id, ...data };
     }
+    try { await db.collection('staff_public').doc(saved.id).set(staffPublicData(saved)); }
+    catch (e) { console.warn('staff_public update failed:', e); }
+    return saved;
+  },
+
+  // 打刻画面用の公開名簿
+  async getStaffPublic() {
+    if (DEMO_MODE) return JSON.parse(localStorage.getItem('staff') || '[]');
+    const snap = await getDB().collection('staff_public').get();
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  },
+
+  // 公開名簿をスタッフ台帳と同期（管理画面ログイン時）
+  async syncStaffPublic() {
+    if (DEMO_MODE) return;
+    const db = getDB();
+    const [staffSnap, pubSnap] = await Promise.all([db.collection('staff').get(), db.collection('staff_public').get()]);
+    const ids = new Set();
+    const batch = db.batch();
+    staffSnap.docs.forEach(d => { ids.add(d.id); batch.set(db.collection('staff_public').doc(d.id), staffPublicData(d.data())); });
+    pubSnap.docs.forEach(d => { if (!ids.has(d.id)) batch.delete(d.ref); });
+    await batch.commit();
   },
 
   async deleteStaff(id) {
@@ -85,6 +121,7 @@ const DB = {
       return;
     }
     await getDB().collection('staff').doc(id).delete();
+    try { await getDB().collection('staff_public').doc(id).delete(); } catch (e) {}
   },
 
   // ---- 勤怠記録 ----
@@ -145,6 +182,16 @@ const DB = {
       const ref = await db.collection('attendance').add(data);
       return { id: ref.id, ...data };
     }
+  },
+
+  async updateAttendanceFields(id, fields) {
+    if (DEMO_MODE) {
+      let list = JSON.parse(localStorage.getItem('attendance') || '[]');
+      list = list.map(r => r.id === id ? { ...r, ...fields } : r);
+      localStorage.setItem('attendance', JSON.stringify(list));
+      return;
+    }
+    await getDB().collection('attendance').doc(id).update(fields);
   },
 
   async deleteAttendance(id) {
@@ -310,7 +357,8 @@ const DB = {
     for (let i = 0; i < rows.length; i += 400) {
       const batch = db.batch();
       rows.slice(i, i + 400).forEach(row => {
-        const ref = db.collection(col).doc();
+        // IDを固定（p13 / h19 など）して、スタッフの等級参照が切れないようにする
+        const ref = row.id ? db.collection(col).doc(row.id) : db.collection(col).doc();
         const {id, ...data} = row;
         batch.set(ref, data);
       });

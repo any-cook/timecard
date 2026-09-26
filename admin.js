@@ -1,10 +1,65 @@
 var pinInput='';
-function initPin(){document.getElementById('pinScreen').style.display='flex';document.getElementById('adminContent').style.display='none';updatePinDisplay();}
+// ============================================================
+// ログイン（Firebase Authentication：メール/パスワード）
+// 認証がFirebase側で未設定の間だけ、暗証番号で入れる
+// ============================================================
+var _adminEntered=false;
+function initAuth(){
+  document.getElementById('pinScreen').style.display='flex';
+  document.getElementById('adminContent').style.display='none';
+  var auth=getFirebaseAuth();
+  if(!auth){ showPinFallback(); return; }
+  document.getElementById('loginCard').style.display='block';
+  auth.onAuthStateChanged(function(user){
+    if(user && !user.isAnonymous){ enterAdmin(user.email||''); }
+  });
+}
+function showPinFallback(msg){
+  document.getElementById('loginCard').style.display='none';
+  document.getElementById('pinCard').style.display='block';
+  document.getElementById('loginSubtitle').textContent=msg||'管理者PINコードを入力してください';
+  updatePinDisplay();
+}
+async function doLogin(){
+  var email=document.getElementById('loginEmail').value.trim(),pw=document.getElementById('loginPassword').value;
+  var err=document.getElementById('loginError');err.style.display='none';
+  if(!email||!pw){err.textContent='メールアドレスとパスワードを入力してください';err.style.display='block';return;}
+  var btn=document.getElementById('btnLogin');btn.disabled=true;btn.textContent='ログイン中...';
+  try{
+    await getFirebaseAuth().signInWithEmailAndPassword(email,pw);
+  }catch(e){
+    var code=e.code||'';
+    var wrongCred=['auth/wrong-password','auth/user-not-found','auth/invalid-credential','auth/invalid-login-credentials','auth/invalid-email','auth/too-many-requests','auth/user-disabled'];
+    if(wrongCred.indexOf(code)===-1){
+      showPinFallback('ログイン認証が未設定のため、暗証番号で入ります');
+    } else {
+      err.textContent=(code==='auth/too-many-requests')?'試行回数が多すぎます。しばらく待ってから再度お試しください':'メールアドレスまたはパスワードが違います';
+      err.style.display='block';
+    }
+  }finally{btn.disabled=false;btn.textContent='ログイン';}
+}
+async function doLogout(){
+  var auth=getFirebaseAuth();
+  if(auth){ try{ await auth.signOut(); }catch(e){} }
+  location.reload();
+}
+function enterAdmin(email){
+  if(_adminEntered) return; _adminEntered=true;
+  document.getElementById('pinScreen').style.display='none';
+  document.getElementById('adminContent').style.display='block';
+  var lbl=document.getElementById('loginUserLabel'); if(lbl) lbl.textContent=email;
+  var lo=document.getElementById('btnLogout'); if(lo) lo.style.display=email?'inline-flex':'none';
+  var warn=document.getElementById('securityWarning'); if(warn) warn.style.display=email?'none':'block';
+  // 打刻画面用の公開名簿を最新化
+  DB.syncStaffPublic().catch(function(e){ console.warn('staff_public sync failed:', e); });
+  initAdminTabs();
+}
+function initPin(){ initAuth(); }
 function pinPress(v){if(pinInput.length>=4)return;pinInput+=v;updatePinDisplay();if(pinInput.length===4)setTimeout(checkPin,200);}
 function pinDelete(){pinInput=pinInput.slice(0,-1);updatePinDisplay();}
 function updatePinDisplay(){document.querySelectorAll('.pin-dot').forEach(function(d,i){d.classList.toggle('filled',i<pinInput.length);});}
 function checkPin(){
-  if(pinInput===ADMIN_PIN){document.getElementById('pinScreen').style.display='none';document.getElementById('adminContent').style.display='block';initAdminTabs();}
+  if(pinInput===ADMIN_PIN){enterAdmin('');}
   else{document.getElementById('pinError').style.display='block';pinInput='';updatePinDisplay();setTimeout(function(){document.getElementById('pinError').style.display='none';},2000);}
 }
 function initAdminTabs(){switchTab('staff');}
@@ -196,9 +251,12 @@ async function openStaffModal(id){
       if(editingStaff.social_insurance){
         document.getElementById('socialInsuranceFields').style.display='block';
         await buildGradeSelects(getHealthTableType(editingStaff));
-        document.getElementById('staffPensionGrade').value=editingStaff.pension_grade_id||'';
-        document.getElementById('staffHealthGrade').value=editingStaff.health_grade_id||'';
-        document.getElementById('staffChildSupportGrade').value=editingStaff.child_support_grade_id||'';
+        var _pr=resolveGradeRow(_pensionTable,editingStaff.pension_grade_id,editingStaff.pension_grade_no);
+        var _cr=resolveGradeRow(_childSupportTable,editingStaff.child_support_grade_id,editingStaff.child_support_grade_no);
+        var _hg=resolveHealthGradeNo(editingStaff,_healthTable,_healthNursingTable);
+        _selectGradeNo(document.getElementById('staffPensionGrade'),_pr?Number(_pr.grade):null);
+        _selectGradeNo(document.getElementById('staffHealthGrade'),_hg);
+        _selectGradeNo(document.getElementById('staffChildSupportGrade'),_cr?Number(_cr.grade):null);
         updateInsurancePreview();
       }
       if(editingStaff.employment_insurance)document.getElementById('employmentInsuranceFields').style.display='block';
@@ -208,6 +266,8 @@ async function openStaffModal(id){
   openModal('staffModal');
 }
 
+function _selectedGradeNo(sel){var o=sel&&sel.options[sel.selectedIndex];return o&&o.dataset&&o.dataset.grade?parseInt(o.dataset.grade):null;}
+function _selectGradeNo(sel,no){if(!sel||!no)return;for(var i=0;i<sel.options.length;i++){if(parseInt(sel.options[i].dataset.grade)===no){sel.selectedIndex=i;return;}}}
 async function buildGradeSelects(tableType){
   if(!_pensionTable.length)_pensionTable=await DB.getInsuranceTable('pension');
   if(!_healthTable.length)_healthTable=await DB.getInsuranceTable('health');
@@ -215,12 +275,14 @@ async function buildGradeSelects(tableType){
   if(!_childSupportTable.length)_childSupportTable=await DB.getInsuranceTable('child_support');
   var useTable=tableType==='health_nursing'?_healthNursingTable:_healthTable;
   var pSel=document.getElementById('staffPensionGrade'),hSel=document.getElementById('staffHealthGrade'),cSel=document.getElementById('staffChildSupportGrade');
+  var keep={p:_selectedGradeNo(pSel),h:_selectedGradeNo(hSel),c:_selectedGradeNo(cSel)};
   pSel.innerHTML='<option value="">選択してください</option>';
   hSel.innerHTML='<option value="">選択してください</option>';
   cSel.innerHTML='<option value="">選択してください</option>';
-  _pensionTable.slice().sort(function(a,b){return a.grade-b.grade;}).forEach(function(r){pSel.innerHTML+='<option value="'+r.id+'">'+r.label+'（標準報酬 '+formatCurrency(r.standard)+'・本人 '+formatCurrency(r.employee)+'）</option>';});
-  useTable.slice().sort(function(a,b){return a.grade-b.grade;}).forEach(function(r){hSel.innerHTML+='<option value="'+r.id+'">'+r.label+'（標準報酬 '+formatCurrency(r.standard)+'・本人 '+formatCurrency(r.employee)+'）</option>';});
-  _childSupportTable.slice().sort(function(a,b){return a.grade-b.grade;}).forEach(function(r){cSel.innerHTML+='<option value="'+r.id+'">'+r.label+'（標準報酬 '+formatCurrency(r.standard)+'・本人 '+formatCurrency(r.employee)+'）</option>';});
+  _pensionTable.slice().sort(function(a,b){return a.grade-b.grade;}).forEach(function(r){pSel.innerHTML+='<option value="'+r.id+'" data-grade="'+r.grade+'">'+r.label+'（標準報酬 '+formatCurrency(r.standard)+'・本人 '+formatCurrency(r.employee)+'）</option>';});
+  useTable.slice().sort(function(a,b){return a.grade-b.grade;}).forEach(function(r){hSel.innerHTML+='<option value="'+r.id+'" data-grade="'+r.grade+'">'+r.label+'（標準報酬 '+formatCurrency(r.standard)+'・本人 '+formatCurrency(r.employee)+'）</option>';});
+  _childSupportTable.slice().sort(function(a,b){return a.grade-b.grade;}).forEach(function(r){cSel.innerHTML+='<option value="'+r.id+'" data-grade="'+r.grade+'">'+r.label+'（標準報酬 '+formatCurrency(r.standard)+'・本人 '+formatCurrency(r.employee)+'）</option>';});
+  _selectGradeNo(pSel,keep.p);_selectGradeNo(hSel,keep.h);_selectGradeNo(cSel,keep.c);
   var lbl=document.getElementById('nursingCareLabel'),hlbl=document.getElementById('healthLabel');
   if(tableType==='health_nursing'){lbl.textContent='介護保険込み（40〜64歳）';lbl.style.background='#fef3c7';lbl.style.color='#92400e';hlbl.textContent='健康保険（介護保険込み・本人負担）';}
   else{lbl.textContent='介護保険なし';lbl.style.background='#dbeafe';lbl.style.color='#1d4ed8';hlbl.textContent='健康保険（本人負担）';}
@@ -301,7 +363,7 @@ async function saveStaff(){
     self_single_parent: document.getElementById('selfSingleParent').checked,
     self_student:       document.getElementById('selfStudent').checked,
     payslip_note:document.getElementById('staffPayslipNote').value.trim(),
-    paid_leave_hours:parseFloat(document.getElementById('staffPaidLeaveHours').value)||7.5,
+    paid_leave_hours:parseFloat(document.getElementById('staffPaidLeaveHours').value)||(document.getElementById('staffType').value==='employee'?6:7.5),
     contribution_bonus:document.getElementById('staffContributionBonus').checked,
     lunch_break:document.getElementById('staffLunchBreak').checked,
     lunch_start:document.getElementById('staffLunchStart').value||'12:00',
@@ -323,6 +385,9 @@ async function saveStaff(){
     social_insurance:document.getElementById('staffSocialInsurance').checked,
     pension_grade_id:pensionGradeId,health_grade_id:healthGradeId,
     child_support_grade_id:childSupportGradeId,health_table_type:tableType,
+    pension_grade_no:_selectedGradeNo(document.getElementById('staffPensionGrade')),
+    health_grade_no:_selectedGradeNo(document.getElementById('staffHealthGrade')),
+    child_support_grade_no:_selectedGradeNo(document.getElementById('staffChildSupportGrade')),
     employment_insurance:document.getElementById('staffEmploymentInsurance').checked,
     employment_insurance_date:document.getElementById('staffEmploymentInsuranceDate').value,
     workers_comp:document.getElementById('staffWorkersComp').checked,
@@ -369,7 +434,7 @@ async function loadAttendanceRecords(){
       '<td>'+formatDateJP(r.date)+'</td>'+
       '<td><strong>'+s.name+'</strong></td>'+
       '<td colspan="8" style="text-align:center;color:#16a34a;font-weight:700;">🌿 有休取得　'+r.days+'日'+(r.hours>0?' ('+r.hours+'時間)':'')+'</td>'+
-      '<td>-</td>';
+      '<td><button class="btn-sm btn-edit" onclick="switchTab(\'leave\')">🏖️</button></td>';
     // 日付順で挿入
     leaveOnlyRows.push({date:r.date,tr:tr});
   });
@@ -382,17 +447,8 @@ async function loadAttendanceRecords(){
     var _ls=r.lunch_start||(s&&s.lunch_start);
     var _le=r.lunch_end||(s&&s.lunch_end);
     var workMins=_outTime?calcWorkMinutes(r.clock_in_calc,_outTime,_lb,_ls,_le):0;
-    // 出勤日に有休もある場合は有休時間を加算（月別出勤表と統一）
-    var leaveSameDay = allLeaveAtt.filter(function(lr){return lr.staff_id===r.staff_id&&lr.type==='use'&&lr.date===r.date;});
-    var leaveHSameDay = leaveSameDay.reduce(function(a,lr){return a+(lr.hours||0);},0);
-    var paidLHAtt = (s.paid_leave_hours)||(s.type==='employee'?6:7.5);
-    var leaveAddMins = 0;
-    if(leaveSameDay.length>0){
-      if(s.type==='hourly') leaveAddMins = Math.floor(leaveHSameDay*60);
-      else leaveAddMins = Math.floor(leaveSameDay.reduce(function(a,lr){return a+(parseFloat(lr.days)||1);},0)*paidLHAtt*60);
-    }
-    workMins += leaveAddMins;
-    var dailyWage=_outTime?calcDailyWage(r.clock_in_calc,_outTime,r.wage_at_date||0,r.is_special_day,_lb,_ls,_le):0;
+    // 有休時間は勤務時間に加算しない（含み済み）
+    var dailyWage=_outTime&&s.type==='hourly'?calcDailyWage(r.clock_in_calc,_outTime,s.wage||r.wage_at_date||0,r.is_special_day,_lb,_ls,_le):0;
     var commuteAmt=r.clock_in_actual&&s.commute_daily_amount?s.commute_daily_amount:0;
     totalWage+=dailyWage;totalMins+=workMins;
     if(!staffSummary[r.staff_id])staffSummary[r.staff_id]={name:s.name||'不明',mins:0,wage:0,days:0,commute:0};
@@ -406,27 +462,20 @@ async function loadAttendanceRecords(){
       '<td>'+(r.clock_in_actual||'-')+'</td>'+'<td>'+(r.clock_out_actual?r.clock_out_actual:(function(){if(!isMissingOut)return '-';var today=todayStr();if(r.date!==today)return '<span style="color:#dc2626;font-weight:700;">⚠️ 退勤忘れ</span>';var nowM=new Date().getHours()*60+new Date().getMinutes();var inM=timeToMinutes(r.clock_in_actual||'00:00');return (nowM-inM)>600?'<span style="color:#dc2626;font-weight:700;">⚠️ 退勤忘れ</span>':'<span style="color:#16a34a;font-weight:700;">🟢 勤務中</span>';})())+'</td>'+
       '<td>'+(r.clock_in_calc||'-')+'</td><td>'+((r.clock_out_actual||r.clock_out_calc)||'-')+'</td>'+
       '<td>'+(workMins?formatWorkTime(workMins):'-')+'</td>'+
-      '<td>'+(r.clock_out_calc?formatCurrency(dailyWage):'-')+'</td>'+
+      '<td>'+(dailyWage?formatCurrency(dailyWage):'-')+'</td>'+
       '<td>'+(r.clock_in_actual&&commuteAmt?formatCurrency(commuteAmt):'-')+'</td>'+
       '<td>'+(r.is_special_day?'<span class="badge badge-special">⭐ 特別</span>':'-')+'</td>'+
       '<td><button class="btn-sm btn-edit" onclick="openAttendanceEditModal(\''+r.id+'\')">✏️</button> <button class="btn-sm btn-delete" onclick="deleteAttendance(\''+r.id+'\')">🗑️</button></td>';
-    tbody.appendChild(tr);
+    leaveOnlyRows.push({date:r.date,tr:tr});
   });
-  // 有休時間を staffSummary に加算
-  allLeaveAtt.filter(function(r){return r.type==='use'&&r.date&&r.date.startsWith(ymStr2b)&&(!attendanceFilters.staff_id||r.staff_id===attendanceFilters.staff_id);}).forEach(function(r){
-    var s=staffMap[r.staff_id];
-    if(!s)return;
-    if(!staffSummary[r.staff_id]) staffSummary[r.staff_id]={name:s.name||'不明',mins:0,wage:0,days:0,commute:0};
-    var paidLH = s.paid_leave_hours||(s.type==='employee'?6:7.5);
-    var leaveH = (r.hours||0)>0 ? r.hours : (s.type!=='hourly' ? (parseFloat(r.days)||1)*paidLH : 0);
-    // 有休時間は勤務時間に加算しない（含み済み）
-    // 有休時間totalMins加算なし
-  });
+  // 打刻行と有休のみの行を日付の新しい順に表示
+  leaveOnlyRows.sort(function(a,b){ return a.date<b.date?1:(a.date>b.date?-1:0); }).forEach(function(x){ tbody.appendChild(x.tr); });
+  if(!leaveOnlyRows.length) tbody.innerHTML='<tr><td colspan="11" class="empty-cell">データがありません</td></tr>';
   document.getElementById('attendanceTotalTime').textContent=formatWorkTime(totalMins);
   document.getElementById('attendanceTotalWage').textContent=formatCurrency(totalWage);
   var sb=document.getElementById('staffSummaryBody');sb.innerHTML='';
   var keys=Object.keys(staffSummary);
-  if(!keys.length){sb.innerHTML='<tr><td colspan="5" class="empty-cell">データがありません</td></tr>';}
+  if(!keys.length){sb.innerHTML='<tr><td colspan="6" class="empty-cell">データがありません</td></tr>';}
   else keys.forEach(function(k){var s=staffSummary[k],tr=document.createElement('tr');tr.innerHTML='<td>'+s.name+'</td><td>'+s.days+'日</td><td>'+formatWorkTime(s.mins)+'</td><td>'+formatCurrency(s.wage)+'</td><td>'+formatCurrency(s.commute)+'</td>'+'<td><button class="btn-sm btn-edit" onclick="openStaffDetail(\''+k+'\')">'+'📋 詳細</button></td>';sb.appendChild(tr);});
 }
 // ============================================================
@@ -486,7 +535,7 @@ async function openStaffDetail(staffId) {
         var rawMins = calcWorkMinutes(r.clock_in_calc, _out2, false, null, null);
         lunchMins = rawMins - workMins;
       }
-      var dailyWage = _out2 ? calcDailyWage(r.clock_in_calc, _out2, r.wage_at_date||s.wage, r.is_special_day, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
+      var dailyWage = (_out2 && s.type==='hourly') ? calcDailyWage(r.clock_in_calc, _out2, s.wage||r.wage_at_date||0, r.is_special_day, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
       var commuteAmt = s.commute_daily_amount || 0;
       var isMissingOut = !r.clock_out_actual;
 
@@ -504,7 +553,7 @@ async function openStaffDetail(staffId) {
         '<td>' + (r.clock_out_actual||r.clock_out_calc||'-') + '</td>' +
         '<td style="font-weight:700;">' + (workMins ? formatWorkTime(workMins) : '-') + '</td>' +
         '<td style="color:var(--text-muted);">' + (lunchMins > 0 ? formatWorkTime(lunchMins) : '-') + '</td>' +
-        '<td>' + (r.clock_out_calc ? formatCurrency(dailyWage) : '-') + '</td>' +
+        '<td>' + (dailyWage ? formatCurrency(dailyWage) : '-') + '</td>' +
         '<td>' + (r.is_special_day ? '<span class="badge badge-special">⭐</span>' : '') + '</td>' +
         '<td><button class="btn-sm btn-edit" onclick="openAttendanceEditModal(\'' + r.id + '\')">✏️</button></td>';
     } else {
@@ -638,7 +687,7 @@ async function loadSpecialTab(){
   var days=await DB.getSpecialDays(),tbody=document.getElementById('specialTableBody');tbody.innerHTML='';
   if(!days.length){tbody.innerHTML='<tr><td colspan="3" class="empty-cell">手動追加の特別日はありません</td></tr>';}
   else days.slice().sort(function(a,b){return a.date>b.date?-1:1;}).forEach(function(d){var tr=document.createElement('tr');tr.innerHTML='<td>'+formatDateJP(d.date)+'</td><td>'+(d.reason||'-')+'</td><td><button class="btn-sm btn-edit" onclick="openSpecialEditModal(\''+d.id+'\',\''+d.date+'\',\''+((d.reason||'').replace(/'/g,"\\'"))+'\')">✏️ 編集</button> <button class="btn-sm btn-delete" onclick="deleteSpecialDay(\''+d.id+'\')">🗑️ 削除</button></td>';tbody.appendChild(tr);});
-  document.getElementById('autoRulesList').innerHTML='<li>🗓️ 金曜日・土曜日・日曜日</li><li>🎌 日本の祝日</li><li>📅 祝日の前日</li>';
+  document.getElementById('autoRulesList').innerHTML='<li>🗓️ 日曜日</li><li>🎌 日本の祝日</li><li>📝 下の一覧に手動で追加した日</li>';
 }
 function openSpecialEditModal(id,date,reason){document.getElementById('specialEditId').value=id;document.getElementById('specialEditDate').value=date;document.getElementById('specialEditReason').value=reason;openModal('specialModal');}
 async function addSpecialDay(){var date=document.getElementById('newSpecialDate').value,reason=document.getElementById('newSpecialReason').value.trim();if(!date){showToast('日付を入力してください','error');return;}var existing=await DB.getSpecialDays();if(existing.some(function(d){return d.date===date;})){showToast('この日付はすでに登録済みです','error');return;}await DB.saveSpecialDay({date:date,reason:reason});document.getElementById('newSpecialDate').value='';document.getElementById('newSpecialReason').value='';showToast('特別日を追加しました');loadSpecialTab();}
@@ -646,49 +695,91 @@ async function saveSpecialDay(){var id=document.getElementById('specialEditId').
 async function deleteSpecialDay(id){if(!confirmAction('削除しますか？'))return;await DB.deleteSpecialDay(id);showToast('削除しました');loadSpecialTab();}
 
 async function loadPayrollTab(){document.getElementById('payrollYear').value=currentYear();document.getElementById('payrollMonth').value=currentMonth();await loadPayrollSummary();}
-// 給与確定
+
+// ============================================================
+// 給与計算の共通処理（明細・集計・確定で同じ計算を使う）
+// ============================================================
+async function loadPayrollContext(year, month){
+  _payslipSettings = null;
+  var res = await Promise.all([
+    DB.getStaff(), DB.getAttendance({year:year,month:month}), DB.getTaxTable('kou'), DB.getTaxTable('otsu'),
+    DB.getInsuranceTable('pension'), DB.getInsuranceTable('health'), DB.getInsuranceTable('health_nursing'),
+    DB.getInsuranceTable('child_support'), DB.getLeaveAll(), getPayslipSettings(),
+    DB.getEmpInsRates().catch(function(){ return []; })
+  ]);
+  if(res[10] && res[10].length) window._empInsRatesCache = res[10];
+  return {
+    year:year, month:month, staff:res[0], records:res[1], taxKou:res[2], taxOtsu:res[3],
+    tables:{ pension:res[4], health:res[5], healthNursing:res[6], childSupport:res[7] },
+    leaves:res[8], settings:res[9]
+  };
+}
+
+async function computeForStaff(ctx, staff){
+  var monthlyData = await getMonthlyInput(ctx.year, ctx.month, staff.id);
+  return computePayslipData({
+    staff: staff, year: ctx.year, month: ctx.month, monthlyData: monthlyData,
+    records: ctx.records.filter(function(r){ return r.staff_id === staff.id; }),
+    leaves: ctx.leaves.filter(function(l){ return l.staff_id === staff.id; }),
+    settings: ctx.settings, tables: ctx.tables, taxKou: ctx.taxKou, taxOtsu: ctx.taxOtsu
+  });
+}
+
+function payrollStaffList(allStaff, year, month){
+  return allStaff.filter(function(s){ return s.type !== 'contract' && isEmployedInMonth(s, year, month); })
+    .sort(function(a,b){
+      var na=parseInt(a.staff_number||9999), nb=parseInt(b.staff_number||9999);
+      if(na!==nb) return na-nb;
+      return String(a.staff_number||'').localeCompare(String(b.staff_number||''));
+    });
+}
+
+// ============================================================
+// 月次給与集計
+// ============================================================
+var _payrollGen = 0;          // 月切り替え時に古い計算結果を捨てるための世代番号
+var _payrollResults = null;   // { year, month, done, ctx, list:[{staff, data}] }
+
 function showPayslipFromConfirmed(btn){
-  var sid   = btn.dataset.sid;
-  var year  = parseInt(btn.dataset.year);
-  var month = parseInt(btn.dataset.month);
-  showPayslipAndSync(btn, sid, year, month);
+  showConfirmedPayslip(btn.dataset.sid, parseInt(btn.dataset.year), parseInt(btn.dataset.month));
 }
 
 async function syncAllPayroll(){
-  var year  = parseInt(document.getElementById('payrollYear').value);
-  var month = parseInt(document.getElementById('payrollMonth').value);
-  var rows = document.querySelectorAll('#payrollTableBody tr[data-staff-id]');
-  if(!rows.length){ showToast('先に集計を表示してください','error'); return; }
-  showToast('計算中...');
-  for(var i=0;i<rows.length;i++){
-    var sid = rows[i].dataset.staffId;
-    try{ await calcPayslipForSync(sid, year, month); }catch(e){}
-  }
+  await loadPayrollSummary();
   showToast('全員の明細を更新しました');
+}
+
+function _setConfirmBtn(state){
+  var b = document.getElementById('btnConfirmPayroll');
+  if(!b) return;
+  b.disabled = (state !== 'ready');
+  b.textContent = state === 'ready' ? '🔒 給与を確定する' : '⏳ 計算中...';
 }
 
 async function confirmPayroll(){
   var year  = parseInt(document.getElementById('payrollYear').value);
   var month = parseInt(document.getElementById('payrollMonth').value);
-  if(!confirmAction(year+'年'+month+'月分の給与を確定します。確定後は税率等が変わっても金額が変更されません。よろしいですか？')) return;
-  // 現在の集計データを全スタッフ分取得して保存
+  var pr = _payrollResults;
+  if(!pr || !pr.done || pr.year !== year || pr.month !== month){
+    showToast('計算が終わってから確定してください','error'); return;
+  }
+  if(!confirmAction(year+'年'+month+'月分の給与を確定します。確定後は税率等が変わっても金額・明細が変更されません。よろしいですか？')) return;
   showToast('確定データを保存中...');
-  var confirmedData = { year:year, month:month, confirmed_at: new Date().toISOString(), staffData:{} };
-  var rows = document.querySelectorAll('#payrollTableBody tr[data-staff-id]');
-  rows.forEach(function(row){
-    var sid = row.dataset.staffId;
-    var cells = row.querySelectorAll('td');
-    confirmedData.staffData[sid] = {
-      name:     cells[0] ? cells[0].textContent : '',
-      type:     cells[1] ? cells[1].textContent : '',
-      workDays: cells[2] ? cells[2].textContent : '',
-      workTime: cells[3] ? cells[3].textContent : '',
-      payTotal: cells[4] ? cells[4].textContent : '',
-      dedTotal: cells[5] ? cells[5].textContent : '',
-      netPay:   cells[6] ? cells[6].textContent : '',
+  var confirmedData = { year:year, month:month, confirmed_at: new Date().toISOString(), version:2, staffData:{} };
+  pr.list.forEach(function(item){
+    var d = item.data, s = item.staff;
+    var built = buildPayslipHtml(d, pr.ctx.settings);
+    confirmedData.staffData[s.id] = {
+      name: s.name, type: staffTypeLabel(s.type), staff_number: s.staff_number || '',
+      workDays: d.workDays+'日', workTime: formatWorkTime(d.totalMins),
+      payTotal: formatCurrency(d.totalPay), dedTotal: formatCurrency(d.totalDeduction), netPay: formatCurrency(d.netPay),
+      payTotalNum: d.totalPay, dedTotalNum: d.totalDeduction, netPayNum: d.netPay,
+      html: built.html, oldHtml: built.oldHtml
     };
   });
-  await DB.savePayrollConfirmed(year, month, confirmedData);
+  try {
+    await DB.savePayrollConfirmed(year, month, confirmedData);
+  } catch(e){ showToast('確定の保存に失敗しました: '+e.message,'error'); return; }
   showToast(year+'年'+month+'月分の給与を確定しました');
   loadPayrollSummary();
 }
@@ -703,29 +794,51 @@ async function unconfirmPayroll(){
   loadPayrollSummary();
 }
 
-async function loadPayrollSummary(){
-  var year=parseInt(document.getElementById('payrollYear').value),month=parseInt(document.getElementById('payrollMonth').value);
-  var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support')]);
-  var allStaff=res[0],records=res[1],taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7];
-  var tbody=document.getElementById('payrollTableBody');tbody.innerHTML='';var grandTotal=0;
+function _numFromConfirmed(num, str){
+  if(typeof num === 'number') return num;
+  var s = String(str||'0'), neg = s.indexOf('-') >= 0;
+  var v = parseInt(s.replace(/[^0-9]/g,'')) || 0;
+  return neg ? -v : v;
+}
 
-  // 確定済みデータがあれば表示
-  var confirmed = await DB.getPayrollConfirmed(year, month);
+function _renderGrandTotal(sumPay, sumDed, sumNet, confirmed){
+  document.getElementById('payrollGrandTotal').innerHTML =
+    '<span style="margin-right:24px;">支給合計: <strong>'+formatCurrency(sumPay)+'</strong></span>'+
+    '<span style="margin-right:24px;">控除合計: <strong>'+formatCurrency(sumDed)+'</strong></span>'+
+    '差引支給額合計: <strong style="color:var(--accent);">'+formatCurrency(sumNet)+'</strong>'+
+    (confirmed ? '<span style="margin-left:16px;font-size:.75rem;color:#16a34a;">🔒 確定済み</span>' : '');
+}
+
+async function loadPayrollSummary(){
+  var gen = ++_payrollGen;
+  _payrollResults = null;
+  var year=parseInt(document.getElementById('payrollYear').value),month=parseInt(document.getElementById('payrollMonth').value);
+  var tbody=document.getElementById('payrollTableBody');
+  tbody.innerHTML='<tr><td colspan="8" class="empty-cell">読み込み中...</td></tr>';
+  document.getElementById('payrollGrandTotal').textContent='';
   var banner = document.getElementById('payrollConfirmedBanner');
   var btnConfirm   = document.getElementById('btnConfirmPayroll');
   var btnUnconfirm = document.getElementById('btnUnconfirmPayroll');
+
+  var confirmed = await DB.getPayrollConfirmed(year, month);
+  if(gen !== _payrollGen) return;
+
+  // ---- 確定済み：保存したデータをそのまま表示 ----
   if(confirmed && confirmed.staffData){
     if(banner) banner.style.display='block';
     if(btnConfirm)   btnConfirm.style.display='none';
     if(btnUnconfirm) btnUnconfirm.style.display='inline-flex';
-    // 確定データを表示
-    Object.keys(confirmed.staffData).forEach(function(sid){
+    tbody.innerHTML='';
+    var totalPay=0, totalDed=0, totalNet=0;
+    var sids = Object.keys(confirmed.staffData).sort(function(a,b){
+      var na=parseInt(confirmed.staffData[a].staff_number||9999), nb=parseInt(confirmed.staffData[b].staff_number||9999);
+      return na-nb;
+    });
+    sids.forEach(function(sid){
       var d = confirmed.staffData[sid];
       var tr = document.createElement('tr');
       tr.style.background = '#f0fdf4';
       tr.setAttribute('data-staff-id', sid);
-      tr.setAttribute('data-year', year);
-      tr.setAttribute('data-month', month);
       tr.innerHTML =
         '<td><strong>'+d.name+'</strong></td>'+
         '<td><span class="badge badge-type">'+d.type+'</span></td>'+
@@ -736,281 +849,112 @@ async function loadPayrollSummary(){
         '<td class="payroll-net-pay"><strong style="color:var(--accent);">'+d.netPay+'</strong></td>'+
         '<td><button class="btn-sm btn-edit" data-sid="'+sid+'" data-year="'+year+'" data-month="'+month+'" onclick="showPayslipFromConfirmed(this)">📄 明細</button></td>';
       tbody.appendChild(tr);
+      totalPay += _numFromConfirmed(d.payTotalNum, d.payTotal);
+      totalDed += _numFromConfirmed(d.dedTotalNum, d.dedTotal);
+      totalNet += _numFromConfirmed(d.netPayNum, d.netPay);
     });
-    // 合計を計算して表示
-    var totalPay=0, totalDed=0, totalNet=0;
-    Object.keys(confirmed.staffData).forEach(function(sid){
-      var d=confirmed.staffData[sid];
-      totalPay += parseInt((d.payTotal||'0').replace(/[^0-9]/g,''))||0;
-      totalDed += parseInt((d.dedTotal||'0').replace(/[^0-9]/g,''))||0;
-      totalNet += parseInt((d.netPay||'0').replace(/[^0-9]/g,''))||0;
-    });
-    document.getElementById('payrollGrandTotal').innerHTML =
-      '<span style="margin-right:24px;">支給合計: <strong>'+formatCurrency(totalPay)+'</strong></span>'+
-      '<span style="margin-right:24px;">控除合計: <strong>'+formatCurrency(totalDed)+'</strong></span>'+
-      '差引支給額合計: <strong style="color:var(--accent);">'+formatCurrency(totalNet)+'</strong>'+
-      '<span style="margin-left:16px;font-size:.75rem;color:#16a34a;">🔒 確定済み</span>';
-    return; // 確定データのみ表示して終了
+    _renderGrandTotal(totalPay, totalDed, totalNet, true);
+    window._confirmedPayroll = { year:year, month:month, data:confirmed };
+    return;
   }
 
-  // 未確定：通常の集計処理
+  // ---- 未確定：計算して表示 ----
   if(banner) banner.style.display='none';
   if(btnConfirm)   btnConfirm.style.display='inline-flex';
   if(btnUnconfirm) btnUnconfirm.style.display='none';
+  _setConfirmBtn('busy');
 
-  var allLeaveData=await DB.getLeaveAll();
-  var ymStr2=year+'-'+String(month).padStart(2,'0');
-  var activeStaff=allStaff.filter(function(s){return s.is_active && s.type!=='contract';});
-  // 登録番号順にソート
-  activeStaff.sort(function(a,b){
-    var na=parseInt(a.staff_number||9999), nb=parseInt(b.staff_number||9999);
-    return na-nb;
-  });
-  // まず全行を作成（空の状態で）
-  for(var si=0;si<activeStaff.length;si++){
-    var staff=activeStaff[si];
-    var tr=document.createElement('tr');
-    tr.setAttribute('data-staff-id', staff.id);
-    tr.setAttribute('data-year', year);
-    tr.setAttribute('data-month', month);
+  var ctx;
+  try { ctx = await loadPayrollContext(year, month); }
+  catch(e){ tbody.innerHTML='<tr><td colspan="8" class="empty-cell">読み込みに失敗しました: '+e.message+'</td></tr>'; return; }
+  if(gen !== _payrollGen) return;
+
+  var list = payrollStaffList(ctx.staff, year, month);
+  tbody.innerHTML='';
+  if(!list.length) tbody.innerHTML='<tr><td colspan="8" class="empty-cell">対象のスタッフがいません</td></tr>';
+  list.forEach(function(staff){
     var sid_ = staff.id;
+    var retiredTag = (!staff.is_active && staff.retire_date) ? '<br><span style="font-size:.68rem;color:#dc2626;">退職 '+staff.retire_date+'</span>' : '';
+    var tr=document.createElement('tr');
+    tr.setAttribute('data-staff-id', sid_);
     tr.innerHTML=
-      '<td><strong>'+staff.name+'</strong></td>'+
+      '<td><strong>'+staff.name+'</strong>'+retiredTag+'</td>'+
       '<td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span></td>'+
       '<td id="pr-days-'+sid_+'">計算中...</td>'+
       '<td id="pr-time-'+sid_+'" class="payroll-work-time">-</td>'+
       '<td id="pr-pay-'+sid_+'" class="payroll-pay-total">-</td>'+
       '<td id="pr-ded-'+sid_+'" class="payroll-ded-total">-</td>'+
       '<td id="pr-net-'+sid_+'" class="payroll-net-pay"><strong style="color:var(--accent);">-</strong></td>'+
-      '<td><button class="btn-sm btn-edit" onclick="showPayslipAndSync(this,\''+staff.id+'\','+year+','+month+')">📄 明細</button></td>';
+      '<td><button class="btn-sm btn-edit" onclick="showPayslipAndSync(this,\''+sid_+'\','+year+','+month+')">📄 明細</button></td>';
     tbody.appendChild(tr);
-  }
+  });
   document.getElementById('payrollGrandTotal').textContent='計算中...';
-  // 全行作成後に順番に計算して更新
-  (async function(){
-    for(var i=0;i<activeStaff.length;i++){
-      try{ await calcPayslipForSync(activeStaff[i].id,year,month); }catch(e){ console.warn(e); }
-    }
-    // 合計を再計算
-    var totalNet=0;
-    document.querySelectorAll('#payrollTableBody .payroll-net-pay strong').forEach(function(el){
-      var v = parseInt((el.textContent||'0').replace(/[^0-9\-]/g,''))||0;
-      totalNet += v;
-    });
-    // 支給合計・控除合計・差引支給額合計を計算
-    var sumPay=0, sumDed=0, sumNet=0;
-    document.querySelectorAll('#payrollTableBody tr[data-staff-id]').forEach(function(row){
-      var p=document.getElementById('pr-pay-'+row.getAttribute('data-staff-id'));
-      var d=document.getElementById('pr-ded-'+row.getAttribute('data-staff-id'));
-      var n=document.getElementById('pr-net-'+row.getAttribute('data-staff-id'));
-      if(p) sumPay += parseInt((p.textContent||'0').replace(/[^0-9]/g,''))||0;
-      if(d) sumDed += parseInt((d.textContent||'0').replace(/[^0-9]/g,''))||0;
-      if(n) sumNet += parseInt((n.textContent||'0').replace(/[^0-9]/g,''))||0;
-    });
-    document.getElementById('payrollGrandTotal').innerHTML =
-      '<span style="margin-right:24px;">支給合計: <strong>'+formatCurrency(sumPay)+'</strong></span>'+
-      '<span style="margin-right:24px;">控除合計: <strong>'+formatCurrency(sumDed)+'</strong></span>'+
-      '差引支給額合計: <strong style="color:var(--accent);">'+formatCurrency(sumNet)+'</strong>';
-  })();
+
+  var results = [], sumPay=0, sumDed=0, sumNet=0, failed=0;
+  for(var i=0;i<list.length;i++){
+    var d = null;
+    try { d = await computeForStaff(ctx, list[i]); } catch(e){ console.warn(e); failed++; }
+    if(gen !== _payrollGen) return; // 月が切り替わったら中断
+    if(!d){ var el=document.getElementById('pr-days-'+list[i].id); if(el) el.textContent='エラー'; continue; }
+    results.push({ staff:list[i], data:d });
+    syncPayrollRow(list[i].id, year, month, d.totalPay, d.totalDeduction, d.netPay, d.totalMins, d.workDays);
+    sumPay += d.totalPay; sumDed += d.totalDeduction; sumNet += d.netPay;
+  }
+  _renderGrandTotal(sumPay, sumDed, sumNet, false);
+  _payrollResults = { year:year, month:month, done: failed===0, ctx:ctx, list:results };
+  if(failed===0) _setConfirmBtn('ready');
+  else { var b=document.getElementById('btnConfirmPayroll'); if(b){ b.disabled=true; b.textContent='⚠️ 計算エラーあり'; } }
 }
-// 給与明細を表示しつつ集計行の金額を給与明細の計算結果で更新
+
+// 給与明細を表示
 async function showPayslipAndSync(btn, staffId, year, month){
   await showPayslip(staffId, year, month);
 }
 
-// 集計用：給与明細の計算のみ実行してsyncPayrollRowを呼ぶ
+// 集計行を1人分だけ再計算
 async function calcPayslipForSync(staffId, year, month){
-  _payslipSettings = null;
-  var settings = await getPayslipSettings();
-  var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support'),DB.getLeaveAll()]);
-  var allStaff=res[0],records=res[1].filter(function(r){return r.staff_id===staffId;}),taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7],allLeave=res[8];
-  var staff=allStaff.find(function(s){return s.id===staffId;});
-  if(!staff)return;
-  // showPayslip と同じ計算を実行
-  var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
-  var healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
-  var healthBase=0,nursingCare=0;
-  if(staff.health_table_type==='health_nursing'){
-    var nr=healthNursingTable.find(function(r){return r.id===staff.health_grade_id;});
-    var gn=nr?nr.grade:null;
-    var br=gn?healthTable.find(function(r){return r.grade===gn;}):null;
-    healthBase=br?br.employee:0; nursingCare=Math.max(0,healthTotal-healthBase);
-  } else { healthBase=healthTotal; nursingCare=0; }
-  var grossPay=0,totalMins=0,workDays=0;
-  if(staff.type==='hourly'){
-    records.forEach(function(r){var _o=r.clock_out_actual||r.clock_out_calc;var _lb=r.lunch_break!==undefined?r.lunch_break:staff.lunch_break;var _ls=r.lunch_start||staff.lunch_start;var _le=r.lunch_end||staff.lunch_end;var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,_lb,_ls,_le):0;totalMins+=mins;if(r.clock_in_actual)workDays++;});
-    grossPay=Math.floor(totalMins/60*(staff.wage||0));
-  } else {
-    grossPay=staff.monthly_salary||0;
-    records.forEach(function(r){var _o=r.clock_out_actual||r.clock_out_calc;var _lb=r.lunch_break!==undefined?r.lunch_break:staff.lunch_break;var _ls=r.lunch_start||staff.lunch_start;var _le=r.lunch_end||staff.lunch_end;var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,_lb,_ls,_le):0;totalMins+=mins;if(r.clock_in_actual)workDays++;});
-  }
-  var monthlyData=await getMonthlyInput(year,month,staffId);
-  if(monthlyData.work_days!==null)workDays=monthlyData.work_days;
-  if(staff.type==='hourly'&&monthlyData.work_hours!=null){var wh3=monthlyData.work_hours;totalMins=Number.isInteger(wh3)?wh3:Math.round(wh3*60);grossPay=Math.floor(totalMins/60*(staff.wage||0));console.log('[sync] '+staffId+' wh3='+wh3+' totalMins='+totalMins);}
-  var ymStrS=year+'-'+String(month).padStart(2,'0');
-  var staffLeaveS=allLeave.filter(function(r){return r.staff_id===staffId&&r.date&&r.date.startsWith(ymStrS);});
-  var _paidLH=staff.paid_leave_hours||(staff.type==='employee'?6:7.5);
-  var _lht=0;
-  // 月次入力で時間数が入力されている場合は有休を加算しない（既に含まれているため）
-  var hasManualHours = (monthlyData.work_hours!=null);
-  if(!hasManualHours){
-    staffLeaveS.filter(function(r){return r.type==='use';}).forEach(function(r){if((r.hours||0)>0){_lht+=r.hours;}else if(staff.type!=='hourly'){_lht+=(parseFloat(r.days)||1)*_paidLH;}});
-      // 有休時間は勤務時間表示に含めるが、基本給計算からは除外
-  }
-  var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
-  var commuteData=isOfficer?calcOfficerCommuteFixed(staff):(staff.commute_daily_amount?calcCommuteAllowance(staff.commute_daily_amount,workDays,staff.commute_distance||0):{total:0,taxFree:0,taxable:0});
-  var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
-  var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
-  var health=healthBase; var contributionBonus=staff.contribution_bonus?1000:0;
-  var psType=staff.payslip_type||staff.type||'hourly';
-  var typeKey=psType==='officer'?'pay_items_officer':psType==='employee'?'pay_items_employee':'pay_items_hourly';
-  var payItemsS=(settings[typeKey]||settings.pay_items||[]).map(function(item){var v=item.amount||0;if(item.wage_fixed==='variable'){var mi=(monthlyData.variable_items||[]).find(function(x){return x.name===item.name;});if(mi)v=mi.amount;}return Object.assign({},item,{amount:v});});
-  var extraTotalS=0;
-  payItemsS.filter(function(i){var skip=['所得税','健康保険料','介護保険料','厚生年金保険','子育て支援金','雇用保険料','雇用保険'];return skip.indexOf(i.name)===-1;}).forEach(function(i){extraTotalS+=i.calc_add==='sub'?-(i.amount||0):(i.amount||0);});
-  var empInsBaseS=grossPay+extraTotalS+contributionBonus+commuteData.taxFree+commuteData.taxable;
-  var empIns=calcEmploymentInsurance(empInsBaseS,staff.employment_insurance);
-  var socialInsS=pension+health+nursingCare+childSupport+empIns;
-  var extraTaxS=0;
-  payItemsS.forEach(function(i){if(i.calc_add==='sub')extraTaxS-=(i.amount||0);else if(i.tax_type!=='nontaxable')extraTaxS+=(i.amount||0);});
-  var taxableInc=grossPay+commuteData.taxable+extraTaxS+contributionBonus-socialInsS;
-  var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
-  var tax=calcTax(Math.max(0,taxableInc),taxRows,staff.tax_type||'kou',staff.dependents||0);
-  var totalDeductS=tax+pension+health+nursingCare+childSupport+empIns;
-  var totalPayS=grossPay+commuteData.taxFree+commuteData.taxable+extraTotalS+contributionBonus;
-  var netPayS=totalPayS-totalDeductS;
-  syncPayrollRow(staffId,year,month,totalPayS,totalDeductS,netPayS,totalMins,workDays);
+  var ctx = await loadPayrollContext(year, month);
+  var staff = ctx.staff.find(function(s){ return s.id === staffId; });
+  if(!staff) return;
+  var d = await computeForStaff(ctx, staff);
+  syncPayrollRow(staffId, year, month, d.totalPay, d.totalDeduction, d.netPay, d.totalMins, d.workDays);
+  return d;
 }
 
-// 給与明細計算完了後に集計行を更新する関数
+// 集計行を更新
 function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalMins, workDays){
-  // ID直接参照で確実に更新
   var daysEl = document.getElementById('pr-days-'+staffId);
-  var timeEl = document.getElementById('pr-time-'+staffId);
-  var payEl  = document.getElementById('pr-pay-'+staffId);
-  var dedEl  = document.getElementById('pr-ded-'+staffId);
-  var netEl  = document.getElementById('pr-net-'+staffId);
-  if(!daysEl){ console.warn('syncPayrollRow: element not found for staffId='+staffId); return; }
+  if(!daysEl) return;
   if(workDays!==undefined) daysEl.textContent = workDays+'日';
-  if(totalMins!==undefined) timeEl.textContent = formatWorkTime(totalMins);
-  payEl.textContent = formatCurrency(payTotal);
-  dedEl.textContent = formatCurrency(dedTotal);
-  netEl.innerHTML = '<strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong>';
+  if(totalMins!==undefined) document.getElementById('pr-time-'+staffId).textContent = formatWorkTime(totalMins);
+  document.getElementById('pr-pay-'+staffId).textContent = formatCurrency(payTotal);
+  document.getElementById('pr-ded-'+staffId).textContent = formatCurrency(dedTotal);
+  document.getElementById('pr-net-'+staffId).innerHTML = '<strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong>';
 }
 
-async function showPayslip(staffId,year,month){
-  try {
-  // 毎回最新の設定を取得
-  _payslipSettings = null;
-  var settings = await getPayslipSettings();
-  var res=await Promise.all([DB.getStaff(),DB.getAttendance({year:year,month:month}),DB.getTaxTable('kou'),DB.getTaxTable('otsu'),DB.getInsuranceTable('pension'),DB.getInsuranceTable('health'),DB.getInsuranceTable('health_nursing'),DB.getInsuranceTable('child_support'),DB.getLeaveAll()]);
-  var allStaff=res[0],records=res[1].filter(function(r){return r.staff_id===staffId;}),taxKou=res[2],taxOtsu=res[3],pensionTable=res[4],healthTable=res[5],healthNursingTable=res[6],childSupportTable=res[7],allLeave=res[8];
-  var staff=allStaff.find(function(s){return s.id===staffId;});if(!staff)return;
-  var useHealthTable=(staff.health_table_type==='health_nursing')?healthNursingTable:healthTable;
-  var healthTotal=getInsuranceAmountByGrade(staff.health_grade_id,useHealthTable);
-  var healthBase=0,nursingCare=0;
-  if(staff.health_table_type==='health_nursing'){
-    // 介護込みテーブルのIDから等級番号を取得し、介護なしテーブルの同等級を参照
-    var nursingRow=healthNursingTable.find(function(r){return r.id===staff.health_grade_id;});
-    var gradeNo=nursingRow?nursingRow.grade:null;
-    var baseRow=gradeNo?healthTable.find(function(r){return r.grade===gradeNo;}):null;
-    healthBase=baseRow?baseRow.employee:0;
-    nursingCare=Math.max(0,healthTotal-healthBase);
-  } else {
-    healthBase=healthTotal; nursingCare=0;
+// 確定済みの明細（確定時点のもの）を表示
+function showConfirmedPayslip(staffId, year, month){
+  var c = window._confirmedPayroll;
+  var d = (c && c.year===year && c.month===month && c.data.staffData) ? c.data.staffData[staffId] : null;
+  if(!d || !d.html){
+    showToast('この確定データには明細が保存されていません（旧形式）。現在のデータで計算して表示します','error');
+    showPayslip(staffId, year, month, { fromConfirmed:true });
+    return;
   }
-  var grossPay=0,totalMins=0,workDays=0,detailRows='';
-  var lunchBreakSlip=staff.lunch_break||false;
-  if(staff.type==='hourly'){records.forEach(function(r){var _o=r.clock_out_actual||r.clock_out_calc;var _lb=r.lunch_break!==undefined?r.lunch_break:staff.lunch_break;var _ls=r.lunch_start||staff.lunch_start;var _le=r.lunch_end||staff.lunch_end;var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,_lb,_ls,_le):0;totalMins+=mins;if(r.clock_in_actual)workDays++;var daily=_o?calcDailyWage(r.clock_in_calc,_o,staff.wage,r.is_special_day,_lb,_ls,_le):0;detailRows+='<tr><td>'+formatDateJP(r.date)+'</td><td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||'-')+'</td><td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td><td>'+formatWorkTime(mins)+'</td><td>'+(r.is_special_day?'⭐':'')+' '+formatCurrency(staff.wage)+'</td><td>'+formatCurrency(daily)+'</td></tr>';});
-  // 基本給は合計時間×時給で一括計算（日別切り捨て誤差なし）
-  grossPay = Math.floor(totalMins / 60 * (staff.wage||0));}
-  else{
-    grossPay=staff.monthly_salary||0;
-    // 社員・役員も打刻データから勤務時間合計を計算
-    records.forEach(function(r){
-      var _o=r.clock_out_actual||r.clock_out_calc;
-      var _lb=r.lunch_break!==undefined?r.lunch_break:staff.lunch_break;
-      var _ls=r.lunch_start||staff.lunch_start;
-      var _le=r.lunch_end||staff.lunch_end;
-      var mins=_o?calcWorkMinutes(r.clock_in_calc,_o,_lb,_ls,_le):0;
-      totalMins+=mins;
-      if(r.clock_in_actual)workDays++;
-    });
-    detailRows='<tr><td colspan="8" style="text-align:center;">月額固定給: '+formatCurrency(grossPay)+'</td></tr>';
-  }
-  // 月次入力から出勤日数・時間数・変動項目・備考を取得
-  var monthlyData = await getMonthlyInput(year,month,staff.id);
-  if(monthlyData.work_days!==null) workDays=monthlyData.work_days;
-  // 時給スタッフ：時間数が月次入力されていれば上書き
-  if(staff.type==='hourly' && monthlyData.work_hours!==null && monthlyData.work_hours!==undefined) {
-    var wh = monthlyData.work_hours;
-    // 整数=分単位（新形式）、小数=時間単位（旧形式）
-    totalMins = Number.isInteger(wh) ? wh : Math.round(wh * 60);
-    grossPay  = Math.floor(totalMins / 60 * (staff.wage||0));
-    detailRows = '<tr><td colspan="8" style="text-align:center;color:var(--accent);">月次入力：'+formatWorkTime(totalMins)+'（自動計算を上書き）</td></tr>';
-  }
-  var monthlyVarItems = monthlyData.variable_items||[];
-  var monthlyNote = monthlyData.note||'';
-  // 有休時間を勤務時間合計・賃金に加算
-  // staffLeave：全期間（残日数計算用）
-  var staffLeave = allLeave.filter(function(r){ return r.staff_id === staffId; });
-  // 当月の有休使用レコードのみ（勤務時間計算用）
-  var ymStrPS = year + '-' + String(month).padStart(2,'0');
-  var staffLeaveMonth = staffLeave.filter(function(r){ return r.date && r.date.startsWith(ymStrPS); });
-  // 有休時間（月次入力 + 有休管理から paid_leave_hours で補完）
-  var _paidLHPD2 = staff.paid_leave_hours || (staff.type==='employee' ? 6 : 7.5);
-  var _lht3 = 0;
-  // 月次入力で時間数が入力されている場合は有休を加算しない
-  var hasManualHoursP = (monthlyData.work_hours!==null && monthlyData.work_hours!==undefined);
-  if(!hasManualHoursP){
-    staffLeaveMonth.filter(function(r){return r.type==='use';}).forEach(function(r){
-      if((r.hours||0)>0){ _lht3 += r.hours; }
-      else if(staff.type!=='hourly'){ _lht3 += (parseFloat(r.days)||1)*_paidLHPD2; }
-    });
-    if(_lht3>0){
-      // 有休時間は勤務時間・基本給に加算しない（月次入力に含み済み）
-      // 有休時間は勤務時間表示に含めるが、基本給計算からは除外
-    }
-  }
+  var note = '<div style="margin:0 0 10px;padding:8px 12px;background:#f0fdf4;border:1px solid #16a34a;border-radius:8px;font-size:.8rem;color:#166534;font-weight:700;" class="ps-confirmed-note">🔒 確定時点（'+(c.data.confirmed_at||'').slice(0,10)+'）の明細です</div>';
+  document.getElementById('payslipNew').innerHTML = note + d.html;
+  document.getElementById('payslipOld').innerHTML = d.oldHtml || '';
+  document.getElementById('payslipWorkDaysBar').style.display='none';
+  switchPayslip('new');
+  openModal('payslipModal');
+}
 
-  // 有給残日数・当月使用日数を計算（staffLeaveは上で定義済み）
-  // 累計付与日数
-  var totalGranted = staffLeave.filter(function(r){ return r.type==='grant'; })
-    .reduce(function(s,r){ return s + (parseFloat(r.days)||0); }, 0);
-  // 当月以前の使用日数合計
-  var ymStr = year + '-' + String(month).padStart(2,'0');
-  var totalUsed = staffLeave.filter(function(r){ return r.type==='use'; })
-    .reduce(function(s,r){ return s + (parseFloat(r.days)||0); }, 0);
-  // 当月の使用日数
-  var monthUsed = staffLeave.filter(function(r){
-    return r.type==='use' && r.date && r.date.startsWith(ymStr);
-  }).reduce(function(s,r){ return s + (parseFloat(r.days)||0); }, 0);
-  // 残日数（当月末時点）
-  var leaveBalance = Math.max(0, totalGranted - totalUsed);
-  // 役員は通勤費固定支給（日額×月固定日数20日換算）、それ以外は出勤日数×日額
-  // 役員：距離の非課税限度額を固定支給（全額非課税）、それ以外：出勤日数×日額
-  var isOfficer=(staff.payslip_type==='officer'||staff.type==='officer');
-  var commuteData=isOfficer
-    ? calcOfficerCommuteFixed(staff)
-    : (staff.commute_daily_amount ? calcCommuteAllowance(staff.commute_daily_amount,workDays,staff.commute_distance||0) : {total:0,taxFree:0,taxable:0});
-  // 所得税：課税支給額（基本給＋課税通勤費）で計算
-  var pension=getInsuranceAmountByGrade(staff.pension_grade_id,pensionTable);
-  var health=healthBase; // 健康保険料（介護保険料除く）
-  var childSupport=getInsuranceAmountByGrade(staff.child_support_grade_id,childSupportTable);
-  var empIns=0; // extraPayItems確定後に計算
-  // 正しい所得税計算：社会保険料等控除後の給与に税額表を適用
-  var socialInsTotal=pension+health+nursingCare+childSupport+empIns;
-  // 所得税計算はextraPayItems確定後に実施（下部で計算）
-  var taxRows=staff.tax_type==='otsu'?taxOtsu:taxKou;
-  var tax=0; // 後で再計算
-  var netPay=0; // 後で再計算
-  var age=calcAge(staff.birthdate);
-  // 合計支給額（非課税通勤費含む）
-  var totalPay = grossPay + commuteData.taxFree + commuteData.taxable;
-  var totalDeduction = tax + pension + health + nursingCare + childSupport + empIns;
-  var netPayFinal = totalPay - totalDeduction;
-  var monthStr = year + '年' + month + '月';
-
-  // レイアウト設定適用
+// ============================================================
+// 給与明細HTMLの組み立て
+// ============================================================
+function buildPayslipHtml(d, settings){
+  settings = settings || {};
+  var staff = d.staff, year = d.year, month = d.month;
   var fsMap = {small:'0.72rem', medium:'0.82rem', large:'0.92rem'};
   var colorMap = {
     blue: {header:'#dde4f0', total:'#1a3a6b', totalBg:'#eef2fa'},
@@ -1018,310 +962,167 @@ async function showPayslip(staffId,year,month){
     gray: {header:'#e8e8e8', total:'#333',    totalBg:'#f5f5f5'},
     mono: {header:'#ccc',    total:'#000',    totalBg:'#eee'}
   };
-  var clr = colorMap[settings.color||'blue'];
-  var fs  = fsMap[settings.font_size||'medium'];
+  var clr = colorMap[settings.color||'blue'] || colorMap.blue;
+  var fs  = fsMap[settings.font_size||'medium'] || fsMap.medium;
 
-  var html = '';
-  html += '<div class="ps-wrap" style="font-size:'+fs+'">';
-  // ヘッダー
+  // 打刻明細
+  var detailRows = '';
+  if(staff.type === 'hourly'){
+    if(d.manualMins !== null){
+      detailRows = '<tr><td colspan="8" style="text-align:center;color:var(--accent);">月次入力：'+formatWorkTime(d.totalMins)+'（自動計算を上書き）</td></tr>';
+    } else {
+      d.dayRows.forEach(function(x){
+        var r = x.record;
+        detailRows += '<tr><td>'+formatDateJP(r.date)+'</td><td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||'-')+'</td><td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td><td>'+formatWorkTime(x.mins)+'</td><td>'+(r.is_special_day?'⭐':'')+' '+formatCurrency(staff.wage)+'</td><td>'+formatCurrency(x.daily)+'</td></tr>';
+      });
+    }
+  } else {
+    detailRows = '<tr><td colspan="8" style="text-align:center;">月額固定給: '+formatCurrency(d.grossPay)+'</td></tr>';
+  }
+
+  var html = '<div class="ps-wrap" style="font-size:'+fs+'">';
   html += '<div class="ps-company">'+(settings.company||'合同会社エニクック')+'</div>';
   // 給与明細は翌月分（例：6月勤務→7月分）
   var payYear  = month === 12 ? year + 1 : year;
   var payMonth = month === 12 ? 1 : month + 1;
   html += '<div class="ps-title">' + payYear + '年' + payMonth + '月分　給与明細書</div>';
-  html += '<div class="ps-meta">';
-  html += '<div class="ps-meta-left">';
+  html += '<div class="ps-meta"><div class="ps-meta-left">';
   html += '<span class="ps-emp">（' + (staff.staff_number||'-') + '）' + staff.name + '　様</span>';
-  html += '</div>';
-  html += '<div class="ps-meta-right">支給日：令和' + (payYear-2018) + '年' + payMonth + '月'+(settings.pay_day||10)+'日</div>';
-  html += '</div>';
-
-  // メインテーブル
+  html += '</div><div class="ps-meta-right">支給日：令和' + (payYear-2018) + '年' + payMonth + '月'+(settings.pay_day||10)+'日</div></div>';
   html += '<table class="ps-table">';
-
-  // 勤怠行
   html += '<style>.ps-section-header th{background:'+clr.header+'!important;}.ps-total-label{color:'+clr.total+'!important;}.ps-total-val{color:'+clr.total+'!important;background:'+clr.totalBg+'!important;}.ps-total-row td{border-top:2px solid '+clr.total+'!important;}</style>';
-  html += '<tr class="ps-section-header">';
-  html += '<th colspan="2">勤　怠</th>';
-  html += '<th colspan="2">支　給</th>';
-  html += '<th colspan="2">控　除</th>';
-  html += '<th colspan="2">その他</th>';
-  html += '</tr>';
-
-  // データ行
-  // 貢献手当（スタッフにチェックがある場合のみ）
-  var contributionBonus = staff.contribution_bonus ? 1000 : 0;
-
-  // 追加支給項目（スタッフの明細書種別から取得）
-  var psType = staff.payslip_type || staff.type || 'hourly';
-  var typeKey = psType === 'officer' ? 'pay_items_officer'
-              : psType === 'employee' ? 'pay_items_employee'
-              : 'pay_items_hourly';
-  var extraPayItems = (settings[typeKey] || settings.pay_items || []).map(function(item){
-    // 月次変動項目：月次入力があれば金額を上書き
-    if(item.wage_fixed==='variable') {
-      var mi = monthlyVarItems.find(function(x){return x.name===item.name;});
-      if(mi) return Object.assign({},item,{amount:mi.amount});
-    }
-    return item;
-  });
-  // 加算項目は支給に加算、減算項目は支給合計から差し引く
-  var extraTotalPay = extraPayItems.reduce(function(acc,i){
-    return acc + (i.calc_add==='sub' ? -(i.amount||0) : (i.amount||0));
-  }, 0);
-  totalPay += extraTotalPay + contributionBonus;
-  // 雇用保険：総支給額（非課税通勤費含む）ベースで計算
-  var _empInsBase = grossPay + extraTotalPay + contributionBonus + commuteData.taxFree + commuteData.taxable;
-  empIns = calcEmploymentInsurance(_empInsBase, staff.employment_insurance);
-  // empIns確定後にsocialInsTotalを再計算（所得税計算に使用）
-  socialInsTotal = pension + health + nursingCare + childSupport + empIns;
-  // totalDeductAll は tax確定後に更新
-
-  // 所得税計算（extraPayItems確定後）
-  var extraTaxableAmt = 0;
-  extraPayItems.forEach(function(i){
-    if (i.calc_add === 'sub') {
-      extraTaxableAmt -= (i.amount||0);
-    } else if (i.tax_type !== 'nontaxable') {
-      extraTaxableAmt += (i.amount||0);
-    }
-  });
-  var taxableIncome = grossPay + commuteData.taxable + extraTaxableAmt + contributionBonus - socialInsTotal;
-  tax = calcTax(Math.max(0, taxableIncome), taxRows, staff.tax_type||'kou', staff.dependents||0);
-  // tax確定後にtotalDeductionを再計算（所得税を含む）
-  totalDeduction = tax + pension + health + nursingCare + childSupport + empIns;
-  // 差引支給額 = 支給合計 - 控除合計
-  // totalPay = grossPay + commuteData.taxFree + commuteData.taxable + extraTotalPay + contributionBonus
-  // 手取りは課税通勤費も含む（源泉税・社保控除後の全支給額）
-  netPayFinal = totalPay - totalDeduction;
-  netPay = netPayFinal;
-  totalDeductAll = totalDeduction;
-
-  // 課税額・非課税額の内訳計算（extraPayItems確定後）
-  var taxablePay = grossPay + commuteData.taxable;
-  extraPayItems.forEach(function(i){
-    if (i.calc_add === 'sub') {
-      taxablePay -= (i.amount||0); // 減算項目は課税額から引く
-    } else if (i.tax_type !== 'nontaxable') {
-      taxablePay += (i.amount||0); // 加算・課税項目は加える
-    }
-  });
-  if(contributionBonus > 0) taxablePay += contributionBonus;
-  var nontaxablePay = commuteData.taxFree;
-  extraPayItems.forEach(function(i){ if(i.tax_type==='nontaxable' && i.calc_add!=='sub') nontaxablePay += (i.amount||0); });
-  var socialInsTotal2 = pension + health + nursingCare + childSupport + empIns;
-  var totalDeductAll = tax + socialInsTotal2; // 所得税+社会保険計
-
-  // カテゴリ別に追加項目を仕分け
-  var extraAttendance=[], extraPay=[], extraDeduction=[], extraOther=[];
-  var extraTotalDeductExtra = 0;
-  extraPayItems.forEach(function(item){
-    var cat=item.category||'pay';
-    var isSubtract = item.calc_add === 'sub';
-    // 減算項目：支給欄に表示して差引支給額から控除
-    if(isSubtract){ extraTotalDeductExtra += (item.amount||0); }
-    // 社会保険・税金は自動計算されるため重複表示を防ぐ
-    var _skipItems = ['所得税','健康保険料','介護保険料','厚生年金保険','子育て支援金','雇用保険料','雇用保険'];
-    if(_skipItems.indexOf(item.name) !== -1) return; // スキップ
-    if(cat==='attendance') extraAttendance.push(item);
-    else if(cat==='deduction') extraDeduction.push(item);
-    else if(cat==='other') extraOther.push(item);
-    else extraPay.push(item); // 減算でも支給欄に表示
-  });
-  // ※減算分は extraTotalPay の計算で既に netPayFinal に反映済み
+  html += '<tr class="ps-section-header"><th colspan="2">勤　怠</th><th colspan="2">支　給</th><th colspan="2">控　除</th><th colspan="2">その他</th></tr>';
 
   // 勤怠列
-  // 勤務時間合計を時間:分形式（勤怠管理・月別出勤表と統一）
-  var totalTimeStr2 = formatWorkTime(totalMins);
-  // 勤怠列：労働日数 → 勤務時間合計 → 有休使用（使用時のみ） → 有休残
-  var attRows = [workDays+'日', totalTimeStr2];
-  extraAttendance.forEach(function(i){ attRows.push(i.name+'：'+numFmt(i.amount)); });
-  if (monthUsed > 0) attRows.push(monthUsed + '日');
-  attRows.push(leaveBalance + '日');
+  var att = [['労働日数', d.workDays+'日'], ['勤務時間合計', formatWorkTime(d.totalMins)]];
+  d.attItems.forEach(function(i){ att.push([i.name, numFmt(i.amount)]); });
+  if(d.monthUsed > 0) att.push(['有休休暇', d.monthUsed+'日']);
+  att.push(['有休残', d.leaveBalance+'日']);
   // 支給列
-  var basicPayLabel = psType === 'officer' ? '役員報酬' : (psType === 'employee' ? '基本給' : '基本給');
-  var payRows = [
-    [basicPayLabel, numFmt(grossPay)],
-    ['非課税通勤費', numFmt(commuteData.taxFree)],
-  ];
-  // 貢献手当（チェックありの場合のみ追加）
-  if (contributionBonus > 0) {
-    payRows.push(['貢献手当', numFmt(contributionBonus)]);
-  }
-  if(commuteData.taxable>0) payRows.push(['課税通勤費', numFmt(commuteData.taxable)]);
-  extraPay.forEach(function(i){
-    var isSubtract = i.calc_add === 'sub';
-    payRows.push([
-      i.name,
-      (isSubtract ? '▲ ' + numFmt(i.amount) : numFmt(i.amount))
-    ]);
-  });
+  var basicPayLabel = d.psType === 'officer' ? '役員報酬' : '基本給';
+  var pay = [[basicPayLabel, numFmt(d.grossPay)], ['非課税通勤費', numFmt(d.commute.taxFree)]];
+  if(d.contributionBonus > 0) pay.push(['貢献手当', numFmt(d.contributionBonus)]);
+  if(d.commute.taxable > 0) pay.push(['課税通勤費', numFmt(d.commute.taxable)]);
+  d.payItems.forEach(function(i){ pay.push([i.name, i.calc_add==='sub' ? '▲ '+numFmt(i.amount) : numFmt(i.amount)]); });
   // 控除列
-  var dedRows = [
-    ['健康保険料', numFmt(health)],
-    ['介護保険料', nursingCare>0 ? numFmt(nursingCare) : '―'],
-    ['厚生年金保険', numFmt(pension)],
-    ['子育て支援金', numFmt(childSupport)],
-    ['所得税', numFmt(tax)],
+  var ded = [
+    ['健康保険料', numFmt(d.health)],
+    ['介護保険料', d.nursingCare>0 ? numFmt(d.nursingCare) : '―'],
+    ['厚生年金保険', numFmt(d.pension)],
+    ['子育て支援金', numFmt(d.childSupport)],
+    ['所得税', numFmt(d.tax)]
   ];
-  if(empIns>0) dedRows.push(['雇用保険料', numFmt(empIns)]);
-  extraDeduction.forEach(function(i){
-    // 所得税・健康保険・厚生年金等は dedRows に既に追加済みのため重複を除外
-    var skipNames = ['所得税','健康保険料','介護保険料','厚生年金保険','子育て支援金','雇用保険料','雇用保険'];
-    if(skipNames.indexOf(i.name) === -1) dedRows.push([i.name, numFmt(i.amount)]);
-  });
+  if(d.empIns > 0) ded.push(['雇用保険料', numFmt(d.empIns)]);
+  d.dedItems.forEach(function(i){ ded.push([i.name, numFmt(i.amount)]); });
   // その他列
-  var otherRows = [['年末調整還付','0'],['年末調整徴収','0']];
-  extraOther.forEach(function(i){otherRows.push([i.name, numFmt(i.amount)]);});
+  var oth = [['年末調整還付','0'],['年末調整徴収','0']];
+  d.otherItems.forEach(function(i){ oth.push([i.name, numFmt(i.amount)]); });
 
-  // 最大行数
-  var maxRows = Math.max(attRows.length, payRows.length, dedRows.length, otherRows.length);
-  var rows2 = [];
-  // 勤怠列のラベルと値を定義
-  var attLabels = ['労働日数', '勤務時間合計'];
-  extraAttendance.forEach(function(i){ attLabels.push(i.name); });
-  if (monthUsed > 0) attLabels.push('有休休暇');
-  attLabels.push('有休残');
-
+  var maxRows = Math.max(att.length, pay.length, ded.length, oth.length);
   for(var ri=0; ri<maxRows; ri++){
-    var att  = ri < attLabels.length ? attLabels[ri] : '';
-    var attV = ri<attRows.length ? attRows[ri] : '';
-    var pay  = payRows[ri]  ? payRows[ri][0]  : '';
-    var payV = payRows[ri]  ? payRows[ri][1]  : '';
-    var ded  = dedRows[ri]  ? dedRows[ri][0]  : '';
-    var dedV = dedRows[ri]  ? dedRows[ri][1]  : '';
-    var oth  = otherRows[ri]? otherRows[ri][0]: '';
-    var othV = otherRows[ri]? otherRows[ri][1]: '';
-    rows2.push([att,attV,pay,payV,ded,dedV,oth,othV]);
+    var a=att[ri]||['',''], p=pay[ri]||['',''], q=ded[ri]||['',''], o=oth[ri]||['',''];
+    html += '<tr class="ps-row">'+
+      '<td class="ps-label">'+a[0]+'</td><td class="ps-val">'+a[1]+'</td>'+
+      '<td class="ps-label">'+p[0]+'</td><td class="ps-val">'+p[1]+'</td>'+
+      '<td class="ps-label">'+q[0]+'</td><td class="ps-val">'+q[1]+'</td>'+
+      '<td class="ps-label">'+o[0]+'</td><td class="ps-val">'+o[1]+'</td></tr>';
   }
-
-  rows2.forEach(function(r) {
-    html += '<tr class="ps-row">';
-    html += '<td class="ps-label">' + r[0] + '</td><td class="ps-val">' + r[1] + '</td>';
-    html += '<td class="ps-label">' + r[2] + '</td><td class="ps-val">' + r[3] + '</td>';
-    html += '<td class="ps-label">' + r[4] + '</td><td class="ps-val">' + r[5] + '</td>';
-    html += '<td class="ps-label">' + r[6] + '</td><td class="ps-val">' + r[7] + '</td>';
-    html += '</tr>';
-  });
-
-  // 合計行（詳細）
-  // 支給：課税額・非課税額・合計　控除：社会保険・控除合計
+  var sm = 'font-size:.7rem;';
   html += '<tr class="ps-subtotal-row" style="background:#fafafa;">';
-  html += '<td class="ps-label" style="font-size:.7rem;">扶養人数</td><td class="ps-val" style="font-size:.7rem;">' + (staff.dependents||0) + '人</td>';
-  html += '<td class="ps-label" style="font-size:.7rem;color:#555;">課税額</td><td class="ps-val" style="font-size:.7rem;">' + numFmt(taxablePay) + '</td>';
-  html += '<td class="ps-label" style="font-size:.7rem;color:#555;">社会保険計</td><td class="ps-val" style="font-size:.7rem;">' + numFmt(socialInsTotal2) + '</td>';
-  html += '<td class="ps-label" style="font-size:.7rem;">税額表</td><td class="ps-val" style="font-size:.7rem;">' + (staff.tax_type==='otsu'?'乙欄':'甲欄') + '</td>';
-  html += '</tr>';
+  html += '<td class="ps-label" style="'+sm+'">扶養人数</td><td class="ps-val" style="'+sm+'">' + (staff.dependents||0) + '人</td>';
+  html += '<td class="ps-label" style="'+sm+'color:#555;">課税額</td><td class="ps-val" style="'+sm+'">' + numFmt(d.taxablePay) + '</td>';
+  html += '<td class="ps-label" style="'+sm+'color:#555;">社会保険計</td><td class="ps-val" style="'+sm+'">' + numFmt(d.socialIns) + '</td>';
+  html += '<td class="ps-label" style="'+sm+'">税額表</td><td class="ps-val" style="'+sm+'">' + (staff.tax_type==='otsu'?'乙欄':'甲欄') + '</td></tr>';
   html += '<tr class="ps-subtotal-row" style="background:#fafafa;">';
-  html += '<td class="ps-label" style="font-size:.7rem;"></td><td class="ps-val" style="font-size:.7rem;"></td>';
-  html += '<td class="ps-label" style="font-size:.7rem;color:#555;">非課税額</td><td class="ps-val" style="font-size:.7rem;">' + numFmt(nontaxablePay) + '</td>';
-  html += '<td class="ps-label" style="font-size:.7rem;color:#555;"></td><td class="ps-val" style="font-size:.7rem;"></td>';
-  html += '<td class="ps-label" style="font-size:.7rem;"></td><td class="ps-val" style="font-size:.7rem;"></td>';
-  html += '</tr>';
-  html += '<tr class="ps-total-row">';
-  html += '<td class="ps-label">合計</td><td class="ps-val"></td>';
-  html += '<td class="ps-label ps-total-label">支給合計</td><td class="ps-val ps-total-val">' + numFmt(totalPay) + '</td>';
-  html += '<td class="ps-label ps-total-label">控除合計</td><td class="ps-val ps-total-val">' + numFmt(totalDeductAll) + '</td>';
-  html += '<td class="ps-label"></td><td class="ps-val"></td>';
-  html += '</tr>';
-
+  html += '<td class="ps-label" style="'+sm+'"></td><td class="ps-val" style="'+sm+'"></td>';
+  html += '<td class="ps-label" style="'+sm+'color:#555;">非課税額</td><td class="ps-val" style="'+sm+'">' + numFmt(d.nontaxablePay) + '</td>';
+  html += '<td class="ps-label" style="'+sm+'"></td><td class="ps-val" style="'+sm+'"></td>';
+  html += '<td class="ps-label" style="'+sm+'"></td><td class="ps-val" style="'+sm+'"></td></tr>';
+  html += '<tr class="ps-total-row"><td class="ps-label">合計</td><td class="ps-val"></td>';
+  html += '<td class="ps-label ps-total-label">支給合計</td><td class="ps-val ps-total-val">' + numFmt(d.totalPay) + '</td>';
+  html += '<td class="ps-label ps-total-label">控除合計</td><td class="ps-val ps-total-val">' + numFmt(d.totalDeduction) + '</td>';
+  html += '<td class="ps-label"></td><td class="ps-val"></td></tr>';
   html += '</table>';
 
-  // 差引支給額ブロック
-  var netPayDisplay = netPayFinal; // 差引支給額 = 支給合計 - 控除合計
   html += '<div class="ps-bottom">';
-  // 支給額合計
-  html += '<div class="ps-bottom-block">';
-  html += '<div class="ps-bottom-label">支給額合計</div>';
-  html += '<div class="ps-bottom-val">' + numFmt(totalPay) + '</div>';
-  html += '</div>';
-  // 控除合計額
-  html += '<div class="ps-bottom-block">';
-  html += '<div class="ps-bottom-label">控除合計額</div>';
-  html += '<div class="ps-bottom-val">' + numFmt(totalDeductAll) + '</div>';
-  html += '</div>';
-  // 差引支給額
-  html += '<div class="ps-bottom-block ps-net">';
-  html += '<div class="ps-bottom-label">差引支給額</div>';
-  html += '<div class="ps-bottom-val ps-net-val">' + numFmt(netPayDisplay) + '</div>';
-  html += '</div>';
+  html += '<div class="ps-bottom-block"><div class="ps-bottom-label">支給額合計</div><div class="ps-bottom-val">' + numFmt(d.totalPay) + '</div></div>';
+  html += '<div class="ps-bottom-block"><div class="ps-bottom-label">控除合計額</div><div class="ps-bottom-val">' + numFmt(d.totalDeduction) + '</div></div>';
+  html += '<div class="ps-bottom-block ps-net"><div class="ps-bottom-label">差引支給額</div><div class="ps-bottom-val ps-net-val">' + numFmt(d.netPay) + '</div></div>';
   html += '</div>';
 
-  // 備考
-  // 共通備考＋個別備考
   var noteText = settings.note || 'いつも有難うございます。';
-  var personalNote = monthlyNote || staff.payslip_note || '';
   if (noteText) html += '<div class="ps-note">※ ' + noteText + '</div>';
-  if (personalNote) html += '<div class="ps-note" style="margin-top:6px;background:#fff4e6;border-color:#f0a040;">📝 ' + personalNote + '</div>';
+  if (d.note) html += '<div class="ps-note" style="margin-top:6px;background:#fff4e6;border-color:#f0a040;">📝 ' + d.note + '</div>';
 
-
-
-  // 打刻明細（設定に応じて表示）
+  var detailTable = '<table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table>';
   var showDetail = settings.show_detail || 'collapse';
   if (showDetail !== 'hide' && detailRows) {
-    if (showDetail === 'collapse') {
-      html += '<details class="ps-detail-toggle"><summary>▼ 打刻明細を表示</summary>';
-      html += '<div class="table-scroll" style="margin-top:12px;"><table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table></div>';
-      html += '</details>';
+    if (showDetail === 'collapse') html += '<details class="ps-detail-toggle"><summary>▼ 打刻明細を表示</summary><div class="table-scroll" style="margin-top:12px;">'+detailTable+'</div></details>';
+    else html += '<div class="table-scroll" style="margin-top:16px;">'+detailTable+'</div>';
+  }
+  html += '</div>';
+
+  // 勤務時間（旧フォーマット）
+  var age = calcAge(staff.birthdate), c = d.commute;
+  var o = '<div class="payslip">';
+  o += '<div class="payslip-header"><h2>給与明細書</h2><p>'+year+'年'+month+'月分</p></div>';
+  o += '<div class="payslip-info">';
+  o += '<div><strong>氏名:</strong> '+staff.name+'</div>';
+  o += (staff.staff_number?'<div><strong>登録番号:</strong> '+staff.staff_number+'</div>':'');
+  o += (age!==null?'<div><strong>年齢:</strong> '+age+'歳</div>':'');
+  o += '<div><strong>扶養親族:</strong> '+(staff.dependents||0)+'人</div>';
+  o += '<div><strong>出勤日数:</strong> '+d.workDays+'日</div>';
+  o += (staff.lunch_break?'<div><strong>昼休み:</strong> '+(staff.lunch_start||'12:00')+'〜'+(staff.lunch_end||'13:00')+'（控除あり）</div>':'');
+  o += '</div>';
+  o += '<div class="table-scroll">'+detailTable+'</div>';
+  o += '<div class="payslip-summary">';
+  o += '<div class="summary-row"><span>基本給（税引前）</span><strong>'+formatCurrency(d.grossPay)+'</strong></div>';
+  o += (c.total>0?'<div class="summary-row"><span>通勤費</span><span>'+formatCurrency(c.total)+'</span></div>':'');
+  o += (c.taxable>0?'<div class="summary-row" style="font-size:.8rem;color:#dc2626;"><span>　うち課税分</span><span>'+formatCurrency(c.taxable)+'</span></div>':'');
+  o += '<div class="summary-row deduction"><span>源泉徴収税（'+(staff.tax_type==='otsu'?'乙欄':'甲欄・扶養'+(staff.dependents||0)+'人')+'）</span><span>- '+formatCurrency(d.tax)+'</span></div>';
+  o += (d.pension>0?'<div class="summary-row deduction"><span>厚生年金保険料</span><span>- '+formatCurrency(d.pension)+'</span></div>':'');
+  o += (d.health>0?'<div class="summary-row deduction"><span>健康保険料</span><span>- '+formatCurrency(d.health)+'</span></div>':'');
+  o += '<div class="summary-row deduction"><span>介護保険料</span><span>'+(d.nursingCare>0?'- '+formatCurrency(d.nursingCare):'―')+'</span></div>';
+  o += (d.childSupport>0?'<div class="summary-row deduction"><span>子ども・子育て支援金</span><span>- '+formatCurrency(d.childSupport)+'</span></div>':'');
+  o += (d.empIns>0?'<div class="summary-row deduction"><span>雇用保険料</span><span>- '+formatCurrency(d.empIns)+'</span></div>':'');
+  d.dedItems.forEach(function(i){ o += '<div class="summary-row deduction"><span>'+i.name+'</span><span>- '+formatCurrency(i.amount)+'</span></div>'; });
+  o += '<div class="summary-row total"><span>差引支給額</span><strong class="net-pay">'+formatCurrency(d.netPay)+'</strong></div>';
+  o += '</div></div>';
+  return { html: html, oldHtml: o };
+}
+
+async function showPayslip(staffId, year, month, opts){
+  try {
+    var ctx = await loadPayrollContext(year, month);
+    var staff = ctx.staff.find(function(s){ return s.id === staffId; });
+    if(!staff) return;
+    var d = await computeForStaff(ctx, staff);
+    var built = buildPayslipHtml(d, ctx.settings);
+    document.getElementById('payslipNew').innerHTML = built.html;
+    document.getElementById('payslipOld').innerHTML = built.oldHtml;
+
+    // 役員：出勤日数入力欄（確定済みの月は出さない）
+    var wdBar = document.getElementById('payslipWorkDaysBar');
+    if (d.psType === 'officer' && !(opts && opts.fromConfirmed)) {
+      wdBar.style.display = 'flex';
+      var inp = document.getElementById('payslipWorkDaysInput');
+      inp.value = d.workDays || '';
+      inp.dataset.staffId = staffId; inp.dataset.year = year; inp.dataset.month = month;
+      document.getElementById('payslipWorkDaysHint').textContent = '（現在：' + d.workDays + '日）';
     } else {
-      html += '<div class="table-scroll" style="margin-top:16px;"><table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table></div>';
+      wdBar.style.display = 'none';
     }
-  }
-
-  html += '</div>'; // ps-wrap
-
-  // 新フォーマット（PDF準拠）
-  document.getElementById('payslipNew').innerHTML = html;
-
-  // 役員：出勤日数入力欄を表示
-  var wdBar = document.getElementById('payslipWorkDaysBar');
-  var psTypeCheck = staff.payslip_type||staff.type;
-  if (psTypeCheck === 'officer') {
-    wdBar.style.display = 'flex';
-    document.getElementById('payslipWorkDaysInput').value = workDays || '';
-    document.getElementById('payslipWorkDaysInput').dataset.staffId = staffId;
-    document.getElementById('payslipWorkDaysInput').dataset.year   = year;
-    document.getElementById('payslipWorkDaysInput').dataset.month  = month;
-    document.getElementById('payslipWorkDaysHint').textContent = '（現在：' + workDays + '日）';
-  } else {
-    wdBar.style.display = 'none';
-  }
-
-  // 旧フォーマット（詳細）
-  var oldHtml = '';
-  oldHtml += '<div class="payslip">';
-  oldHtml += '<div class="payslip-header"><h2>給与明細書</h2><p>'+year+'年'+month+'月分</p></div>';
-  oldHtml += '<div class="payslip-info">';
-  oldHtml += '<div><strong>氏名:</strong> '+staff.name+'</div>';
-  oldHtml += (staff.staff_number?'<div><strong>登録番号:</strong> '+staff.staff_number+'</div>':'');
-  oldHtml += (age!==null?'<div><strong>年齢:</strong> '+age+'歳</div>':'');
-  oldHtml += (staff.address?'<div><strong>住所:</strong> '+staff.address+'</div>':'');
-  oldHtml += '<div><strong>扶養親族:</strong> '+(staff.dependents||0)+'人</div>';
-  oldHtml += '<div><strong>出勤日数:</strong> '+workDays+'日</div>';
-  oldHtml += (staff.lunch_break?'<div><strong>昼休み:</strong> '+(staff.lunch_start||'12:00')+'〜'+(staff.lunch_end||'13:00')+'（控除あり）</div>':'');
-  oldHtml += '</div>';
-  oldHtml += '<div class="table-scroll"><table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table></div>';
-  oldHtml += '<div class="payslip-summary">';
-  oldHtml += '<div class="summary-row"><span>基本給（税引前）</span><strong>'+formatCurrency(grossPay)+'</strong></div>';
-  oldHtml += (commuteData.total>0?'<div class="summary-row"><span>通勤費（'+workDays+'日×'+formatCurrency(staff.commute_daily_amount||0)+'）</span><span>'+formatCurrency(commuteData.total)+'</span></div>':'');
-  oldHtml += (commuteData.taxable>0?'<div class="summary-row" style="font-size:.8rem;color:#dc2626;"><span>　うち課税分</span><span>'+formatCurrency(commuteData.taxable)+'</span></div>':'');
-  oldHtml += '<div class="summary-row deduction"><span>源泉徴収税（'+(staff.tax_type==='otsu'?'乙欄':'甲欄・扶養'+(staff.dependents||0)+'人')+'）</span><span>- '+formatCurrency(tax)+'</span></div>';
-  oldHtml += (pension>0?'<div class="summary-row deduction"><span>厚生年金保険料</span><span>- '+formatCurrency(pension)+'</span></div>':'');
-  oldHtml += (health>0?'<div class="summary-row deduction"><span>健康保険料</span><span>- '+formatCurrency(health)+'</span></div>':'');
-  oldHtml += '<div class="summary-row deduction"><span>介護保険料</span><span>'+(nursingCare>0?'- '+formatCurrency(nursingCare):'―')+'</span></div>';
-  oldHtml += (childSupport>0?'<div class="summary-row deduction"><span>子ども・子育て支援金</span><span>- '+formatCurrency(childSupport)+'</span></div>':'');
-  oldHtml += (empIns>0?'<div class="summary-row deduction"><span>雇用保険料</span><span>- '+formatCurrency(empIns)+'</span></div>':'');
-  oldHtml += '<div class="summary-row total"><span>差引支給額</span><strong class="net-pay">'+formatCurrency(netPayFinal)+'</strong></div>';
-  oldHtml += '</div></div>';
-  document.getElementById('payslipOld').innerHTML = oldHtml;
-
-  // デフォルトは新フォーマット
-  switchPayslip('new');
-  openModal('payslipModal');
-  // 集計行を給与明細の計算結果で更新
-  syncPayrollRow(staffId, year, month, totalPay, totalDeductAll, netPayFinal, totalMins, workDays);
+    switchPayslip('new');
+    openModal('payslipModal');
+    syncPayrollRow(staffId, year, month, d.totalPay, d.totalDeduction, d.netPay, d.totalMins, d.workDays);
+    // 集計の計算結果も最新に置き換える（確定時にこの値を使う）
+    var pr = _payrollResults;
+    if(pr && pr.year===year && pr.month===month){
+      pr.list.forEach(function(it){ if(it.staff.id===staffId){ it.staff = staff; it.data = d; } });
+    }
   } catch(e) { console.error('showPayslip error:', e); showToast('給与明細の表示でエラーが発生しました: '+e.message,'error'); }
 }
+
 function numFmt(n){ return Number(n||0).toLocaleString(); }
 
 // 給与明細の出勤日数を適用して再表示
@@ -1507,7 +1308,22 @@ function downloadTaxCsvTemplate(){var a=document.createElement('a');a.href=URL.c
 function openInsuranceCsvModal(){document.getElementById('insuranceCsvType').value=currentInsuranceType;document.getElementById('insuranceCsvFile').value='';document.getElementById('insuranceCsvPreview').style.display='none';document.getElementById('insuranceCsvPreviewBody').innerHTML='';openModal('insuranceCsvModal');}
 var insuranceCsvParsed=[];
 async function previewInsuranceCsv(){var file=document.getElementById('insuranceCsvFile').files[0];if(!file){showToast('ファイルを選択してください','error');return;}var text=await file.text(),lines=text.split('\n').filter(function(l){return l.trim();});insuranceCsvParsed=[];var tbody=document.getElementById('insuranceCsvPreviewBody');tbody.innerHTML='';var first=lines[0].split(',')[0],dl=isNaN(parseInt(first))?lines.slice(1):lines,grade=1;for(var i=0;i<dl.length;i++){var cols=dl[i].split(',').map(function(c){return c.trim().replace(/["\u00a5円,]/g,'');});if(cols.length<4)continue;var standard=parseInt(cols[1])||parseInt(cols[0]),monthly_min=parseInt(cols[2])||0,monthly_max=parseInt(cols[3])||999999,employee=parseInt(cols[4])||parseInt(cols[2]),employer=parseInt(cols[5])||employee;if(isNaN(standard)||isNaN(employee))continue;var label=grade+'等級';insuranceCsvParsed.push({grade:grade,label:label,standard:standard,monthly_min:monthly_min,monthly_max:monthly_max,employee:employee,employer:employer});var tr=document.createElement('tr');tr.innerHTML='<td>'+label+'</td><td>'+formatCurrency(standard)+'</td><td>'+formatCurrency(employee)+'</td>';tbody.appendChild(tr);grade++;}document.getElementById('insuranceCsvPreview').style.display='block';document.getElementById('insuranceCsvCount').textContent=insuranceCsvParsed.length+'等級分読み込み済み';}
-async function importInsuranceCsv(){if(!insuranceCsvParsed.length){showToast('データがありません','error');return;}var type=document.getElementById('insuranceCsvType').value,label=insuranceLabels[type]||type;if(!confirmAction(insuranceCsvParsed.length+'等級で'+label+'料額表を上書きしますか？'))return;await DB.replaceInsuranceTable(type,insuranceCsvParsed.map(function(r){return Object.assign({},r,{id:_uid()});}));closeModal('insuranceCsvModal');showToast(label+'料額表を更新しました');loadInsuranceTable(type);_pensionTable=[];_healthTable=[];_healthNursingTable=[];_childSupportTable=[];}
+async function importInsuranceCsv(){if(!insuranceCsvParsed.length){showToast('データがありません','error');return;}var type=document.getElementById('insuranceCsvType').value,label=insuranceLabels[type]||type;if(!confirmAction(insuranceCsvParsed.length+'等級で'+label+'料額表を上書きしますか？'))return;
+  var prefix={pension:'p',health:'h',health_nursing:'hn',child_support:'cs'}[type]||'g';
+  var oldRows=await DB.getInsuranceTable(type);
+  await DB.replaceInsuranceTable(type,insuranceCsvParsed.map(function(r){return Object.assign({},r,{id:prefix+r.grade});}));
+  // スタッフが参照している等級IDを新しいIDに付け替え（等級番号で対応）
+  var field=type==='pension'?'pension_grade_id':type==='child_support'?'child_support_grade_id':'health_grade_id';
+  var noField=type==='pension'?'pension_grade_no':type==='child_support'?'child_support_grade_no':'health_grade_no';
+  var allStaff=await DB.getStaff(),fixed=0;
+  for(var si=0;si<allStaff.length;si++){
+    var st=allStaff[si],cur=st[field];if(!cur)continue;
+    var old=oldRows.find(function(r){return r.id===cur;});
+    if(!old)continue;
+    var newId=prefix+old.grade;
+    if(cur!==newId||st[noField]!==Number(old.grade)){var upd=Object.assign({},st);upd[field]=newId;upd[noField]=Number(old.grade);await DB.saveStaff(upd);fixed++;}
+  }
+  closeModal('insuranceCsvModal');if(fixed)showToast(fixed+'名のスタッフの等級を新しい表に引き継ぎました');showToast(label+'料額表を更新しました');loadInsuranceTable(type);_pensionTable=[];_healthTable=[];_healthNursingTable=[];_childSupportTable=[];}
 function downloadInsuranceCsvTemplate(){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['等級,標準報酬月額,月収下限,月収上限,被保険者負担,事業主負担\n1,88000,0,93000,8052,8052'],{type:'text/csv;charset=utf-8;'}));a.download='insurance_template.csv';a.click();}
 async function openTaxModal(id){document.getElementById('taxId').value=id||'';document.getElementById('taxIncomeFrom').value='';document.getElementById('taxAmount').value='';if(id){var rows=await DB.getTaxTable(currentTaxType),row=rows.find(function(r){return r.id===id;});if(row){document.getElementById('taxIncomeFrom').value=row.income_from;document.getElementById('taxAmount').value=row.tax_amount;}}openModal('taxModal');}
 function openTaxEditModal(id){openTaxModal(id);}
@@ -1519,14 +1335,15 @@ async function loadLeaveList(){
   var staffId=document.getElementById('leaveStaffSelect').value,staff=await DB.getStaff(),tbody=document.getElementById('leaveTableBody'),leaveData=await DB.getLeaveAll();
   if(!staffId){
     document.getElementById('leaveDetailSection').style.display='none';
-    tbody.closest('table').querySelector('thead tr').innerHTML='<th>スタッフ</th><th>付与日数</th><th>使用日数</th><th>残日数</th><th>詳細</th>';tbody.innerHTML='';
-    staff.filter(function(s){return s.is_active;}).forEach(function(s){var leaves=leaveData.filter(function(l){return l.staff_id===s.id;});var granted=leaves.filter(function(l){return l.type==='grant';}).reduce(function(sum,l){return sum+(l.days||0);},0);var used=leaves.filter(function(l){return l.type==='use';}).reduce(function(sum,l){return sum+(l.days||0);},0),remaining=granted-used;var tr=document.createElement('tr');tr.innerHTML='<td>'+s.name+'</td><td>'+granted+'日</td><td>'+used+'日</td><td><strong style="color:'+(remaining<3?'#dc2626':'#16a34a')+'">'+remaining+'日</strong></td><td><button class="btn-sm btn-edit" onclick="selectLeaveStaff(\''+s.id+'\')">詳細</button></td>';tbody.appendChild(tr);});
-    if(!staff.filter(function(s){return s.is_active;}).length)tbody.innerHTML='<tr><td colspan="5" class="empty-cell">スタッフが登録されていません</td></tr>';return;
+    tbody.closest('table').querySelector('thead tr').innerHTML='<th>スタッフ</th><th>付与日数</th><th>使用日数</th><th>時効消滅</th><th>残日数</th><th>詳細</th>';tbody.innerHTML='';
+    var today=todayStr();
+    staff.filter(function(s){return s.is_active;}).forEach(function(s){var b=calcLeaveBalance(leaveData.filter(function(l){return l.staff_id===s.id;}),today);var tr=document.createElement('tr');tr.innerHTML='<td>'+s.name+'</td><td>'+b.granted+'日</td><td>'+b.used+'日</td><td>'+(b.expired>0?'<span style="color:#dc2626;">'+b.expired+'日</span>':'-')+'</td><td><strong style="color:'+(b.remaining<3?'#dc2626':'#16a34a')+'">'+b.remaining+'日</strong></td><td><button class="btn-sm btn-edit" onclick="selectLeaveStaff(\''+s.id+'\')">詳細</button></td>';tbody.appendChild(tr);});
+    if(!staff.filter(function(s){return s.is_active;}).length)tbody.innerHTML='<tr><td colspan="6" class="empty-cell">スタッフが登録されていません</td></tr>';return;
   }
   var s=staff.find(function(x){return x.id===staffId;}),leaves=leaveData.filter(function(l){return l.staff_id===staffId;});
-  var granted=leaves.filter(function(l){return l.type==='grant';}).reduce(function(sum,l){return sum+(l.days||0);},0);
-  var used=leaves.filter(function(l){return l.type==='use';}).reduce(function(sum,l){return sum+(l.days||0);},0),remaining=granted-used;
-  document.getElementById('leaveDetailSection').style.display='block';document.getElementById('leaveStaffName').textContent=s?s.name:'';document.getElementById('leaveGranted').textContent=granted+'日';document.getElementById('leaveUsed').textContent=used+'日';document.getElementById('leaveRemaining').textContent=remaining+'日';document.getElementById('leaveRemaining').style.color=remaining<3?'#dc2626':'#16a34a';
+  var bal=calcLeaveBalance(leaves,todayStr());
+  var granted=bal.granted,used=bal.used,remaining=bal.remaining;
+  document.getElementById('leaveDetailSection').style.display='block';document.getElementById('leaveStaffName').textContent=s?s.name:'';document.getElementById('leaveGranted').textContent=granted+'日';document.getElementById('leaveUsed').textContent=used+'日'+(bal.expired>0?'（時効消滅 '+bal.expired+'日）':'');document.getElementById('leaveRemaining').textContent=remaining+'日';document.getElementById('leaveRemaining').style.color=remaining<3?'#dc2626':'#16a34a';
   tbody.closest('table').querySelector('thead tr').innerHTML='<th>日付</th><th>種別</th><th>日数</th><th>理由</th><th>操作</th>';tbody.innerHTML='';
   leaves.slice().sort(function(a,b){return a.date>b.date?-1:1;}).forEach(function(l){var tr=document.createElement('tr');tr.innerHTML='<td>'+formatDateJP(l.date)+'</td><td><span class="badge '+(l.type==='grant'?'badge-active':'badge-special')+'">'+(l.type==='grant'?'付与':'使用')+'</span></td><td>'+l.days+'日</td><td>'+(l.reason||'-')+'</td><td style="white-space:nowrap;"><button class="btn-sm btn-edit" onclick="openLeaveEditModal(\''+l.id+'\')" style="margin-right:4px;">✏️ 編集</button><button class="btn-sm btn-delete" onclick="deleteLeave(\''+l.id+'\')">🗑️ 削除</button></td>';tbody.appendChild(tr);});
   if(!leaves.length)tbody.innerHTML='<tr><td colspan="5" class="empty-cell">有休記録がありません</td></tr>';
@@ -1580,7 +1397,7 @@ async function openLeaveEditModal(id){
   if(!l){showToast('レコードが見つかりません','error');return;}
   var staff=await DB.getStaff(),sel=document.getElementById('leaveModalStaff');
   sel.innerHTML='';
-  staff.filter(function(s){return s.is_active;}).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name;if(s.id===l.staff_id)o.selected=true;sel.appendChild(o);});
+  staff.filter(function(s){return s.is_active||s.id===l.staff_id;}).forEach(function(s){var o=document.createElement('option');o.value=s.id;o.textContent=s.name+(s.is_active?'':'（退職）');if(s.id===l.staff_id)o.selected=true;sel.appendChild(o);});
   document.getElementById('leaveModalTitle').textContent='✏️ 有休を編集';
   document.getElementById('leaveEditId').value=id;
   document.getElementById('leaveDate').value=l.date||'';
@@ -1742,7 +1559,7 @@ async function loadMonthlyTab() {
 
   // Firestoreから最新のスタッフデータを取得（paid_leave_hoursを確実に反映）
   var staff   = await DB.getStaff();
-  var active  = staff.filter(function(s){ return s.is_active && s.type !== 'officer' && s.type !== 'contract'; });
+  var active  = staff.filter(function(s){ return s.type !== 'officer' && s.type !== 'contract' && isEmployedInMonth(s, year, month); });
   var records = await DB.getAttendance({ year: year, month: month });
   var allLeave = await DB.getLeaveAll();
   // 当月の有給使用データ
@@ -1884,18 +1701,22 @@ var _currentPsTab = 'common';
 
 async function getPayslipSettings() {
   if (_payslipSettings) return _payslipSettings;
-  var stored = localStorage.getItem('payslip_settings');
-  if (stored) { _payslipSettings = JSON.parse(stored); return _payslipSettings; }
+  // 常にFirestoreの最新設定を優先（どのパソコンでも同じ設定で計算する）
   try {
     var db = getDB();
     if (db) {
       var snap = await db.collection('payslip_settings').doc('main').get();
       if (snap.exists) {
         _payslipSettings = snap.data();
-        localStorage.setItem('payslip_settings', JSON.stringify(_payslipSettings));
+        try { localStorage.setItem('payslip_settings', JSON.stringify(_payslipSettings)); } catch(e2) {}
         return _payslipSettings;
       }
     }
+  } catch(e) { console.warn('payslip settings load failed:', e); }
+  // 取得できない時だけブラウザ保存分を使う
+  try {
+    var stored = localStorage.getItem('payslip_settings');
+    if (stored) { _payslipSettings = JSON.parse(stored); return _payslipSettings; }
   } catch(e) {}
   _payslipSettings = {
     company:'合同会社エニクック', pay_day:10,
@@ -1914,6 +1735,7 @@ function switchPsTab(type) {
 }
 
 async function loadPayslipSettingTab() {
+  _payslipSettings = null;
   var s = await getPayslipSettings();
   document.getElementById('ps_company').value    = s.company || '合同会社エニクック';
   document.getElementById('ps_pay_day').value    = s.pay_day || 10;
@@ -2209,6 +2031,7 @@ function downloadEmpInsCsvTemplate() {
   csv += '一般の事業,令和8年度（2026.4〜2027.3）,5,1000,8.5,1000\n';
   csv += '農林水産・清酒製造の事業,令和8年度（2026.4〜2027.3）,6,1000,9.5,1000\n';
   csv += '建設の事業,令和8年度（2026.4〜2027.3）,6,1000,10.5,1000\n';
+  var blob = new Blob(['\uFEFF' + csv], {type:'text/csv;charset=utf-8;'});
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = '雇用保険料率テンプレート.csv';
@@ -2325,19 +2148,14 @@ async function getMonthlyInput(year, month, staffId) {
     var db = getDB();
     if (db) {
       var snap = await db.collection('monthly_inputs').doc(monthlyKey(year, month, staffId)).get();
-      if (snap.exists) {
-        var data = snap.data();
-              return data;
-      }
+      if (snap.exists) return snap.data();
     }
   } catch(e) { console.error('[monthly] error:', e); }
   // Firestore失敗時はlocalStorageを参照
   var key = 'monthly_' + monthlyKey(year, month, staffId);
   var stored = localStorage.getItem(key);
   if (stored) {
-    var d = JSON.parse(stored);
-    console.log('[monthly-ls] '+staffId+' work_hours='+d.work_hours);
-    return d;
+    return JSON.parse(stored);
   }
   return { work_days: null, variable_items: [] };
 }
@@ -2359,7 +2177,6 @@ async function openMonthlyInputModal() {
   var staff = await DB.getStaff();
   // 常に最新の設定を取得（キャッシュをクリア）
   _payslipSettings = null;
-  localStorage.removeItem('payslip_settings');
   var settings = await getPayslipSettings();
 
   // 変動賃金項目を種別ごとに収集（wage_fixed==='variable' のもの）
@@ -2382,9 +2199,9 @@ async function openMonthlyInputModal() {
   // 有休時間列は有休管理から自動取得するため非表示
   html += '<th>備考</th></tr></thead><tbody>';
 
+  staff = staff.filter(function(x){ return isEmployedInMonth(x, year, month); });
   for (var i=0; i<staff.length; i++) {
     var s = staff[i];
-    if (!s.is_active) continue;
     var psType = s.payslip_type || s.type;
     var monthly = await getMonthlyInput(year, month, s.id);
     var varItems = getVarItems(psType);
@@ -2397,7 +2214,7 @@ async function openMonthlyInputModal() {
     // 出勤日数：役員のみ入力可、それ以外は自動
     if (psType==='officer') {
       html += '<td><input type="number" class="form-input mi-workdays" data-staff="'+s.id+'" '+
-        'placeholder="例:20" min="0" max="31" value="'+(monthly.work_days!==null?monthly.work_days:'')+'" '+
+        'placeholder="例:20" min="0" max="31" value="'+(monthly.work_days!=null?monthly.work_days:'')+'" '+
         'style="margin:0;width:72px;text-align:center;"></td>';
     } else {
       html += '<td style="text-align:center;color:var(--text-muted);font-size:.75rem;">自動</td>';
@@ -2405,20 +2222,9 @@ async function openMonthlyInputModal() {
 
     // 時間数：時給スタッフのみ入力可（時間と分を別欄）
     if (s.type==='hourly') {
-      var hTotal = monthly.work_hours!==null&&monthly.work_hours!==undefined ? monthly.work_hours : null;
-      // work_hours は分単位（新形式）または小数時間（旧形式）
+      var mTotal = getMonthlyWorkMinutes(monthly);
       var hHour = '', hMin = '';
-      if(hTotal!==null){
-        if(Number.isInteger(hTotal)){
-          // 整数=分単位（新形式）
-          hHour = Math.floor(hTotal / 60);
-          hMin  = hTotal % 60;
-        } else {
-          // 小数=時間単位（旧形式）→ 変換
-          hHour = Math.floor(hTotal);
-          hMin  = Math.round((hTotal - Math.floor(hTotal)) * 60);
-        }
-      }
+      if(mTotal!==null){ hHour = Math.floor(mTotal / 60); hMin = mTotal % 60; }
       html += '<td style="white-space:nowrap;min-width:160px;">'+
         '<input type="number" class="form-input mi-workhours-h" data-staff="'+s.id+'" '+
         'placeholder="時間" min="0" value="'+hHour+'" '+
@@ -2496,8 +2302,7 @@ async function saveMonthlyInput() {
     if(workHoursHEl && (workHoursHEl.value!=='' || (workHoursMEl&&workHoursMEl.value!==''))){
       var wH = workHoursHEl.value!=='' ? parseInt(workHoursHEl.value)||0 : 0;
       var wM = workHoursMEl && workHoursMEl.value!=='' ? parseInt(workHoursMEl.value)||0 : 0;
-      // work_hours を分単位の整数で保存（hours×60+mins）
-      workHours = wH * 60 + wM; // 分単位で保存
+      workHours = wH * 60 + wM; // 分単位
     }
     var leaveHours = null; // 有休時間は有休管理から取得するため月次入力では保存しない
 
@@ -2512,7 +2317,8 @@ async function saveMonthlyInput() {
 
     await saveMonthlyInputData(year, month, staffId, {
       work_days: workDays,
-      work_hours: workHours,
+      work_minutes: workHours,   // 勤務時間（分）
+      work_hours: null,          // 旧形式は使わない
       leave_hours: leaveHours,
       variable_items: varItems,
       note: note
