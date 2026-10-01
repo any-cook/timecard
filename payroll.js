@@ -3,6 +3,22 @@
 // 給与明細・月次集計・給与確定はすべてこの computePayslipData を使う
 // ============================================================
 
+// ------------------------------------------------------------
+// 時給・月給の履歴：pay_history = [{from:'YYYY-MM-DD', wage:1100} , {from:..., monthly_salary:...}]
+// その日に適用される金額を返す（履歴が無ければ現在の登録値）
+// ------------------------------------------------------------
+function payValueAt(staff, field, dateStr){
+  var hist = (staff.pay_history || []).filter(function(e){ return e && e.from && e[field] !== undefined && e[field] !== null; });
+  if(!hist.length) return Number(staff[field]) || 0;
+  hist = hist.slice().sort(function(a,b){ return a.from < b.from ? -1 : (a.from > b.from ? 1 : 0); });
+  var v = null;
+  hist.forEach(function(e){ if(e.from <= dateStr) v = e[field]; });
+  if(v === null) v = hist[0][field]; // 履歴より前の日付は最初の金額
+  return Number(v) || 0;
+}
+function wageAt(staff, dateStr){ return payValueAt(staff, 'wage', dateStr); }
+function salaryAt(staff, dateStr){ return payValueAt(staff, 'monthly_salary', dateStr); }
+
 // 社会保険・税金は自動計算するため、明細設定に同名項目があっても金額計算には使わない
 var AUTO_CALC_ITEM_NAMES = ['所得税','健康保険料','介護保険料','厚生年金保険','子育て支援金','雇用保険料','雇用保険'];
 
@@ -133,7 +149,7 @@ function computePayslipData(p){
   var nursingCare = (nursingOn && hnRow) ? Math.max(0, (hnRow.employee||0) - health) : 0;
 
   // ---- 勤務日数・時間 ----
-  var totalMins = 0, dayRows = [], workDates = {};
+  var totalMins = 0, dayRows = [], workDates = {}, wageMins = 0; // wageMins = Σ(分×その日の時給)
   (p.records||[]).slice().sort(function(a,b){ return a.date < b.date ? -1 : 1; }).forEach(function(r){
     var out = r.clock_out_actual || r.clock_out_calc;
     var lb = r.lunch_break !== undefined ? r.lunch_break : staff.lunch_break;
@@ -141,17 +157,23 @@ function computePayslipData(p){
     var mins = out ? calcWorkMinutes(r.clock_in_calc, out, lb, ls, le) : 0;
     totalMins += mins;
     if(r.clock_in_actual) workDates[r.date] = true;
-    dayRows.push({ record: r, mins: mins, daily: isHourly ? Math.floor(mins/60*(staff.wage||0)) : 0 });
+    var w = isHourly ? wageAt(staff, r.date) : 0;
+    wageMins += mins * w;
+    dayRows.push({ record: r, mins: mins, wage: w, daily: isHourly ? Math.floor(mins * w / 60) : 0 });
   });
   var workDays = Object.keys(workDates).length;
-  var grossPay = isHourly ? Math.floor(totalMins/60*(staff.wage||0)) : (staff.monthly_salary||0);
+  var monthEnd = monthEndStr(year, month);
+  // 時給：日ごとの時給×時間の合計（月の途中で時給が変わっても正しく計算）／月給：その月に適用される月給
+  var grossPay = isHourly ? Math.floor(wageMins / 60) : salaryAt(staff, monthEnd);
+  var wageUsed = isHourly ? wageAt(staff, monthEnd) : 0;
 
   // ---- 月次入力 ----
   if(md.work_days !== null && md.work_days !== undefined && md.work_days !== '') workDays = parseInt(md.work_days) || 0;
   var manualMins = isHourly ? getMonthlyWorkMinutes(md) : null;
   if(manualMins !== null){
     totalMins = manualMins;
-    grossPay = Math.floor(totalMins/60*(staff.wage||0));
+    // 月次入力の時間数は、その月末時点の時給で計算
+    grossPay = Math.floor(totalMins * wageUsed / 60);
   }
   // 有休時間は勤務時間・基本給に加算しない（含み済み）
 
@@ -214,7 +236,7 @@ function computePayslipData(p){
 
   return {
     staff: staff, year: year, month: month, psType: psType, isOfficer: isOfficer,
-    workDays: workDays, totalMins: totalMins, manualMins: manualMins, dayRows: dayRows,
+    workDays: workDays, totalMins: totalMins, wageUsed: wageUsed, manualMins: manualMins, dayRows: dayRows,
     grossPay: grossPay, commute: commute, contributionBonus: contributionBonus,
     payItems: payItems, dedItems: dedItems, attItems: attItems, otherItems: otherItems,
     extraTotalPay: extraTotalPay, extraDeduction: extraDeduction,
@@ -232,5 +254,6 @@ if (typeof module !== 'undefined') {
   module.exports = { nursingAppliesForMonth: nursingAppliesForMonth, resolveGradeRow: resolveGradeRow,
     resolveHealthGradeNo: resolveHealthGradeNo, isEmployedInMonth: isEmployedInMonth,
     getMonthlyWorkMinutes: getMonthlyWorkMinutes, calcLeaveBalance: calcLeaveBalance,
-    computePayslipData: computePayslipData, monthEndStr: monthEndStr };
+    computePayslipData: computePayslipData, monthEndStr: monthEndStr,
+    wageAt: wageAt, salaryAt: salaryAt, payValueAt: payValueAt };
 }

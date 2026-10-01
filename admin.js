@@ -125,13 +125,59 @@ async function loadStaffTab(){
     var lunchMark = s.lunch_break ? ' 🍱' : '';
     tr.innerHTML='<td style="font-size:1rem;font-weight:700;color:var(--accent);">'+(s.staff_number||'-')+'</td>'+
       '<td>'+s.name+lunchMark+'</td><td><span class="badge badge-type">'+staffTypeLabel(s.type)+'</span></td>'+
-      '<td>'+(s.type==='hourly'?formatCurrency(s.wage)+'/時':formatCurrency(s.monthly_salary)+'/月')+'</td>'+
+      '<td>'+payCellHtml(s)+'</td>'+
       '<td>'+hireDateStr+'</td><td>'+ageStr+'</td><td>'+nursing+'</td><td>'+emp+'</td>'+
       '<td><span class="badge '+(s.is_active===true||s.is_active===1?'badge-active':'badge-inactive')+'" style="white-space:nowrap;min-width:48px;display:inline-block;text-align:center;">'+(s.is_active===true||s.is_active===1?'在籍':'退職')+'</span>'+((!s.is_active&&s.retire_date)?'<br><span style="font-size:.65rem;color:var(--text-muted);">'+s.retire_date+'</span>':'')+'</td>'+
       '<td><button class="btn-sm btn-edit" onclick="openStaffModal(\''+s.id+'\')">✏️ 編集</button> '+
       '<button class="btn-sm btn-toggle" onclick="toggleStaffActive(\''+s.id+'\','+(!s.is_active)+')">'+(s.is_active?'退職処理':'在籍に戻す')+'</button></td>';
     tbody.appendChild(tr);
   });
+}
+
+// スタッフ一覧の時給・月給欄（今日時点の金額。先の日付で変更予定があれば併記）
+function payCellHtml(s){
+  var field = s.type==='hourly' ? 'wage' : 'monthly_salary', unit = s.type==='hourly' ? '/時' : '/月';
+  var today = todayStr(), html = formatCurrency(payValueAt(s, field, today)) + unit;
+  var future = (s.pay_history||[]).filter(function(e){ return e[field]!=null && e.from > today; })
+    .sort(function(a,b){ return a.from < b.from ? -1 : 1; })[0];
+  if(future) html += '<br><span style="font-size:.68rem;color:#2563eb;">→ '+formatCurrency(future[field])+'（'+future.from.slice(5).replace('-','/')+'〜）</span>';
+  return html;
+}
+
+// スタッフ編集画面：時給・月給の履歴表示
+var _editingPayHistory = null;
+function renderPayHistory(){
+  var box = document.getElementById('staffPayHistory');
+  var sec = document.getElementById('staffPayHistorySection');
+  if(!box || !sec) return;
+  var h = (_editingPayHistory||[]).slice().sort(function(a,b){ return a.from < b.from ? 1 : -1; });
+  if(!h.length){ sec.style.display='none'; return; }
+  sec.style.display='block';
+  box.innerHTML = h.map(function(e){
+    var label = e.wage!=null ? '時給 '+formatCurrency(e.wage) : '月給 '+formatCurrency(e.monthly_salary);
+    var from = e.from <= '2000-01-01' ? '登録時から' : formatDateJP(e.from)+' から';
+    var idx = (_editingPayHistory||[]).indexOf(e);
+    return '<div style="display:flex;gap:10px;align-items:center;padding:3px 0;border-bottom:1px dashed var(--border);">'+
+      '<span style="min-width:150px;">'+from+'</span><strong>'+label+'</strong>'+
+      '<button type="button" class="btn-sm btn-delete" style="margin-left:auto;" onclick="removePayHistory('+idx+')">削除</button></div>';
+  }).join('');
+}
+function removePayHistory(idx){
+  if(!_editingPayHistory || !_editingPayHistory[idx]) return;
+  if(!confirmAction('この履歴を削除しますか？（保存するまで確定しません）')) return;
+  _editingPayHistory.splice(idx,1);
+  renderPayHistory();
+}
+// 時給・月給の変更を履歴に記録
+function applyPayChange(hist, field, oldVal, newVal, from){
+  hist = (hist||[]).slice();
+  if(Number(oldVal) === Number(newVal)) return hist;
+  // 初めての変更なら、これまでの金額を「登録時から」として残す
+  if(!hist.some(function(e){ return e[field]!=null; }) && oldVal)
+    hist.push(Object.fromEntries([['from','2000-01-01'],[field,Number(oldVal)]]));
+  hist = hist.filter(function(e){ return !(e[field]!=null && e.from === from); });
+  hist.push(Object.fromEntries([['from',from],[field,Number(newVal)]]));
+  return hist;
 }
 
 async function toggleStaffActive(id,newState){
@@ -176,6 +222,9 @@ async function confirmRetire(){
 
 async function openStaffModal(id){
   editingStaff=null;
+  _editingPayHistory=null;
+  document.getElementById('staffPayEffectiveSection').style.display='none';
+  document.getElementById('staffPayHistorySection').style.display='none';
   document.getElementById('staffModalTitle').textContent=id?'スタッフ編集':'スタッフ追加';
   document.getElementById('staffForm').reset();
   document.getElementById('staffWageSection').style.display='block';
@@ -229,8 +278,16 @@ async function openStaffModal(id){
       if(editingStaff.lunch_break)document.getElementById('lunchBreakFields').style.display='block';
       document.getElementById('staffHireDate').value=editingStaff.hire_date||'';
       document.getElementById('staffType').value=editingStaff.type;
-      document.getElementById('staffWage').value=editingStaff.wage||'';
-      document.getElementById('staffSalary').value=editingStaff.monthly_salary||'';
+      // 時給・月給は「最新の登録値」を表示（履歴があれば最も新しい金額）
+      var _latest=function(f){var h=(editingStaff.pay_history||[]).filter(function(e){return e[f]!=null;}).sort(function(a,b){return a.from<b.from?-1:1;});return h.length?h[h.length-1][f]:editingStaff[f];};
+      document.getElementById('staffWage').value=_latest('wage')||'';
+      document.getElementById('staffSalary').value=_latest('monthly_salary')||'';
+      editingStaff._origWage=_latest('wage')||0; editingStaff._origSalary=_latest('monthly_salary')||0;
+      _editingPayHistory=(editingStaff.pay_history||[]).slice();
+      var _t=new Date();
+      document.getElementById('staffPayEffective').value=_t.getFullYear()+'-'+String(_t.getMonth()+1).padStart(2,'0')+'-01';
+      document.getElementById('staffPayEffectiveSection').style.display='block';
+      renderPayHistory();
       document.getElementById('staffActive').checked=editingStaff.is_active;
       document.getElementById('staffTaxType').value=editingStaff.tax_type||'kou';
       document.getElementById('staffLunchBreak').checked=editingStaff.lunch_break||false;
@@ -343,6 +400,18 @@ async function saveStaff(){
   var healthGradeId=document.getElementById('staffHealthGrade').value;
   var childSupportGradeId=document.getElementById('staffChildSupportGrade').value;
   var record=editingStaff?Object.assign({},editingStaff):{};
+  delete record._origWage; delete record._origSalary;
+  var newWage=parseInt(document.getElementById('staffWage').value)||0;
+  var newSalary=parseInt(document.getElementById('staffSalary').value)||0;
+  if(editingStaff){
+    var payFrom=document.getElementById('staffPayEffective').value;
+    var wageChanged=Number(editingStaff._origWage||0)!==newWage, salaryChanged=Number(editingStaff._origSalary||0)!==newSalary;
+    if((wageChanged||salaryChanged)&&!payFrom){showToast('時給・月給の適用開始日を入力してください','error');return;}
+    var hist=_editingPayHistory||[];
+    if(wageChanged) hist=applyPayChange(hist,'wage',editingStaff._origWage,newWage,payFrom);
+    if(salaryChanged) hist=applyPayChange(hist,'monthly_salary',editingStaff._origSalary,newSalary,payFrom);
+    record.pay_history=hist;
+  }
   Object.assign(record,{
     staff_number:String(staffNumber).trim(),name:name,birthdate:birthdate,
     hire_date:document.getElementById('staffHireDate').value,
@@ -370,8 +439,8 @@ async function saveStaff(){
     lunch_end:document.getElementById('staffLunchEnd').value||'13:00',
     lunch_break:document.getElementById('staffLunchBreak').checked,
     type:document.getElementById('staffType').value,
-    wage:parseInt(document.getElementById('staffWage').value)||0,
-    monthly_salary:parseInt(document.getElementById('staffSalary').value)||0,
+    wage:newWage,
+    monthly_salary:newSalary,
     is_active:document.getElementById('staffActive').checked,
     tax_type:document.getElementById('staffTaxType').value,
     dependents:parseInt(document.getElementById('staffDependents').value)||0,
@@ -448,7 +517,7 @@ async function loadAttendanceRecords(){
     var _le=r.lunch_end||(s&&s.lunch_end);
     var workMins=_outTime?calcWorkMinutes(r.clock_in_calc,_outTime,_lb,_ls,_le):0;
     // 有休時間は勤務時間に加算しない（含み済み）
-    var dailyWage=_outTime&&s.type==='hourly'?calcDailyWage(r.clock_in_calc,_outTime,s.wage||r.wage_at_date||0,r.is_special_day,_lb,_ls,_le):0;
+    var dailyWage=_outTime&&s.type==='hourly'?calcDailyWage(r.clock_in_calc,_outTime,wageAt(s,r.date)||r.wage_at_date||0,r.is_special_day,_lb,_ls,_le):0;
     var commuteAmt=r.clock_in_actual&&s.commute_daily_amount?s.commute_daily_amount:0;
     totalWage+=dailyWage;totalMins+=workMins;
     if(!staffSummary[r.staff_id])staffSummary[r.staff_id]={name:s.name||'不明',mins:0,wage:0,days:0,commute:0};
@@ -535,7 +604,7 @@ async function openStaffDetail(staffId) {
         var rawMins = calcWorkMinutes(r.clock_in_calc, _out2, false, null, null);
         lunchMins = rawMins - workMins;
       }
-      var dailyWage = (_out2 && s.type==='hourly') ? calcDailyWage(r.clock_in_calc, _out2, s.wage||r.wage_at_date||0, r.is_special_day, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
+      var dailyWage = (_out2 && s.type==='hourly') ? calcDailyWage(r.clock_in_calc, _out2, wageAt(s, r.date)||r.wage_at_date||0, r.is_special_day, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
       var commuteAmt = s.commute_daily_amount || 0;
       var isMissingOut = !r.clock_out_actual;
 
@@ -588,7 +657,7 @@ async function openAttendanceAddModal(preDate, preStaffId){
   // スタッフが選択されていれば時給・昼休み設定を自動セット
   var preStaff = preStaffId ? staff.find(function(x){return x.id===preStaffId;}) : null;
   if(preStaff){
-    if(preStaff.wage) document.getElementById('attendanceWage').value=preStaff.wage;
+    var _w=wageAt(preStaff,document.getElementById('attendanceDate').value||todayStr()); if(_w) document.getElementById('attendanceWage').value=_w;
     // スタッフの昼休み設定を引き継ぐ
     var hasLunch = preStaff.lunch_break||false;
     document.getElementById('attendanceLunchBreak').checked = hasLunch;
@@ -973,7 +1042,7 @@ function buildPayslipHtml(d, settings){
     } else {
       d.dayRows.forEach(function(x){
         var r = x.record;
-        detailRows += '<tr><td>'+formatDateJP(r.date)+'</td><td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||'-')+'</td><td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td><td>'+formatWorkTime(x.mins)+'</td><td>'+(r.is_special_day?'⭐':'')+' '+formatCurrency(staff.wage)+'</td><td>'+formatCurrency(x.daily)+'</td></tr>';
+        detailRows += '<tr><td>'+formatDateJP(r.date)+'</td><td>'+(r.clock_in_actual||'-')+'</td><td>'+(r.clock_out_actual||'-')+'</td><td>'+(r.clock_in_calc||'-')+'</td><td>'+(r.clock_out_calc||'-')+'</td><td>'+formatWorkTime(x.mins)+'</td><td>'+(r.is_special_day?'⭐':'')+' '+formatCurrency(x.wage)+'</td><td>'+formatCurrency(x.daily)+'</td></tr>';
       });
     }
   } else {
