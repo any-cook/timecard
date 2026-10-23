@@ -64,7 +64,7 @@ function checkPin(){
 }
 function initAdminTabs(){switchTab('staff');}
 function switchTab(tab){
-  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===tab);});
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===tab);if(b.dataset.tab===tab&&b.scrollIntoView)b.scrollIntoView({block:'nearest',inline:'center'});});
   document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.toggle('active',p.id==='tab-'+tab);});
   ({staff:loadStaffTab,attendance:loadAttendanceTab,special:loadSpecialTab,payroll:loadPayrollTab,tax:loadTaxTab,leave:loadLeaveTab,today:loadTodayTab,monthly:loadMonthlyTab,payslip_setting:loadPayslipSettingTab})[tab]();
 }
@@ -1742,11 +1742,82 @@ async function loadMonthlyTab() {
   html += '</tbody></table>';
 
   wrap.innerHTML = html;
+  // スマホ用：1人ずつのカレンダー表示
+  renderMonthlySp({ year: year, month: month, staff: active, records: records, leaves: allLeave });
 
   // 現在の月のデフォルト選択
   document.getElementById('monthlyMonth').value = month;
   document.getElementById('monthlyYear').value  = year;
 }
+
+// ============================================================
+// 月別出勤表（スマホ用カレンダー）
+// ============================================================
+var _spMonthly = null, _spMonthlyStaffId = null;
+function renderMonthlySp(data){
+  if(data) _spMonthly = data;
+  var d = _spMonthly, box = document.getElementById('monthlyCalendarSp');
+  if(!d || !box) return;
+  if(!d.staff.length){ box.innerHTML = '<div class="sp-empty">表示できるスタッフがいません</div>'; return; }
+  if(!_spMonthlyStaffId || !d.staff.some(function(s){ return s.id === _spMonthlyStaffId; })) _spMonthlyStaffId = d.staff[0].id;
+  var s = d.staff.find(function(x){ return x.id === _spMonthlyStaffId; });
+  var ym = d.year + '-' + String(d.month).padStart(2,'0');
+  var recs = d.records.filter(function(r){ return r.staff_id === s.id; });
+  var leaves = d.leaves.filter(function(l){ return l.staff_id === s.id && l.type === 'use' && l.date && l.date.indexOf(ym) === 0; });
+  var today = todayStr();
+
+  // スタッフ選択（横スクロールのチップ）
+  var html = '<div class="sp-staff-chips">';
+  d.staff.forEach(function(x){
+    html += '<button type="button" class="sp-chip'+(x.id===s.id?' active':'')+'" onclick="selectMonthlySpStaff(\''+x.id+'\')">'+x.name+'</button>';
+  });
+  html += '</div>';
+
+  // 日ごとの集計
+  var dim = new Date(d.year, d.month, 0).getDate(), totalDays = 0, totalMins = 0, totalLeave = 0, cells = [];
+  for(var day=1; day<=dim; day++){
+    var ds = ym + '-' + String(day).padStart(2,'0');
+    var r = recs.find(function(x){ return x.date === ds && x.clock_in_actual; });
+    var lv = leaves.filter(function(l){ return l.date === ds; }).reduce(function(a,l){ return a + (parseFloat(l.days)||1); }, 0);
+    var mins = 0;
+    if(r){
+      var out = r.clock_out_actual || r.clock_out_calc;
+      var lb = r.lunch_break !== undefined ? r.lunch_break : s.lunch_break;
+      mins = out ? calcWorkMinutes(r.clock_in_calc, out, lb, r.lunch_start || s.lunch_start, r.lunch_end || s.lunch_end) : 0;
+      totalDays++; totalMins += mins;
+    }
+    totalLeave += lv;
+    cells.push({ day: day, ds: ds, r: r, lv: lv, mins: mins, dow: new Date(d.year, d.month-1, day).getDay() });
+  }
+
+  html += '<div class="sp-summary">'+
+    '<div><span>出勤</span><strong>'+totalDays+'<small>日</small></strong></div>'+
+    '<div><span>勤務時間</span><strong>'+formatWorkTime(totalMins).replace('時間','<small>時間</small>').replace('分','<small>分</small>')+'</strong></div>'+
+    '<div><span>有休</span><strong>'+totalLeave+'<small>日</small></strong></div>'+
+  '</div>';
+
+  html += '<div class="sp-cal">';
+  ['日','月','火','水','木','金','土'].forEach(function(w,i){ html += '<div class="sp-cal-head'+(i===0?' sun':i===6?' sat':'')+'">'+w+'</div>'; });
+  for(var b=0; b<cells[0].dow; b++) html += '<div class="sp-cal-cell blank"></div>';
+  cells.forEach(function(c){
+    var cls = 'sp-cal-cell' + (c.dow===0?' sun':c.dow===6?' sat':'') + (c.ds===today?' today':'') + (c.r?' worked':'') + (c.lv&&!c.r?' leave':'');
+    var click = c.r ? 'openAttendanceEditModal(\''+c.r.id+'\','+d.year+','+d.month+')' : 'openAttendanceAddModal(\''+c.ds+'\',\''+s.id+'\')';
+    html += '<button type="button" class="'+cls+'" onclick="'+click+'">';
+    html += '<span class="sp-day">'+c.day+'</span>';
+    if(c.r){
+      html += '<span class="sp-in">'+c.r.clock_in_actual+'</span>';
+      html += c.r.clock_out_actual ? '<span class="sp-out">'+c.r.clock_out_actual+'</span>' : '<span class="sp-missing">未退勤</span>';
+    }
+    if(c.lv) html += '<span class="sp-leave">🌿有休</span>';
+    html += '</button>';
+  });
+  html += '</div>';
+  html += '<p class="sp-hint">日付をタップすると打刻の修正・追加ができます</p>';
+  box.innerHTML = html;
+  var act = box.querySelector('.sp-chip.active');
+  if(act && act.scrollIntoView) act.scrollIntoView({ block:'nearest', inline:'center' });
+}
+function selectMonthlySpStaff(id){ _spMonthlyStaffId = id; renderMonthlySp(); }
 
 async function saveOfficerWorkDays(staffId, days, year, month) {
   var d = days !== '' ? parseInt(days) : null;
