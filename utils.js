@@ -62,7 +62,7 @@ function formatWorkTime(mins) {
 function calcDailyWage(clockInCalc, clockOutCalc, wage, isSpecialDay, lunchBreak, lunchStart, lunchEnd) {
   var workMins = calcWorkMinutes(clockInCalc, clockOutCalc, lunchBreak, lunchStart, lunchEnd);
   // 特別日の割増は給与計算に含めていないため、表示もしない（給与明細と一致させる）
-  return Math.floor((workMins / 60) * (wage || 0));
+  return Math.ceil(workMins * (wage || 0) / 60); // 1円未満は切り上げ（給与計算と同じ）
 }
 
 function formatCurrency(amount) { return '¥' + Number(amount || 0).toLocaleString(); }

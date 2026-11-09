@@ -573,7 +573,7 @@ async function loadAttendanceRecords(){
   // 打刻行と有休のみの行を日付の新しい順に表示
   leaveOnlyRows.sort(function(a,b){ return a.date<b.date?1:(a.date>b.date?-1:0); }).forEach(function(x){ tbody.appendChild(x.tr); });
   if(!leaveOnlyRows.length) tbody.innerHTML='<tr><td colspan="11" class="empty-cell">データがありません</td></tr>';
-  Object.keys(staffSummary).forEach(function(k){ staffSummary[k].wage=Math.floor(staffSummary[k].wageMins/60); totalWage+=staffSummary[k].wage; });
+  Object.keys(staffSummary).forEach(function(k){ staffSummary[k].wage=Math.ceil(staffSummary[k].wageMins/60); totalWage+=staffSummary[k].wage; });
   document.getElementById('attendanceTotalTime').textContent=formatWorkTime(totalMins);
   document.getElementById('attendanceTotalWage').textContent=formatCurrency(totalWage);
   var sb=document.getElementById('staffSummaryBody');sb.innerHTML='';

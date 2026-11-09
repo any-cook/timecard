@@ -169,12 +169,12 @@ function computePayslipData(p){
     if(r.clock_in_actual) workDates[r.date] = true;
     var w = isHourly ? wageAt(staff, r.date) : 0;
     wageMins += mins * w;
-    dayRows.push({ record: r, mins: mins, wage: w, daily: isHourly ? Math.floor(mins * w / 60) : 0 });
+    dayRows.push({ record: r, mins: mins, wage: w, daily: isHourly ? Math.ceil(mins * w / 60) : 0 });
   });
   var workDays = Object.keys(workDates).length;
   var monthEnd = monthEndStr(year, month);
   // 時給：日ごとの時給×時間の合計（月の途中で時給が変わっても正しく計算）／月給：その月に適用される月給
-  var grossPay = isHourly ? Math.floor(wageMins / 60) : salaryAt(staff, monthEnd);
+  var grossPay = isHourly ? Math.ceil(wageMins / 60) : salaryAt(staff, monthEnd); // 1円未満は切り上げ
   var wageUsed = isHourly ? wageAt(staff, monthEnd) : 0;
 
   // ---- 月次入力 ----
@@ -184,7 +184,7 @@ function computePayslipData(p){
   if(manualMins !== null){
     totalMins = manualMins;
     // 月次入力の時間数は、その月末時点の時給で計算
-    grossPay = Math.floor(totalMins * wageUsed / 60);
+    grossPay = Math.ceil(totalMins * wageUsed / 60); // 1円未満は切り上げ
   }
   // 有休時間は勤務時間・基本給に加算しない（含み済み）
 
