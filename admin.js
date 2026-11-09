@@ -156,13 +156,22 @@ function renderPayHistory(){
   box.innerHTML = h.map(function(e){
     var label = e.wage!=null ? '時給 '+formatCurrency(e.wage) : '月給 '+formatCurrency(e.monthly_salary);
     var idx = (_editingPayHistory||[]).indexOf(e);
-    var from = e.from <= '2000-01-01' ? '<span style="min-width:150px;">登録時から</span>' :
-      '<span style="min-width:150px;display:flex;align-items:center;gap:4px;"><input type="month" value="'+e.from.slice(0,7)+'" onchange="changePayHistoryMonth('+idx+',this.value)" style="padding:4px 6px;font-size:.8rem;width:140px;">の勤務分から</span>';
+    var isBase = e.from <= '2000-01-01', editing = (_payHistoryEditIdx === idx);
+    var ymLabel = isBase ? '登録時から' : Number(e.from.slice(0,4))+'年'+Number(e.from.slice(5,7))+'月の勤務分から';
+    var from = (editing && !isBase)
+      ? '<span style="min-width:170px;display:flex;align-items:center;gap:4px;"><input type="month" value="'+e.from.slice(0,7)+'" onchange="changePayHistoryMonth('+idx+',this.value)" style="padding:4px 6px;font-size:.8rem;width:140px;">の勤務分から</span>'
+      : '<span style="min-width:170px;">'+ymLabel+'</span>';
+    var btns = editing
+      ? '<button type="button" class="btn-sm btn-delete" onclick="removePayHistory('+idx+')">削除</button>'+
+        '<button type="button" class="btn-sm btn-secondary" onclick="editPayHistory(null)">完了</button>'
+      : '<button type="button" class="btn-sm btn-edit" onclick="editPayHistory('+idx+')">修正</button>';
     return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0;border-bottom:1px dashed var(--border);">'+
       from+'<strong>'+label+'</strong>'+
-      '<button type="button" class="btn-sm btn-delete" style="margin-left:auto;" onclick="removePayHistory('+idx+')">削除</button></div>';
+      '<span style="margin-left:auto;display:flex;gap:6px;">'+btns+'</span></div>';
   }).join('');
 }
+var _payHistoryEditIdx = null;
+function editPayHistory(idx){ _payHistoryEditIdx = idx; renderPayHistory(); }
 function changePayHistoryMonth(idx, ym){
   if(!_editingPayHistory || !_editingPayHistory[idx] || !ym) return;
   _editingPayHistory[idx].from = ym + '-01';
@@ -186,6 +195,7 @@ function removePayHistory(idx){
   if(!_editingPayHistory || !_editingPayHistory[idx]) return;
   if(!confirmAction('この履歴を削除しますか？（保存するまで確定しません）')) return;
   _editingPayHistory.splice(idx,1);
+  _payHistoryEditIdx = null;
   renderPayHistory();
 }
 // 時給・月給の変更を履歴に記録
@@ -243,6 +253,7 @@ async function confirmRetire(){
 async function openStaffModal(id){
   editingStaff=null;
   _editingPayHistory=null;
+  _payHistoryEditIdx=null;
   document.getElementById('staffPayEffectiveSection').style.display='none';
   document.getElementById('staffPayHistorySection').style.display='none';
   document.getElementById('staffModalTitle').textContent=id?'スタッフ編集':'スタッフ追加';
