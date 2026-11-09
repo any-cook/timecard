@@ -19,6 +19,16 @@ function payValueAt(staff, field, dateStr){
 function wageAt(staff, dateStr){ return payValueAt(staff, 'wage', dateStr); }
 function salaryAt(staff, dateStr){ return payValueAt(staff, 'monthly_salary', dateStr); }
 
+// 打刻から計算した勤務時間の合計（給与計算と同じ計算）
+function sumClockedMinutes(staff, records){
+  return (records||[]).filter(function(r){ return r.staff_id === staff.id; }).reduce(function(sum, r){
+    var out = r.clock_out_actual || r.clock_out_calc;
+    if(!out) return sum;
+    var lb = r.lunch_break !== undefined ? r.lunch_break : staff.lunch_break;
+    return sum + calcWorkMinutes(r.clock_in_calc, out, lb, r.lunch_start || staff.lunch_start, r.lunch_end || staff.lunch_end);
+  }, 0);
+}
+
 // 社会保険・税金は自動計算するため、明細設定に同名項目があっても金額計算には使わない
 var AUTO_CALC_ITEM_NAMES = ['所得税','健康保険料','介護保険料','厚生年金保険','子育て支援金','雇用保険料','雇用保険'];
 
@@ -169,6 +179,7 @@ function computePayslipData(p){
 
   // ---- 月次入力 ----
   if(md.work_days !== null && md.work_days !== undefined && md.work_days !== '') workDays = parseInt(md.work_days) || 0;
+  var clockedMins = totalMins; // 打刻から計算した合計（月次入力で上書きする前）
   var manualMins = isHourly ? getMonthlyWorkMinutes(md) : null;
   if(manualMins !== null){
     totalMins = manualMins;
@@ -236,7 +247,7 @@ function computePayslipData(p){
 
   return {
     staff: staff, year: year, month: month, psType: psType, isOfficer: isOfficer,
-    workDays: workDays, totalMins: totalMins, wageUsed: wageUsed, manualMins: manualMins, dayRows: dayRows,
+    workDays: workDays, totalMins: totalMins, clockedMins: clockedMins, wageUsed: wageUsed, manualMins: manualMins, dayRows: dayRows,
     grossPay: grossPay, commute: commute, contributionBonus: contributionBonus,
     payItems: payItems, dedItems: dedItems, attItems: attItems, otherItems: otherItems,
     extraTotalPay: extraTotalPay, extraDeduction: extraDeduction,

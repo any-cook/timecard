@@ -519,9 +519,11 @@ async function loadAttendanceRecords(){
     // 有休時間は勤務時間に加算しない（含み済み）
     var dailyWage=_outTime&&s.type==='hourly'?calcDailyWage(r.clock_in_calc,_outTime,wageAt(s,r.date)||r.wage_at_date||0,r.is_special_day,_lb,_ls,_le):0;
     var commuteAmt=r.clock_in_actual&&s.commute_daily_amount?s.commute_daily_amount:0;
-    totalWage+=dailyWage;totalMins+=workMins;
-    if(!staffSummary[r.staff_id])staffSummary[r.staff_id]={name:s.name||'不明',mins:0,wage:0,days:0,commute:0};
-    staffSummary[r.staff_id].mins+=workMins;staffSummary[r.staff_id].wage+=dailyWage;
+    totalMins+=workMins;
+    if(!staffSummary[r.staff_id])staffSummary[r.staff_id]={name:s.name||'不明',mins:0,wage:0,wageMins:0,days:0,commute:0};
+    staffSummary[r.staff_id].mins+=workMins;
+    // 合計は給与計算と同じく「分×時給」を合計してから1回だけ切り捨て
+    if(_outTime&&s.type==='hourly') staffSummary[r.staff_id].wageMins+=workMins*(wageAt(s,r.date)||r.wage_at_date||0);
     if(r.clock_in_actual){staffSummary[r.staff_id].days++;staffSummary[r.staff_id].commute+=commuteAmt;}
     var isMissingOut=r.clock_in_actual&&!r.clock_out_actual;
     var hasLeave=leaveByDate[r.date]&&leaveByDate[r.date][r.staff_id];
@@ -540,12 +542,25 @@ async function loadAttendanceRecords(){
   // 打刻行と有休のみの行を日付の新しい順に表示
   leaveOnlyRows.sort(function(a,b){ return a.date<b.date?1:(a.date>b.date?-1:0); }).forEach(function(x){ tbody.appendChild(x.tr); });
   if(!leaveOnlyRows.length) tbody.innerHTML='<tr><td colspan="11" class="empty-cell">データがありません</td></tr>';
+  Object.keys(staffSummary).forEach(function(k){ staffSummary[k].wage=Math.floor(staffSummary[k].wageMins/60); totalWage+=staffSummary[k].wage; });
   document.getElementById('attendanceTotalTime').textContent=formatWorkTime(totalMins);
   document.getElementById('attendanceTotalWage').textContent=formatCurrency(totalWage);
   var sb=document.getElementById('staffSummaryBody');sb.innerHTML='';
   var keys=Object.keys(staffSummary);
-  if(!keys.length){sb.innerHTML='<tr><td colspan="6" class="empty-cell">データがありません</td></tr>';}
-  else keys.forEach(function(k){var s=staffSummary[k],tr=document.createElement('tr');tr.innerHTML='<td>'+s.name+'</td><td>'+s.days+'日</td><td>'+formatWorkTime(s.mins)+'</td><td>'+formatCurrency(s.wage)+'</td><td>'+formatCurrency(s.commute)+'</td>'+'<td><button class="btn-sm btn-edit" onclick="openStaffDetail(\''+k+'\')">'+'📋 詳細</button></td>';sb.appendChild(tr);});
+  if(!keys.length){sb.innerHTML='<tr><td colspan="7" class="empty-cell">データがありません</td></tr>';}
+  else keys.forEach(function(k){var s=staffSummary[k],tr=document.createElement('tr');tr.innerHTML='<td>'+s.name+'</td><td>'+s.days+'日</td><td>'+formatWorkTime(s.mins)+'</td><td id="sum-pay-time-'+k+'" style="font-size:.8rem;color:var(--text-muted);">確認中...</td><td>'+formatCurrency(s.wage)+'</td><td>'+formatCurrency(s.commute)+'</td>'+'<td><button class="btn-sm btn-edit" onclick="openStaffDetail(\''+k+'\')">'+'📋 詳細</button></td>';sb.appendChild(tr);});
+  // 給与計算で使う時間（月次入力があればそちら）を表示
+  var _fy=attendanceFilters.year,_fm=attendanceFilters.month;
+  keys.forEach(async function(k){
+    var cell=document.getElementById('sum-pay-time-'+k); if(!cell) return;
+    var st=staffMap[k]||{};
+    if(st.type!=='hourly'){ cell.textContent='打刻と同じ'; return; }
+    var md=await getMonthlyInput(_fy,_fm,k), mm=getMonthlyWorkMinutes(md);
+    if(!document.body.contains(cell)) return;
+    if(mm===null){ cell.textContent='打刻と同じ'; return; }
+    var diff=mm!==staffSummary[k].mins;
+    cell.innerHTML='<span style="color:'+(diff?'#d97706':'var(--text-muted)')+';font-weight:700;">📝 '+formatWorkTime(mm)+'<br><span style="font-size:.68rem;">（月次入力）</span></span>';
+  });
 }
 // ============================================================
 // 個人勤務詳細
@@ -965,7 +980,7 @@ async function loadPayrollSummary(){
     if(gen !== _payrollGen) return; // 月が切り替わったら中断
     if(!d){ var el=document.getElementById('pr-days-'+list[i].id); if(el) el.textContent='エラー'; continue; }
     results.push({ staff:list[i], data:d });
-    syncPayrollRow(list[i].id, year, month, d.totalPay, d.totalDeduction, d.netPay, d.totalMins, d.workDays);
+    syncPayrollRow(list[i].id, year, month, d.totalPay, d.totalDeduction, d.netPay, d.totalMins, d.workDays, d);
     sumPay += d.totalPay; sumDed += d.totalDeduction; sumNet += d.netPay;
   }
   _renderGrandTotal(sumPay, sumDed, sumNet, false);
@@ -985,19 +1000,30 @@ async function calcPayslipForSync(staffId, year, month){
   var staff = ctx.staff.find(function(s){ return s.id === staffId; });
   if(!staff) return;
   var d = await computeForStaff(ctx, staff);
-  syncPayrollRow(staffId, year, month, d.totalPay, d.totalDeduction, d.netPay, d.totalMins, d.workDays);
+  syncPayrollRow(staffId, year, month, d.totalPay, d.totalDeduction, d.netPay, d.totalMins, d.workDays, d);
   return d;
 }
 
 // 集計行を更新
-function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalMins, workDays){
+function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalMins, workDays, d){
   var daysEl = document.getElementById('pr-days-'+staffId);
   if(!daysEl) return;
   if(workDays!==undefined) daysEl.textContent = workDays+'日';
-  if(totalMins!==undefined) document.getElementById('pr-time-'+staffId).textContent = formatWorkTime(totalMins);
+  if(totalMins!==undefined){
+    var tEl = document.getElementById('pr-time-'+staffId);
+    tEl.innerHTML = formatWorkTime(totalMins) + manualTimeNote(d);
+  }
   document.getElementById('pr-pay-'+staffId).textContent = formatCurrency(payTotal);
   document.getElementById('pr-ded-'+staffId).textContent = formatCurrency(dedTotal);
   document.getElementById('pr-net-'+staffId).innerHTML = '<strong style="color:var(--accent);">'+formatCurrency(netPay)+'</strong>';
+}
+
+// 月次入力の時間で打刻の合計を上書きしている時の注記
+function manualTimeNote(d){
+  if(!d || d.manualMins === null || d.manualMins === undefined) return '';
+  var same = d.manualMins === d.clockedMins;
+  return '<div style="font-size:.68rem;line-height:1.4;margin-top:2px;color:'+(same?'var(--text-muted)':'#d97706')+';font-weight:700;">'+
+    '📝 月次入力の時間'+(same?'':'<br>（打刻の合計 '+formatWorkTime(d.clockedMins)+'）')+'</div>';
 }
 
 // 確定済みの明細（確定時点のもの）を表示
@@ -1037,7 +1063,7 @@ function buildPayslipHtml(d, settings){
   var detailRows = '';
   if(staff.type === 'hourly'){
     if(d.manualMins !== null){
-      detailRows = '<tr><td colspan="8" style="text-align:center;color:var(--accent);">月次入力：'+formatWorkTime(d.totalMins)+'（自動計算を上書き）</td></tr>';
+      detailRows = '<tr><td colspan="8" style="text-align:center;color:var(--accent);">月次入力：'+formatWorkTime(d.totalMins)+'（打刻の合計 '+formatWorkTime(d.clockedMins)+' を上書き）</td></tr>';
     } else {
       d.dayRows.forEach(function(x){
         var r = x.record;
@@ -1182,7 +1208,7 @@ async function showPayslip(staffId, year, month, opts){
     }
     switchPayslip('new');
     openModal('payslipModal');
-    syncPayrollRow(staffId, year, month, d.totalPay, d.totalDeduction, d.netPay, d.totalMins, d.workDays);
+    syncPayrollRow(staffId, year, month, d.totalPay, d.totalDeduction, d.netPay, d.totalMins, d.workDays, d);
     // 集計の計算結果も最新に置き換える（確定時にこの値を使う）
     var pr = _payrollResults;
     if(pr && pr.year===year && pr.month===month){
@@ -2344,12 +2370,13 @@ async function openMonthlyInputModal() {
   html += '<thead><tr style="background:var(--surface2);">';
   html += '<th style="min-width:80px;">氏名</th><th>種別</th>';
   html += '<th>出勤日数</th>';
-  html += '<th>時間数<br><span style="font-size:.68rem;font-weight:400;">（時給のみ・空白=自動）</span></th>';
+  html += '<th>時間数<br><span style="font-size:.68rem;font-weight:400;">（時給のみ・空欄＝打刻の合計を使う）</span></th>';
   html += '<th>変動手当（円）</th>';
   // 有休時間列は有休管理から自動取得するため非表示
   html += '<th>備考</th></tr></thead><tbody>';
 
   staff = staff.filter(function(x){ return isEmployedInMonth(x, year, month); });
+  var _miRecords = await DB.getAttendance({year:year, month:month});
   for (var i=0; i<staff.length; i++) {
     var s = staff[i];
     var psType = s.payslip_type || s.type;
@@ -2384,6 +2411,9 @@ async function openMonthlyInputModal() {
         'placeholder="分" min="0" max="59" value="'+hMin+'" '+
         'style="margin:0;width:60px;text-align:center;display:inline-block;font-size:.9rem;">'+
         '<span style="margin-left:4px;font-weight:700;">分</span>'+
+        '<div style="font-size:.7rem;color:var(--text-muted);margin-top:4px;line-height:1.5;">打刻の合計：<strong>'+formatWorkTime(sumClockedMinutes(s,_miRecords))+'</strong>'+
+        (mTotal!==null?'<br><a href="#" onclick="clearMonthlyHours(\''+s.id+'\');return false;" style="color:#d97706;font-weight:700;">✕ 空欄に戻して打刻の合計を使う</a>':'')+
+        '</div>'+
         '</td>';
     } else {
       html += '<td style="text-align:center;color:var(--text-muted);font-size:.75rem;">-</td>';
@@ -2434,6 +2464,12 @@ async function openMonthlyInputModal() {
 }
 
 // 月次入力を保存
+function clearMonthlyHours(staffId){
+  var m = document.getElementById('monthlyInputModal');
+  m.querySelectorAll('.mi-workhours-h[data-staff="'+staffId+'"], .mi-workhours-m[data-staff="'+staffId+'"]').forEach(function(el){ el.value=''; });
+  showToast('保存すると打刻の合計で計算します');
+}
+
 async function saveMonthlyInput() {
   var year  = parseInt(document.getElementById('monthlyInputModal').dataset.year);
   var month = parseInt(document.getElementById('monthlyInputModal').dataset.month);
