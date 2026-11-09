@@ -29,6 +29,24 @@ function sumClockedMinutes(staff, records){
   }, 0);
 }
 
+// 保険料額表の1行から、本人負担額（折半額）を銭単位で求める
+// 表の金額は「.5円」を丸めた値のことがあるため、料率（0.01%単位）を割り出して計算し直す
+function insHalfSen(row){
+  var emp = Number(row.employee) || 0, std = Number(row.standard) || 0;
+  if(!std || !emp) return emp * 100;
+  var rateBp = Math.round(emp * 2 / std * 10000);     // 料率（0.01%単位）例：10.11% → 1011
+  var sen = Math.round(std * rateBp / 200);            // 折半額（銭）
+  if(Math.abs(sen - emp * 100) > 50) return emp * 100; // 料率から計算した額が表と合わない時は表の金額
+  return sen;
+}
+// 銭 → 円（50銭以下切り捨て、50銭超切り上げ）
+function roundHalfDownSen(sen){
+  sen = Math.round(sen);
+  var yen = Math.floor(sen / 100);
+  if(sen - yen * 100 > 50) yen++;
+  return yen;
+}
+
 // 社会保険・税金は自動計算するため、明細設定に同名項目があっても金額計算には使わない
 var AUTO_CALC_ITEM_NAMES = ['所得税','健康保険料','介護保険料','厚生年金保険','子育て支援金','雇用保険料','雇用保険'];
 
@@ -153,10 +171,14 @@ function computePayslipData(p){
   var hnRow = hGrade ? (t.healthNursing||[]).find(function(r){ return Number(r.grade) === hGrade; }) : null;
   var nursingOn = staff.birthdate ? nursingAppliesForMonth(staff.birthdate, year, month)
                                   : staff.health_table_type === 'health_nursing';
-  var pension = pensionRow ? (pensionRow.employee||0) : 0;
-  var childSupport = childRow ? (childRow.employee||0) : 0;
-  var health = hRow ? (hRow.employee||0) : 0;
-  var nursingCare = (nursingOn && hnRow) ? Math.max(0, (hnRow.employee||0) - health) : 0;
+  // 本人負担額は料率から1銭単位で出し、50銭以下切り捨て・50銭超切り上げ
+  // 健康保険料と子ども・子育て支援金は合算してから端数処理（給与計算ソフトと同じ）
+  var hSen = hRow ? insHalfSen(hRow) : 0, hnSen = hnRow ? insHalfSen(hnRow) : 0;
+  var csSen = childRow ? insHalfSen(childRow) : 0, pSen = pensionRow ? insHalfSen(pensionRow) : 0;
+  var pension = roundHalfDownSen(pSen);
+  var childSupport = childRow ? roundHalfDownSen(csSen) : 0;
+  var health = hRow ? roundHalfDownSen(hSen + csSen) - childSupport : 0;
+  var nursingCare = (nursingOn && hnRow && hRow) ? Math.max(0, roundHalfDownSen(hnSen - hSen)) : 0;
 
   // ---- 勤務日数・時間 ----
   var totalMins = 0, dayRows = [], workDates = {}, wageMins = 0; // wageMins = Σ(分×その日の時給)
@@ -266,5 +288,5 @@ if (typeof module !== 'undefined') {
     resolveHealthGradeNo: resolveHealthGradeNo, isEmployedInMonth: isEmployedInMonth,
     getMonthlyWorkMinutes: getMonthlyWorkMinutes, calcLeaveBalance: calcLeaveBalance,
     computePayslipData: computePayslipData, monthEndStr: monthEndStr,
-    wageAt: wageAt, salaryAt: salaryAt, payValueAt: payValueAt };
+    wageAt: wageAt, salaryAt: salaryAt, payValueAt: payValueAt, insHalfSen: insHalfSen, roundHalfDownSen: roundHalfDownSen };
 }
