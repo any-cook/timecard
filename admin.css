@@ -1124,6 +1124,17 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); box-sha
 .toast { border-radius: 999px; padding: 12px 22px; }
 .ps-detail-toggle summary { color: var(--accent); }
 
+/* 打刻修正：昼休憩あり／なし */
+.lunch-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.lunch-choice-btn {
+  border: 2px solid #f3d9a4; background: #fff; color: var(--text-muted);
+  border-radius: 14px; padding: 10px 6px; font: 700 0.9rem var(--font); cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 2px; line-height: 1.3;
+}
+.lunch-choice-btn small { font-size: 0.7rem; font-weight: 500; }
+.lunch-choice-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 4px 12px rgba(240,101,47,0.25); }
+#lunchChoiceNo.active { background: #6b7280; border-color: #6b7280; box-shadow: 0 4px 12px rgba(107,114,128,0.25); }
+
 /* ============================================================
    スマホ用カレンダー（月別出勤表）
    ============================================================ */

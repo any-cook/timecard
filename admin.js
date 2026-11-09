@@ -598,13 +598,15 @@ async function openStaffDetail(staffId) {
 
     if (r && r.clock_in_actual) {
       var _out2 = r.clock_out_actual||r.clock_out_calc;
-      var workMins = _out2 ? calcWorkMinutes(r.clock_in_calc, _out2, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
+      var _dlb = r.lunch_break !== undefined && r.lunch_break !== null ? r.lunch_break : s.lunch_break;
+      var _dls = r.lunch_start || s.lunch_start, _dle = r.lunch_end || s.lunch_end;
+      var workMins = _out2 ? calcWorkMinutes(r.clock_in_calc, _out2, _dlb, _dls, _dle) : 0;
       var lunchMins = 0;
       if (s.lunch_break && s.lunch_start && s.lunch_end && _out2) {
         var rawMins = calcWorkMinutes(r.clock_in_calc, _out2, false, null, null);
         lunchMins = rawMins - workMins;
       }
-      var dailyWage = (_out2 && s.type==='hourly') ? calcDailyWage(r.clock_in_calc, _out2, wageAt(s, r.date)||r.wage_at_date||0, r.is_special_day, s.lunch_break, s.lunch_start, s.lunch_end) : 0;
+      var dailyWage = (_out2 && s.type==='hourly') ? calcDailyWage(r.clock_in_calc, _out2, wageAt(s, r.date)||r.wage_at_date||0, r.is_special_day, _dlb, _dls, _dle) : 0;
       var commuteAmt = s.commute_daily_amount || 0;
       var isMissingOut = !r.clock_out_actual;
 
@@ -659,16 +661,13 @@ async function openAttendanceAddModal(preDate, preStaffId){
   if(preStaff){
     var _w=wageAt(preStaff,document.getElementById('attendanceDate').value||todayStr()); if(_w) document.getElementById('attendanceWage').value=_w;
     // スタッフの昼休み設定を引き継ぐ
-    var hasLunch = preStaff.lunch_break||false;
-    document.getElementById('attendanceLunchBreak').checked = hasLunch;
     document.getElementById('attendanceLunchStart').value = preStaff.lunch_start||'12:00';
     document.getElementById('attendanceLunchEnd').value   = preStaff.lunch_end||'13:00';
-    document.getElementById('attendanceLunchFields').style.display = hasLunch?'block':'none';
+    setAttendanceLunch(!!preStaff.lunch_break);
   } else {
-    document.getElementById('attendanceLunchBreak').checked = false;
-    document.getElementById('attendanceLunchFields').style.display = 'none';
     document.getElementById('attendanceLunchStart').value = '12:00';
     document.getElementById('attendanceLunchEnd').value   = '13:00';
+    setAttendanceLunch(false);
   }
   document.getElementById('attendanceSpecial').checked=false;
   document.getElementById('btnDeleteAttendance').style.display='none';
@@ -699,11 +698,11 @@ async function openAttendanceEditModal(id, yearHint, monthHint){
   delBtn.style.display='block';
   delBtn.dataset.id=r.id;
   // 保存済みの昼休み設定を読み込む
-  var hasLunchEdit = r.lunch_break||false;
-  document.getElementById('attendanceLunchBreak').checked = hasLunchEdit;
-  document.getElementById('attendanceLunchStart').value = r.lunch_start||'12:00';
-  document.getElementById('attendanceLunchEnd').value   = r.lunch_end||'13:00';
-  document.getElementById('attendanceLunchFields').style.display = hasLunchEdit?'block':'none';
+  var _ls = staff.find(function(x){ return x.id === r.staff_id; }) || {};
+  var hasLunchEdit = r.lunch_break !== undefined && r.lunch_break !== null ? !!r.lunch_break : !!_ls.lunch_break;
+  document.getElementById('attendanceLunchStart').value = r.lunch_start||_ls.lunch_start||'12:00';
+  document.getElementById('attendanceLunchEnd').value   = r.lunch_end||_ls.lunch_end||'13:00';
+  setAttendanceLunch(hasLunchEdit);
   openModal('attendanceModal');
 }
 async function saveAttendance(){
@@ -1551,9 +1550,12 @@ async function loadTodayTab() {
       var inMins = timeToMinutes(item.record.clock_in_calc || item.record.clock_in_actual);
       // 昼休み控除（設定時刻で正確に計算）
       var lunchDeduct = 0;
-      if (item.staff.lunch_break && item.staff.lunch_start && item.staff.lunch_end) {
-        var lsM = timeToMinutes(item.staff.lunch_start);
-        var leM = timeToMinutes(item.staff.lunch_end);
+      var _rr = item.record, _st = item.staff;
+      var _tlb = _rr.lunch_break !== undefined && _rr.lunch_break !== null ? _rr.lunch_break : _st.lunch_break;
+      var _tls = _rr.lunch_start || _st.lunch_start, _tle = _rr.lunch_end || _st.lunch_end;
+      if (_tlb && _tls && _tle) {
+        var lsM = timeToMinutes(_tls);
+        var leM = timeToMinutes(_tle);
         var overlapStart = Math.max(inMins, lsM);
         var overlapEnd   = Math.min(nowMins, leM);
         lunchDeduct = Math.max(0, overlapEnd - overlapStart);
@@ -1582,7 +1584,8 @@ async function loadTodayTab() {
       var lunchBDone = item.staff.lunch_break || false;
       var _todayOut = r.clock_out_actual||r.clock_out_calc;
       var _todayIn  = r.clock_in_calc||r.clock_in_actual;
-      var workMins = calcWorkMinutes(_todayIn, _todayOut, item.staff.lunch_break, item.staff.lunch_start, item.staff.lunch_end);
+      var _dl = r.lunch_break !== undefined && r.lunch_break !== null ? r.lunch_break : item.staff.lunch_break;
+      var workMins = calcWorkMinutes(_todayIn, _todayOut, _dl, r.lunch_start || item.staff.lunch_start, r.lunch_end || item.staff.lunch_end);
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td>' + item.staff.name + '</td>' +
@@ -2179,9 +2182,16 @@ function downloadEmpInsCsvTemplate() {
 }
 
 // 打刻モーダルの昼休憩トグル
+function setAttendanceLunch(on){
+  document.getElementById('attendanceLunchBreak').checked = !!on;
+  toggleAttendanceLunch();
+}
 function toggleAttendanceLunch(){
   var chk = document.getElementById('attendanceLunchBreak').checked;
   document.getElementById('attendanceLunchFields').style.display = chk ? 'block' : 'none';
+  var y = document.getElementById('lunchChoiceYes'), n = document.getElementById('lunchChoiceNo');
+  if(y) y.classList.toggle('active', chk);
+  if(n) n.classList.toggle('active', !chk);
   updateAttendanceLunchPreview();
 }
 
