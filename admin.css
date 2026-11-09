@@ -1094,7 +1094,7 @@ body { background: var(--bg); background-image: radial-gradient(circle at 10% 0%
 
 /* 入力欄 */
 select, input[type="text"], input[type="number"], input[type="date"],
-input[type="time"], input[type="email"], input[type="password"], textarea {
+input[type="time"], input[type="email"], input[type="password"], input[type="month"], textarea {
   border: 2px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 8px 12px;

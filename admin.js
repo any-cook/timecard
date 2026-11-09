@@ -155,12 +155,32 @@ function renderPayHistory(){
   sec.style.display='block';
   box.innerHTML = h.map(function(e){
     var label = e.wage!=null ? '時給 '+formatCurrency(e.wage) : '月給 '+formatCurrency(e.monthly_salary);
-    var from = e.from <= '2000-01-01' ? '登録時から' : formatDateJP(e.from)+' から';
     var idx = (_editingPayHistory||[]).indexOf(e);
-    return '<div style="display:flex;gap:10px;align-items:center;padding:3px 0;border-bottom:1px dashed var(--border);">'+
-      '<span style="min-width:150px;">'+from+'</span><strong>'+label+'</strong>'+
+    var from = e.from <= '2000-01-01' ? '<span style="min-width:150px;">登録時から</span>' :
+      '<span style="min-width:150px;display:flex;align-items:center;gap:4px;"><input type="month" value="'+e.from.slice(0,7)+'" onchange="changePayHistoryMonth('+idx+',this.value)" style="padding:4px 6px;font-size:.8rem;width:140px;">の勤務分から</span>';
+    return '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:5px 0;border-bottom:1px dashed var(--border);">'+
+      from+'<strong>'+label+'</strong>'+
       '<button type="button" class="btn-sm btn-delete" style="margin-left:auto;" onclick="removePayHistory('+idx+')">削除</button></div>';
   }).join('');
+}
+function changePayHistoryMonth(idx, ym){
+  if(!_editingPayHistory || !_editingPayHistory[idx] || !ym) return;
+  _editingPayHistory[idx].from = ym + '-01';
+  renderPayHistory();
+  showToast('保存すると変更されます');
+}
+// 月の前半（給与計算の時期）は前月の勤務分、後半は今月の勤務分を初期値に
+function defaultPayEffectiveMonth(){
+  var t = new Date(), y = t.getFullYear(), m = t.getMonth()+1;
+  if(t.getDate() <= 15){ m--; if(m===0){ m=12; y--; } }
+  return y+'-'+String(m).padStart(2,'0');
+}
+function updatePayEffectiveHint(){
+  var v = document.getElementById('staffPayEffective').value, el = document.getElementById('staffPayEffectiveHint');
+  if(!el) return;
+  if(!v){ el.textContent=''; return; }
+  var p = v.split('-').map(Number), py = p[1]===12 ? p[0]+1 : p[0], pm = p[1]===12 ? 1 : p[1]+1;
+  el.textContent = '→ '+p[0]+'年'+p[1]+'月の勤務分（'+py+'年'+pm+'月支給の給与）から新しい金額で計算します';
 }
 function removePayHistory(idx){
   if(!_editingPayHistory || !_editingPayHistory[idx]) return;
@@ -284,8 +304,8 @@ async function openStaffModal(id){
       document.getElementById('staffSalary').value=_latest('monthly_salary')||'';
       editingStaff._origWage=_latest('wage')||0; editingStaff._origSalary=_latest('monthly_salary')||0;
       _editingPayHistory=(editingStaff.pay_history||[]).slice();
-      var _t=new Date();
-      document.getElementById('staffPayEffective').value=_t.getFullYear()+'-'+String(_t.getMonth()+1).padStart(2,'0')+'-01';
+      document.getElementById('staffPayEffective').value=defaultPayEffectiveMonth();
+      updatePayEffectiveHint();
       document.getElementById('staffPayEffectiveSection').style.display='block';
       renderPayHistory();
       document.getElementById('staffActive').checked=editingStaff.is_active;
@@ -404,9 +424,9 @@ async function saveStaff(){
   var newWage=parseInt(document.getElementById('staffWage').value)||0;
   var newSalary=parseInt(document.getElementById('staffSalary').value)||0;
   if(editingStaff){
-    var payFrom=document.getElementById('staffPayEffective').value;
+    var payFrom=document.getElementById('staffPayEffective').value; if(payFrom) payFrom=payFrom.slice(0,7)+'-01';
     var wageChanged=Number(editingStaff._origWage||0)!==newWage, salaryChanged=Number(editingStaff._origSalary||0)!==newSalary;
-    if((wageChanged||salaryChanged)&&!payFrom){showToast('時給・月給の適用開始日を入力してください','error');return;}
+    if((wageChanged||salaryChanged)&&!payFrom){showToast('新しい時給・月給を何月の勤務分から使うか選んでください','error');return;}
     var hist=_editingPayHistory||[];
     if(wageChanged) hist=applyPayChange(hist,'wage',editingStaff._origWage,newWage,payFrom);
     if(salaryChanged) hist=applyPayChange(hist,'monthly_salary',editingStaff._origSalary,newSalary,payFrom);
@@ -962,7 +982,7 @@ async function loadPayrollSummary(){
     tr.setAttribute('data-staff-id', sid_);
     tr.innerHTML=
       '<td><strong>'+staff.name+'</strong>'+retiredTag+'</td>'+
-      '<td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span></td>'+
+      '<td><span class="badge badge-type">'+staffTypeLabel(staff.type)+'</span><div id="pr-wage-'+sid_+'" style="font-size:.7rem;color:var(--text-muted);margin-top:3px;white-space:nowrap;"></div></td>'+
       '<td id="pr-days-'+sid_+'">計算中...</td>'+
       '<td id="pr-time-'+sid_+'" class="payroll-work-time">-</td>'+
       '<td id="pr-pay-'+sid_+'" class="payroll-pay-total">-</td>'+
@@ -1009,6 +1029,21 @@ function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalM
   var daysEl = document.getElementById('pr-days-'+staffId);
   if(!daysEl) return;
   if(workDays!==undefined) daysEl.textContent = workDays+'日';
+  var wEl = document.getElementById('pr-wage-'+staffId);
+  if(wEl && d){
+    var _me = monthEndStr(year, month);
+    if(d.staff.type==='hourly'){
+      var _ws = {}; d.dayRows.forEach(function(x){ if(x.wage) _ws[x.wage]=true; });
+      var _wl = Object.keys(_ws).map(Number).sort(function(a,b){return a-b;});
+      wEl.textContent = '時給 ' + (_wl.length>1 ? _wl.map(formatCurrency).join('→') : formatCurrency(_wl[0] || d.wageUsed));
+    } else if(d.staff.type!=='officer' || d.staff.monthly_salary){
+      wEl.textContent = '月給 ' + formatCurrency(d.grossPay);
+    }
+    // この月より後に変更予定があれば表示
+    var _fld = d.staff.type==='hourly' ? 'wage' : 'monthly_salary';
+    var _nx = (d.staff.pay_history||[]).filter(function(e){ return e[_fld]!=null && e.from > _me; }).sort(function(a,b){ return a.from<b.from?-1:1; })[0];
+    if(_nx) wEl.innerHTML += '<br><span style="color:#d97706;">→ '+formatCurrency(_nx[_fld])+'は'+Number(_nx.from.slice(5,7))+'月勤務分から</span>';
+  }
   if(totalMins!==undefined){
     var tEl = document.getElementById('pr-time-'+staffId);
     tEl.innerHTML = formatWorkTime(totalMins) + manualTimeNote(d);
