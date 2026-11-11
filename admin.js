@@ -1141,6 +1141,14 @@ function buildPayslipHtml(d, settings){
   // 支給列
   var basicPayLabel = d.psType === 'officer' ? '役員報酬' : '基本給';
   var pay = [[basicPayLabel, numFmt(d.grossPay)], ['非課税通勤費', numFmt(d.commute.taxFree)]];
+  // パート・時給のみ：基本給の上に時給を表示（月の途中で変わった時は 1,070→1,130）
+  if(staff.type === 'hourly'){
+    var _wset = {};
+    if(d.manualMins === null) d.dayRows.forEach(function(x){ if(x.wage) _wset[x.wage] = true; });
+    var _wl = Object.keys(_wset).map(Number).sort(function(a,b){ return a-b; });
+    if(!_wl.length) _wl = [d.wageUsed || staff.wage || 0];
+    pay.unshift(['時給', _wl.map(numFmt).join('→')]);
+  }
   if(d.contributionBonus > 0) pay.push(['貢献手当', numFmt(d.contributionBonus)]);
   if(d.commute.taxable > 0) pay.push(['課税通勤費', numFmt(d.commute.taxable)]);
   d.payItems.forEach(function(i){ pay.push([i.name, i.calc_add==='sub' ? '▲ '+numFmt(i.amount) : numFmt(i.amount)]); });
@@ -1290,19 +1298,9 @@ function switchPayslip(mode) {
   document.getElementById('btnPayslipOld').style.background = isNew ? 'var(--surface2)' : 'var(--accent)';
   document.getElementById('btnPayslipOld').style.color = isNew ? 'var(--text)' : '#fff';
 }
-function printPayslip(){
-  // 給与明細の内容を取得
-  var newContent = document.getElementById('payslipNew').style.display !== 'none'
-    ? document.getElementById('payslipNew').innerHTML
-    : document.getElementById('payslipOld').innerHTML;
-
-  var printWin = window.open('', '_blank', 'width=800,height=600');
-  printWin.document.write(
-    '<!DOCTYPE html><html><head>' +
-    '<meta charset="UTF-8">' +
-    '<title>給与明細書</title>' +
-    '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">' +
-    '<style>' +
+// 給与明細の印刷用スタイル
+function payslipPrintCss(){
+  return ''+
     'body{font-family:"Noto Sans JP",sans-serif;font-size:0.82rem;color:#222;margin:16px;padding:0;background:#fff;}' +
     '.ps-wrap{max-width:760px;margin:0 auto;}' +
     '.ps-company{font-size:.9rem;font-weight:700;text-align:right;margin-bottom:4px;}' +
@@ -1338,14 +1336,96 @@ function printPayslip(){
     '.payslip-header{text-align:center;margin-bottom:16px;}' +
     '.payslip-info{display:flex;flex-wrap:wrap;gap:8px 20px;margin-bottom:16px;font-size:.82rem;}' +
     '.payslip-summary{margin-top:16px;border:1px solid #ddd;border-radius:8px;padding:16px;}' +
-    '</style>' +
-    '</head><body>' +
-    newContent +
-    '</body></html>'
-  );
-  printWin.document.close();
-  printWin.focus();
-  setTimeout(function(){ printWin.print(); printWin.close(); }, 500);
+    
+    '@page{size:A4 portrait;margin:8mm;}' +
+    '.print-sheet{page-break-after:always;break-after:page;}' +
+    '.print-sheet:last-child{page-break-after:auto;break-after:auto;}' +
+    /* 1枚に2名：上下に半分ずつ */
+    '.print-sheet.two{height:279mm;display:flex;flex-direction:column;}' +
+    '.print-sheet.two .print-slot{height:50%;box-sizing:border-box;padding:2mm 0;overflow:hidden;}' +
+    '.print-sheet.two .print-slot:first-child{border-bottom:1px dashed #999;padding-bottom:4mm;}' +
+    '.print-sheet.two .print-slot:last-child{padding-top:5mm;}' +
+    '.print-sheet.two .ps-wrap{font-size:.72rem !important;max-width:100%;}' +
+    '.print-sheet.two .ps-title{font-size:.95rem;margin-bottom:5px;}' +
+    '.print-sheet.two .ps-meta{margin-bottom:5px;padding-bottom:3px;}' +
+    '.print-sheet.two .ps-table th,.print-sheet.two .ps-table td{padding:2.5px 5px;font-size:.68rem;}' +
+    '.print-sheet.two .ps-bottom-label{padding:3px;font-size:.72rem;}' +
+    '.print-sheet.two .ps-bottom-val{padding:3px 8px;font-size:.8rem;}' +
+    '.print-sheet.two .ps-net-val{font-size:.95rem;}' +
+    '.print-sheet.two .ps-note{margin-top:4px;padding:3px 8px;font-size:.66rem;}' +
+    '.print-sheet .table-scroll,.ps-confirmed-note{display:none !important;}' +
+    '.print-sheet .ps-val{white-space:nowrap;}' +
+    'body{margin:0;}';
+}
+// 給与明細を印刷用ウィンドウで印刷（perPage：1 または 2）
+function openPayslipPrint(htmlList, perPage, title){
+  if(!htmlList.length){ showToast('印刷する明細がありません','error'); return; }
+  var body = '';
+  for(var i=0; i<htmlList.length; i+=perPage){
+    body += '<div class="print-sheet'+(perPage===2?' two':'')+'">';
+    for(var j=0; j<perPage && i+j<htmlList.length; j++) body += '<div class="print-slot">'+htmlList[i+j]+'</div>';
+    body += '</div>';
+  }
+  var w = window.open('', '_blank', 'width=900,height=700');
+  if(!w){ showToast('ポップアップがブロックされました。ブラウザの設定で許可してください','error'); return; }
+  w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>'+(title||'給与明細書')+'</title>'+
+    '<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">'+
+    '<style>'+payslipPrintCss()+'</style></head><body>'+body+'</body></html>');
+  w.document.close();
+  w.focus();
+  setTimeout(function(){ w.print(); }, 700);
+}
+
+// 明細画面の「印刷」：表示中の1名のみ
+function printPayslip(){
+  var newEl = document.getElementById('payslipNew');
+  var content = newEl.style.display !== 'none' ? newEl.innerHTML : document.getElementById('payslipOld').innerHTML;
+  openPayslipPrint([content], 1, '給与明細書');
+}
+
+// 集計画面の「明細を印刷」：人を選んで 1枚に2名／1名
+async function openPayslipPrintModal(){
+  var year  = parseInt(document.getElementById('payrollYear').value);
+  var month = parseInt(document.getElementById('payrollMonth').value);
+  var items = [];
+  var c = window._confirmedPayroll;
+  var confirmedBanner = document.getElementById('payrollConfirmedBanner');
+  if(confirmedBanner && confirmedBanner.style.display !== 'none' && c && c.year===year && c.month===month){
+    var sd = c.data.staffData || {};
+    Object.keys(sd).sort(function(a,b){ return (parseInt(sd[a].staff_number)||9999)-(parseInt(sd[b].staff_number)||9999); })
+      .forEach(function(sid){ if(sd[sid].html) items.push({ id:sid, name:sd[sid].name, html:sd[sid].html }); });
+  } else {
+    var pr = _payrollResults;
+    if(!pr || !pr.done || pr.year!==year || pr.month!==month){ showToast('計算が終わってから印刷してください','error'); return; }
+    pr.list.forEach(function(it){ items.push({ id:it.staff.id, name:it.staff.name, html: buildPayslipHtml(it.data, pr.ctx.settings).html }); });
+  }
+  if(!items.length){ showToast('印刷できる明細がありません','error'); return; }
+  window._printItems = items;
+  var box = document.getElementById('printStaffList');
+  box.innerHTML = items.map(function(it){
+    return '<label class="print-staff-item"><input type="checkbox" class="print-staff-chk" value="'+it.id+'" checked> '+it.name+'</label>';
+  }).join('');
+  document.getElementById('printModalTitle').textContent = year+'年'+month+'月勤務分の給与明細を印刷';
+  updatePrintCount();
+  openModal('payslipPrintModal');
+}
+function printSelectAll(on){
+  document.querySelectorAll('.print-staff-chk').forEach(function(c){ c.checked = on; });
+  updatePrintCount();
+}
+function updatePrintCount(){
+  var n = document.querySelectorAll('.print-staff-chk:checked').length;
+  var per = document.querySelector('input[name="printPerPage"]:checked');
+  per = per ? parseInt(per.value) : 2;
+  document.getElementById('printCountLabel').textContent = n+'名選択中（用紙 '+Math.ceil(n/per)+'枚）';
+}
+function doPrintPayslips(){
+  var ids = Array.from(document.querySelectorAll('.print-staff-chk:checked')).map(function(c){ return c.value; });
+  if(!ids.length){ showToast('印刷する人を選んでください','error'); return; }
+  var per = parseInt((document.querySelector('input[name="printPerPage"]:checked')||{}).value) || 2;
+  var list = (window._printItems||[]).filter(function(it){ return ids.indexOf(it.id) >= 0; }).map(function(it){ return it.html; });
+  openPayslipPrint(list, per, '給与明細書');
+  closeModal('payslipPrintModal');
 }
 
 var currentTaxType='kou',currentInsuranceType='pension';

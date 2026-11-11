@@ -1124,6 +1124,15 @@ select:focus, input:focus, textarea:focus { border-color: var(--accent); box-sha
 .toast { border-radius: 999px; padding: 12px 22px; }
 .ps-detail-toggle summary { color: var(--accent); }
 
+/* 給与明細の印刷選択 */
+.print-layout-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.print-layout-choice label, .print-staff-item {
+  display: flex; align-items: center; gap: 8px; border: 2px solid var(--border); border-radius: 12px;
+  padding: 10px 12px; cursor: pointer; font-weight: 700; font-size: .9rem; background: #fff;
+}
+.print-layout-choice label:has(input:checked), .print-staff-item:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.print-staff-list { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; max-height: 320px; overflow-y: auto; }
+
 /* 打刻修正：昼休憩あり／なし */
 .lunch-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .lunch-choice-btn {

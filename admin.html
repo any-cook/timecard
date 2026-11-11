@@ -9,7 +9,7 @@
   <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
   <link rel="apple-touch-icon" href="icon-192.png">
   <meta name="theme-color" content="#ff7043">
-  <link rel="stylesheet" href="admin.css?v=20261110d">
+  <link rel="stylesheet" href="admin.css?v=20261111">
   <style>
     .collapsible-header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;user-select:none;margin-bottom:4px;transition:background .15s}
     .collapsible-header:hover{background:#ffe9dc}
@@ -198,6 +198,7 @@
           </select>
           <button class="btn btn-secondary" onclick="openMonthlyInputModal()">✏️ 月次入力</button>
         <button class="btn btn-secondary" onclick="syncAllPayroll()">🔄 全員の明細を更新</button>
+        <button class="btn btn-secondary" onclick="openPayslipPrintModal()">🖨️ 明細を印刷</button>
         <button class="btn btn-success" id="btnConfirmPayroll" onclick="confirmPayroll()" style="display:none;">🔒 給与を確定する</button>
         <button class="btn btn-danger" id="btnUnconfirmPayroll" onclick="unconfirmPayroll()" style="display:none;">🔓 確定を解除する</button>
         </div>
@@ -781,6 +782,34 @@
     </div>
   </div>
 
+  <!-- モーダル: 給与明細 まとめて印刷 -->
+  <div class="modal-overlay" id="payslipPrintModal">
+    <div class="modal-card" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="printModalTitle">給与明細を印刷</h3>
+        <button class="modal-close" onclick="closeModal('payslipPrintModal')">✕</button>
+      </div>
+      <div class="form-label" style="margin-bottom:8px;">用紙の使い方</div>
+      <div class="print-layout-choice">
+        <label><input type="radio" name="printPerPage" value="2" checked onchange="updatePrintCount()"> A4 1枚に2名</label>
+        <label><input type="radio" name="printPerPage" value="1" onchange="updatePrintCount()"> A4 1枚に1名</label>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;">
+        <span class="form-label" style="margin:0;">印刷する人</span>
+        <span style="display:flex;gap:6px;">
+          <button type="button" class="btn-sm btn-edit" onclick="printSelectAll(true)">全員</button>
+          <button type="button" class="btn-sm btn-secondary" onclick="printSelectAll(false)">全解除</button>
+        </span>
+      </div>
+      <div id="printStaffList" class="print-staff-list" onchange="updatePrintCount()"></div>
+      <p id="printCountLabel" style="font-size:.8rem;color:var(--text-muted);margin-top:10px;"></p>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('payslipPrintModal')">キャンセル</button>
+        <button class="btn btn-primary" onclick="doPrintPayslips()">🖨️ 印刷する</button>
+      </div>
+    </div>
+  </div>
+
   <!-- モーダル: 給与明細 -->
   <div class="modal-overlay" id="payslipModal">
     <div class="modal-card modal-wide">
@@ -967,12 +996,12 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-  <script src="config.js?v=20261110d"></script>
-  <script src="utils.js?v=20261110d"></script>
-  <script src="holidays.js?v=20261110d"></script>
-  <script src="demo-data.js?v=20261110d"></script>
-  <script src="payroll.js?v=20261110d"></script>
-  <script src="admin.js?v=20261110d"></script>
+  <script src="config.js?v=20261111"></script>
+  <script src="utils.js?v=20261111"></script>
+  <script src="holidays.js?v=20261111"></script>
+  <script src="demo-data.js?v=20261111"></script>
+  <script src="payroll.js?v=20261111"></script>
+  <script src="admin.js?v=20261111"></script>
   <script>
     if (DEMO_MODE) { document.getElementById('demoBanner').style.display='block'; initDemoData(); }
     initAuth();
