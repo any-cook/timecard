@@ -217,6 +217,21 @@ function computePayslipData(p){
     .reduce(function(s,l){ return s + (parseFloat(l.days)||0); }, 0);
   var leaveInfo = calcLeaveBalance(leaves, monthEndStr(year, month));
 
+  // ---- 有休手当（時給スタッフ）：有休の時間 × その日の時給、1円未満切り上げ ----
+  // 月次入力で時間数を入れている場合は、その時間に有休を含める扱い（二重払いを防ぐ）
+  var leaveMins = 0, leaveWageMins = 0;
+  if(isHourly){
+    leaves.filter(function(l){ return l.type==='use' && l.date && l.date.indexOf(ym)===0; }).forEach(function(l){
+      var h = parseFloat(l.hours);
+      if(!(h > 0)) h = (parseFloat(l.days)||1) * (parseFloat(staff.paid_leave_hours) || 7.5);
+      var m = Math.round(h * 60);
+      leaveMins += m;
+      leaveWageMins += m * wageAt(staff, l.date);
+    });
+  }
+  var leaveAuto = isHourly && manualMins === null && leaveMins > 0;
+  var leavePay = leaveAuto ? Math.ceil(leaveWageMins / 60) : 0;
+
   // ---- 通勤費 ----
   var psType = staff.payslip_type || staff.type || 'hourly';
   var isOfficer = (psType === 'officer' || staff.type === 'officer');
@@ -257,14 +272,14 @@ function computePayslipData(p){
   var contributionBonus = staff.contribution_bonus ? 1000 : 0;
 
   // ---- 雇用保険・所得税 ----
-  var empInsBase = grossPay + extraTotalPay + contributionBonus + commute.taxFree + commute.taxable;
+  var empInsBase = grossPay + leavePay + extraTotalPay + contributionBonus + commute.taxFree + commute.taxable;
   var empIns = calcEmploymentInsurance(empInsBase, staff.employment_insurance);
   var socialIns = pension + health + nursingCare + childSupport + empIns;
-  var taxableIncome = grossPay + commute.taxable + extraTaxable + contributionBonus - socialIns;
+  var taxableIncome = grossPay + leavePay + commute.taxable + extraTaxable + contributionBonus - socialIns;
   var taxRows = staff.tax_type === 'otsu' ? p.taxOtsu : p.taxKou;
   var tax = calcTax(Math.max(0, taxableIncome), taxRows, staff.tax_type || 'kou', staff.dependents || 0);
 
-  var totalPay = grossPay + commute.taxFree + commute.taxable + extraTotalPay + contributionBonus;
+  var totalPay = grossPay + leavePay + commute.taxFree + commute.taxable + extraTotalPay + contributionBonus;
   var totalDeduction = tax + socialIns + extraDeduction;
 
   return {
@@ -275,7 +290,8 @@ function computePayslipData(p){
     extraTotalPay: extraTotalPay, extraDeduction: extraDeduction,
     pension: pension, health: health, nursingCare: nursingCare, childSupport: childSupport, empIns: empIns,
     socialIns: socialIns, tax: tax, taxableIncome: taxableIncome,
-    taxablePay: grossPay + commute.taxable + extraTaxable + contributionBonus,
+    leavePay: leavePay, leaveMins: leaveMins, leaveAuto: leaveAuto,
+    taxablePay: grossPay + leavePay + commute.taxable + extraTaxable + contributionBonus,
     nontaxablePay: commute.taxFree + nontaxableExtra,
     totalPay: totalPay, totalDeduction: totalDeduction, netPay: totalPay - totalDeduction,
     monthUsed: monthUsed, leaveBalance: leaveInfo.remaining, leaveInfo: leaveInfo,

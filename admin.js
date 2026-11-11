@@ -1066,6 +1066,16 @@ function syncPayrollRow(staffId, year, month, payTotal, dedTotal, netPay, totalM
 
 // 月次入力の時間で打刻の合計を上書きしている時の注記
 function manualTimeNote(d){
+  if(!d) return '';
+  var lv = '';
+  if(d.leaveMins > 0){
+    lv = d.leaveAuto
+      ? '<div style="font-size:.68rem;margin-top:2px;color:var(--success);font-weight:700;">🌿 有休 '+formatWorkTime(d.leaveMins)+'（手当 '+formatCurrency(d.leavePay)+'）</div>'
+      : '<div style="font-size:.68rem;margin-top:2px;color:var(--text-muted);font-weight:700;">🌿 有休 '+formatWorkTime(d.leaveMins)+'は月次入力の時間に含む</div>';
+  }
+  return _manualTimeNote(d) + lv;
+}
+function _manualTimeNote(d){
   if(!d || d.manualMins === null || d.manualMins === undefined) return '';
   var same = d.manualMins === d.clockedMins;
   return '<div style="font-size:.68rem;line-height:1.4;margin-top:2px;color:'+(same?'var(--text-muted)':'#d97706')+';font-weight:700;">'+
@@ -1137,10 +1147,13 @@ function buildPayslipHtml(d, settings){
   var att = [['労働日数', d.workDays+'日'], ['勤務時間合計', formatWorkTime(d.totalMins)]];
   d.attItems.forEach(function(i){ att.push([i.name, numFmt(i.amount)]); });
   if(d.monthUsed > 0) att.push(['有休休暇', d.monthUsed+'日']);
+  if(d.leaveMins > 0) att.push(['有休時間', formatWorkTime(d.leaveMins)]);
   att.push(['有休残', d.leaveBalance+'日']);
   // 支給列
   var basicPayLabel = d.psType === 'officer' ? '役員報酬' : '基本給';
-  var pay = [[basicPayLabel, numFmt(d.grossPay)], ['非課税通勤費', numFmt(d.commute.taxFree)]];
+  var pay = [[basicPayLabel, numFmt(d.grossPay)]];
+  if(d.leavePay > 0) pay.push(['有休手当', numFmt(d.leavePay)]);
+  pay.push(['非課税通勤費', numFmt(d.commute.taxFree)]);
   // パート・時給のみ：基本給の上に時給を表示（月の途中で変わった時は 1,070→1,130）
   if(staff.type === 'hourly'){
     var _wset = {};
@@ -1225,6 +1238,7 @@ function buildPayslipHtml(d, settings){
   o += '<div class="table-scroll">'+detailTable+'</div>';
   o += '<div class="payslip-summary">';
   o += '<div class="summary-row"><span>基本給（税引前）</span><strong>'+formatCurrency(d.grossPay)+'</strong></div>';
+  o += (d.leavePay>0?'<div class="summary-row"><span>有休手当（'+formatWorkTime(d.leaveMins)+'）</span><span>'+formatCurrency(d.leavePay)+'</span></div>':'');
   o += (c.total>0?'<div class="summary-row"><span>通勤費</span><span>'+formatCurrency(c.total)+'</span></div>':'');
   o += (c.taxable>0?'<div class="summary-row" style="font-size:.8rem;color:#dc2626;"><span>　うち課税分</span><span>'+formatCurrency(c.taxable)+'</span></div>':'');
   o += '<div class="summary-row deduction"><span>源泉徴収税（'+(staff.tax_type==='otsu'?'乙欄':'甲欄・扶養'+(staff.dependents||0)+'人')+'）</span><span>- '+formatCurrency(d.tax)+'</span></div>';
@@ -2496,7 +2510,7 @@ async function openMonthlyInputModal() {
   html += '<thead><tr style="background:var(--surface2);">';
   html += '<th style="min-width:80px;">氏名</th><th>種別</th>';
   html += '<th>出勤日数</th>';
-  html += '<th>時間数<br><span style="font-size:.68rem;font-weight:400;">（時給のみ・空欄＝打刻の合計を使う）</span></th>';
+  html += '<th>時間数<br><span style="font-size:.68rem;font-weight:400;">（時給のみ・空欄＝打刻の合計＋有休を自動計算／入力する時は有休の時間も含める）</span></th>';
   html += '<th>変動手当（円）</th>';
   // 有休時間列は有休管理から自動取得するため非表示
   html += '<th>備考</th></tr></thead><tbody>';
