@@ -591,9 +591,9 @@ async function loadAttendanceRecords(){
   keys.forEach(async function(k){
     var st=staffMap[k]||{}, lv=staffSummary[k].leave||{mins:0,pay:0}, lcell=document.getElementById('sum-leave-'+k);
     if(st.type!=='hourly' || !lcell || !(lv.mins>0)) return;
-    var md=await getMonthlyInput(_fy,_fm,k), mm=getMonthlyWorkMinutes(md);
+    var info=await leavePayForDisplay(st,_fy,_fm,allLeaveAtt);
     if(!document.body.contains(lcell)) return;
-    lcell.innerHTML += '<br><span style="font-size:.72rem;font-weight:500;">'+(mm===null?'有休手当 '+formatCurrency(lv.pay):'月次入力の時間に含む')+'</span>';
+    lcell.innerHTML += '<br><span style="font-size:.72rem;font-weight:500;"'+(info.avg?' title="'+averageWageNote(info.avg)+'"':'')+'>'+(info.manual?'月次入力の時間に含む':'有休手当 '+formatCurrency(info.pay)+(info.avg?'（平均賃金）':''))+'</span>';
   });
 }
 // ============================================================
@@ -612,13 +612,16 @@ async function openStaffDetail(staffId) {
   var leavesD = (await DB.getLeaveAll()).filter(function(l){ return l.staff_id === staffId && l.type === 'use' && l.date && l.date.indexOf(ymD) === 0; });
   var isHourlyD = s.type === 'hourly';
   var totalLeaveMins = 0, wageMinsD = 0;
+  var _lvDisp = isHourlyD ? await leavePayForDisplay(s, year, month, leavesD) : null;
   // その日の有休（時間・時給スタッフは手当）
   function leaveOfDay(ds){
     var ls = leavesD.filter(function(l){ return l.date === ds; });
     if(!ls.length) return null;
     var days = ls.reduce(function(a,l){ return a + (parseFloat(l.days)||1); }, 0);
     var mins = ls.reduce(function(a,l){ return a + Math.round(leaveHoursOf(s, l) * 60); }, 0);
-    return { days: days, mins: mins, pay: isHourlyD ? Math.ceil(mins * wageAt(s, ds) / 60) : 0 };
+    var pay = 0;
+    if(_lvDisp && !_lvDisp.manual) pay = _lvDisp.avg ? leavePayByAverage(_lvDisp.avg.daily, days) : Math.ceil(mins * wageAt(s, ds) / 60);
+    return { days: days, mins: mins, pay: pay };
   }
   function leaveRowHtml(d, dowName, dowStyle, lv, extra){
     return '<td style="font-weight:700;">' + d + '日</td>' +
@@ -721,16 +724,14 @@ async function openStaffDetail(staffId) {
     }
   }
   // 支給額合計：勤務分（分×時給の合計を1回切り上げ）＋有休手当（月次入力の時間がある時は含み済み）
-  var _mdD = isHourlyD ? await getMonthlyInput(year, month, staffId) : null;
-  var _manualD = isHourlyD ? getMonthlyWorkMinutes(_mdD) : null;
-  var _lvSum = monthLeaveSummary(s, leavesD, year, month);
-  totalWage = isHourlyD ? Math.ceil(wageMinsD / 60) + (_manualD === null ? _lvSum.pay : 0) : 0;
+  totalWage = isHourlyD ? Math.ceil(wageMinsD / 60) + (_lvDisp ? _lvDisp.pay : 0) : 0;
 
   // サマリー更新
   document.getElementById('detailTotalDays').textContent   = totalDays + '日';
   document.getElementById('detailTotalTime').innerHTML     = formatWorkTime(totalMins + totalLeaveMins) +
     (totalLeaveMins > 0 ? '<div style="font-size:.72rem;color:var(--success);margin-top:2px;">うち有休 '+formatWorkTime(totalLeaveMins)+'</div>' : '');
-  document.getElementById('detailTotalWage').textContent   = formatCurrency(totalWage);
+  document.getElementById('detailTotalWage').innerHTML     = formatCurrency(totalWage) +
+    (_lvDisp && _lvDisp.avg && _lvDisp.pay ? '<div style="font-size:.68rem;color:var(--success);margin-top:2px;line-height:1.4;">うち有休手当 '+formatCurrency(_lvDisp.pay)+'<br>'+averageWageNote(_lvDisp.avg)+'</div>' : '');
   document.getElementById('detailTotalCommute').textContent = formatCurrency(totalCommute);
 }
 
@@ -873,14 +874,76 @@ async function loadPayrollContext(year, month){
   };
 }
 
-async function computeForStaff(ctx, staff){
+async function computeForStaff(ctx, staff, depth){
+  if(depth === undefined) depth = 2;
   var monthlyData = await getMonthlyInput(ctx.year, ctx.month, staff.id);
+  var myLeaves = ctx.leaves.filter(function(l){ return l.staff_id === staff.id; });
+  // 時給スタッフがこの月に有休を取っていれば、平均賃金を出す（直前3か月の給与から）
+  var leaveAvg = null;
+  if(staff.type === 'hourly' && depth > 0 && monthLeaveSummary(staff, myLeaves, ctx.year, ctx.month).days > 0){
+    try { leaveAvg = await calcAverageWageFor(staff, ctx.year, ctx.month, depth); } catch(e){ console.warn('平均賃金の計算に失敗', e); }
+  }
   return computePayslipData({
     staff: staff, year: ctx.year, month: ctx.month, monthlyData: monthlyData,
     records: ctx.records.filter(function(r){ return r.staff_id === staff.id; }),
-    leaves: ctx.leaves.filter(function(l){ return l.staff_id === staff.id; }),
+    leaves: myLeaves, leaveAvg: leaveAvg,
     settings: ctx.settings, tables: ctx.tables, taxKou: ctx.taxKou, taxOtsu: ctx.taxOtsu
   });
+}
+
+// ---- 平均賃金（有休手当用）----
+var _ctxCache = {};
+async function getPayrollContextCached(year, month){
+  var key = year+'-'+month, c = _ctxCache[key];
+  if(c && Date.now() - c.at < 60000) return c.ctx;
+  var ctx = await loadPayrollContext(year, month);
+  _ctxCache[key] = { at: Date.now(), ctx: ctx };
+  return ctx;
+}
+// その月の支給合計と出勤日数（確定済みなら確定時の金額）
+async function getMonthPayForAverage(staff, year, month, depth){
+  var c = await DB.getPayrollConfirmed(year, month);
+  var cd = c && c.staffData ? c.staffData[staff.id] : null;
+  if(cd) return { year:year, month:month, totalPay: _numFromConfirmed(cd.payTotalNum, cd.payTotal), workDays: parseInt(cd.workDays)||0, confirmed:true };
+  var ctx = await getPayrollContextCached(year, month);
+  var st = ctx.staff.find(function(x){ return x.id === staff.id; }) || staff;
+  if(!isEmployedInMonth(st, year, month)) return { year:year, month:month, totalPay:0, workDays:0 };
+  var d = await computeForStaff(ctx, st, depth);
+  return { year:year, month:month, totalPay: d.totalPay, workDays: d.workDays };
+}
+// 有休を取った月の直前3か月で平均賃金を計算（入社3か月未満は入社日から）
+async function calcAverageWageFor(staff, year, month, depth){
+  var months = [];
+  for(var i=3; i>=1; i--){ var y=year, m=month-i; while(m<=0){ m+=12; y--; } months.push({ year:y, month:m }); }
+  var start = monthStartStr(months[0].year, months[0].month), end = monthEndStr(months[2].year, months[2].month);
+  if(staff.hire_date && staff.hire_date > start) start = staff.hire_date;
+  if(start > end) return null;
+  var calDays = Math.round((parseDate(end) - parseDate(start)) / 86400000) + 1;
+  var data = [];
+  for(var k=0; k<months.length; k++){
+    var mm = months[k];
+    if(monthEndStr(mm.year, mm.month) < start) continue;
+    data.push(await getMonthPayForAverage(staff, mm.year, mm.month, (depth||1) - 1));
+  }
+  return calcAverageDailyWage(data, calDays);
+}
+// 勤怠管理などの表示用：その月の有休手当（月次入力で時間数を入れている人は0＝含み済み）
+async function leavePayForDisplay(staff, year, month, leaves){
+  var lv = monthLeaveSummary(staff, leaves, year, month);
+  if(staff.type !== 'hourly' || !(lv.days > 0)) return { pay: 0, avg: null, lv: lv, manual: false };
+  var md = await getMonthlyInput(year, month, staff.id);
+  if(getMonthlyWorkMinutes(md) !== null) return { pay: 0, avg: null, lv: lv, manual: true };
+  var avg = null;
+  try { avg = await calcAverageWageFor(staff, year, month, 2); } catch(e){}
+  return { pay: avg ? leavePayByAverage(avg.daily, lv.days) : lv.pay, avg: avg, lv: lv, manual: false };
+}
+function averageWageNote(avg){
+  if(!avg) return '';
+  var ms = avg.months.map(function(x){ return x.month+'月'; }).join('・');
+  var f = function(v){ return v.toLocaleString('ja-JP',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  return avg.usedMinimum
+    ? '平均賃金 '+f(avg.daily)+'円/日（'+ms+'の支給合計 '+formatCurrency(avg.total)+' ÷ 出勤'+avg.workDays+'日 × 60%＝最低保障額。暦日'+avg.divisor+'日で割った '+f(avg.byCal)+'円より高いため）'
+    : '平均賃金 '+f(avg.daily)+'円/日（'+ms+'の支給合計 '+formatCurrency(avg.total)+' ÷ '+avg.divisor+'日〔暦日'+avg.calDays+'日−1日〕）';
 }
 
 function payrollStaffList(allStaff, year, month){
@@ -1114,7 +1177,7 @@ function manualTimeNote(d){
   var lv = '';
   if(d.leaveMins > 0){
     lv = d.leaveAuto
-      ? '<div style="font-size:.68rem;margin-top:2px;color:var(--success);font-weight:700;">🌿 有休 '+formatWorkTime(d.leaveMins)+'（手当 '+formatCurrency(d.leavePay)+'）</div>'
+      ? '<div style="font-size:.68rem;margin-top:2px;color:var(--success);font-weight:700;">🌿 有休 '+d.leaveDays+'日（手当 '+formatCurrency(d.leavePay)+(d.leaveAvg?'・平均賃金':'')+'）</div>'
       : '<div style="font-size:.68rem;margin-top:2px;color:var(--text-muted);font-weight:700;">🌿 有休 '+formatWorkTime(d.leaveMins)+'は月次入力の時間に含む</div>';
   }
   return _manualTimeNote(d) + lv;
@@ -1258,6 +1321,7 @@ function buildPayslipHtml(d, settings){
   var noteText = settings.note || 'いつも有難うございます。';
   if (noteText) html += '<div class="ps-note">※ ' + noteText + '</div>';
   if (d.note) html += '<div class="ps-note" style="margin-top:6px;background:#fff4e6;border-color:#f0a040;">📝 ' + d.note + '</div>';
+  if (d.leavePay > 0 && d.leaveAvg) html += '<div class="ps-note" style="margin-top:6px;background:#eaf7ef;border-color:#9fd3b1;">🌿 有休手当 '+numFmt(d.leavePay)+'円 ＝ '+averageWageNote(d.leaveAvg)+' × '+d.leaveDays+'日</div>';
 
   var detailTable = '<table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table>';
   var showDetail = settings.show_detail || 'collapse';

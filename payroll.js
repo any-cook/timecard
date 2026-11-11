@@ -48,6 +48,28 @@ function monthLeaveSummary(staff, leaves, year, month){
   return { days: days, mins: mins, pay: staff.type === 'hourly' ? Math.ceil(wageMins / 60) : 0 };
 }
 
+// ------------------------------------------------------------
+// 平均賃金（有休手当用）
+//   1日分 ＝ 直前3か月の賃金総額 ÷（その期間の暦日数 − 1日）
+//   最低保障 ＝ 賃金総額 ÷ 実際に働いた日数 × 60%
+//   高い方を使い、1銭未満は切り捨て
+//   months: [{ year, month, totalPay, workDays }]（直前3か月分）、calDays: 期間の暦日数
+// ------------------------------------------------------------
+function calcAverageDailyWage(months, calDays){
+  var total = 0, workDays = 0;
+  (months||[]).forEach(function(x){ total += x.totalPay || 0; workDays += x.workDays || 0; });
+  if(total <= 0 || calDays <= 1) return null;
+  var divisor = calDays - 1;
+  var byCal = Math.floor(total * 100 / divisor) / 100;
+  var byWork = workDays > 0 ? Math.floor(total * 60 / workDays) / 100 : 0;   // ×60% を銭単位で
+  return { daily: Math.max(byCal, byWork), byCal: byCal, byWork: byWork, total: total,
+           calDays: calDays, divisor: divisor, workDays: workDays, usedMinimum: byWork > byCal, months: months };
+}
+// 有休手当 ＝ 平均賃金 × 有休日数（1円未満切り上げ）
+function leavePayByAverage(daily, days){
+  return Math.ceil(Math.round(daily * 100 * (days || 0)) / 100);
+}
+
 // 保険料額表の1行から、本人負担額（折半額）を銭単位で求める
 // 表の金額は「.5円」を丸めた値のことがあるため、料率（0.01%単位）を割り出して計算し直す
 function insHalfSen(row){
@@ -241,7 +263,9 @@ function computePayslipData(p){
   var _lvs = monthLeaveSummary(staff, leaves.map(function(l){ return l.staff_id ? l : Object.assign({}, l, { staff_id: staff.id }); }), year, month);
   var leaveMins = isHourly ? _lvs.mins : 0;
   var leaveAuto = isHourly && manualMins === null && leaveMins > 0;
-  var leavePay = leaveAuto ? _lvs.pay : 0;
+  // 有休手当：平均賃金（p.leaveAvg.daily）× 有休日数。平均賃金が出せない時（直前3か月の賃金が無い等）は 時間×時給
+  var leaveAvg = (p.leaveAvg && p.leaveAvg.daily > 0) ? p.leaveAvg : null;
+  var leavePay = !leaveAuto ? 0 : (leaveAvg ? leavePayByAverage(leaveAvg.daily, _lvs.days) : _lvs.pay);
 
   // ---- 通勤費 ----
   var psType = staff.payslip_type || staff.type || 'hourly';
@@ -301,7 +325,7 @@ function computePayslipData(p){
     extraTotalPay: extraTotalPay, extraDeduction: extraDeduction,
     pension: pension, health: health, nursingCare: nursingCare, childSupport: childSupport, empIns: empIns,
     socialIns: socialIns, tax: tax, taxableIncome: taxableIncome,
-    leavePay: leavePay, leaveMins: leaveMins, leaveAuto: leaveAuto,
+    leavePay: leavePay, leaveMins: leaveMins, leaveAuto: leaveAuto, leaveAvg: leaveAvg, leaveDays: _lvs.days,
     taxablePay: grossPay + leavePay + commute.taxable + extraTaxable + contributionBonus,
     nontaxablePay: commute.taxFree + nontaxableExtra,
     totalPay: totalPay, totalDeduction: totalDeduction, netPay: totalPay - totalDeduction,
@@ -315,5 +339,6 @@ if (typeof module !== 'undefined') {
     resolveHealthGradeNo: resolveHealthGradeNo, isEmployedInMonth: isEmployedInMonth,
     getMonthlyWorkMinutes: getMonthlyWorkMinutes, calcLeaveBalance: calcLeaveBalance,
     computePayslipData: computePayslipData, monthEndStr: monthEndStr,
+    calcAverageDailyWage: calcAverageDailyWage, leavePayByAverage: leavePayByAverage, monthLeaveSummary: monthLeaveSummary,
     wageAt: wageAt, salaryAt: salaryAt, payValueAt: payValueAt, insHalfSen: insHalfSen, roundHalfDownSen: roundHalfDownSen };
 }
