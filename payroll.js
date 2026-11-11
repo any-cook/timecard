@@ -29,6 +29,25 @@ function sumClockedMinutes(staff, records){
   }, 0);
 }
 
+// 有休1件の時間（時間数が未入力なら 日数 × 1日の有休時間）
+function leaveHoursOf(staff, l){
+  var h = parseFloat(l.hours);
+  if(h > 0) return h;
+  var def = parseFloat(staff.paid_leave_hours) || (staff.type === 'employee' ? 6 : 7.5);
+  return (parseFloat(l.days) || 1) * def;
+}
+// その月の有休の集計（日数・分・時給スタッフの有休手当）
+function monthLeaveSummary(staff, leaves, year, month){
+  var ym = year + '-' + _pad2(month), days = 0, mins = 0, wageMins = 0;
+  (leaves||[]).filter(function(l){ return l.staff_id === staff.id && l.type === 'use' && l.date && l.date.indexOf(ym) === 0; })
+    .forEach(function(l){
+      var m = Math.round(leaveHoursOf(staff, l) * 60);
+      days += parseFloat(l.days) || 0; mins += m;
+      if(staff.type === 'hourly') wageMins += m * wageAt(staff, l.date);
+    });
+  return { days: days, mins: mins, pay: staff.type === 'hourly' ? Math.ceil(wageMins / 60) : 0 };
+}
+
 // 保険料額表の1行から、本人負担額（折半額）を銭単位で求める
 // 表の金額は「.5円」を丸めた値のことがあるため、料率（0.01%単位）を割り出して計算し直す
 function insHalfSen(row){
@@ -219,18 +238,10 @@ function computePayslipData(p){
 
   // ---- 有休手当（時給スタッフ）：有休の時間 × その日の時給、1円未満切り上げ ----
   // 月次入力で時間数を入れている場合は、その時間に有休を含める扱い（二重払いを防ぐ）
-  var leaveMins = 0, leaveWageMins = 0;
-  if(isHourly){
-    leaves.filter(function(l){ return l.type==='use' && l.date && l.date.indexOf(ym)===0; }).forEach(function(l){
-      var h = parseFloat(l.hours);
-      if(!(h > 0)) h = (parseFloat(l.days)||1) * (parseFloat(staff.paid_leave_hours) || 7.5);
-      var m = Math.round(h * 60);
-      leaveMins += m;
-      leaveWageMins += m * wageAt(staff, l.date);
-    });
-  }
+  var _lvs = monthLeaveSummary(staff, leaves.map(function(l){ return l.staff_id ? l : Object.assign({}, l, { staff_id: staff.id }); }), year, month);
+  var leaveMins = isHourly ? _lvs.mins : 0;
   var leaveAuto = isHourly && manualMins === null && leaveMins > 0;
-  var leavePay = leaveAuto ? Math.ceil(leaveWageMins / 60) : 0;
+  var leavePay = leaveAuto ? _lvs.pay : 0;
 
   // ---- 通勤費 ----
   var psType = staff.payslip_type || staff.type || 'hourly';

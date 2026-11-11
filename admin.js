@@ -573,13 +573,19 @@ async function loadAttendanceRecords(){
   // 打刻行と有休のみの行を日付の新しい順に表示
   leaveOnlyRows.sort(function(a,b){ return a.date<b.date?1:(a.date>b.date?-1:0); }).forEach(function(x){ tbody.appendChild(x.tr); });
   if(!leaveOnlyRows.length) tbody.innerHTML='<tr><td colspan="11" class="empty-cell">データがありません</td></tr>';
-  Object.keys(staffSummary).forEach(function(k){ staffSummary[k].wage=Math.ceil(staffSummary[k].wageMins/60); totalWage+=staffSummary[k].wage; });
+  // 有休（有休だけの月の人も含める）
+  allLeaveAtt.filter(function(l){return l.type==='use'&&l.date&&l.date.startsWith(ymStr2b)&&(!attendanceFilters.staff_id||l.staff_id===attendanceFilters.staff_id);}).forEach(function(l){
+    var s=staffMap[l.staff_id]; if(!s) return;
+    if(!staffSummary[l.staff_id]) staffSummary[l.staff_id]={name:s.name||'不明',mins:0,wage:0,wageMins:0,days:0,commute:0};
+  });
+  Object.keys(staffSummary).forEach(function(k){ staffSummary[k].wage=Math.ceil(staffSummary[k].wageMins/60); totalWage+=staffSummary[k].wage;
+    staffSummary[k].leave = staffMap[k] ? monthLeaveSummary(staffMap[k], allLeaveAtt, attendanceFilters.year, attendanceFilters.month) : {days:0,mins:0,pay:0}; });
   document.getElementById('attendanceTotalTime').textContent=formatWorkTime(totalMins);
   document.getElementById('attendanceTotalWage').textContent=formatCurrency(totalWage);
   var sb=document.getElementById('staffSummaryBody');sb.innerHTML='';
   var keys=Object.keys(staffSummary);
-  if(!keys.length){sb.innerHTML='<tr><td colspan="7" class="empty-cell">データがありません</td></tr>';}
-  else keys.forEach(function(k){var s=staffSummary[k],tr=document.createElement('tr');tr.innerHTML='<td>'+s.name+'</td><td>'+s.days+'日</td><td>'+formatWorkTime(s.mins)+'</td><td id="sum-pay-time-'+k+'" style="font-size:.8rem;color:var(--text-muted);">確認中...</td><td>'+formatCurrency(s.wage)+'</td><td>'+formatCurrency(s.commute)+'</td>'+'<td><button class="btn-sm btn-edit" onclick="openStaffDetail(\''+k+'\')">'+'📋 詳細</button></td>';sb.appendChild(tr);});
+  if(!keys.length){sb.innerHTML='<tr><td colspan="8" class="empty-cell">データがありません</td></tr>';}
+  else keys.forEach(function(k){var s=staffSummary[k],tr=document.createElement('tr');var lv=s.leave||{days:0,mins:0};tr.innerHTML='<td>'+s.name+'</td><td>'+s.days+'日</td><td>'+formatWorkTime(s.mins)+'</td><td id="sum-leave-'+k+'" style="color:var(--success);font-weight:700;font-size:.85rem;">'+(lv.mins>0?'🌿 '+lv.days+'日・'+formatWorkTime(lv.mins):'-')+'</td><td id="sum-pay-time-'+k+'" style="font-size:.8rem;color:var(--text-muted);">確認中...</td><td>'+formatCurrency(s.wage)+'</td><td>'+formatCurrency(s.commute)+'</td>'+'<td><button class="btn-sm btn-edit" onclick="openStaffDetail(\''+k+'\')">'+'📋 詳細</button></td>';sb.appendChild(tr);});
   // 給与計算で使う時間（月次入力があればそちら）を表示
   var _fy=attendanceFilters.year,_fm=attendanceFilters.month;
   keys.forEach(async function(k){
@@ -588,7 +594,9 @@ async function loadAttendanceRecords(){
     if(st.type!=='hourly'){ cell.textContent='打刻と同じ'; return; }
     var md=await getMonthlyInput(_fy,_fm,k), mm=getMonthlyWorkMinutes(md);
     if(!document.body.contains(cell)) return;
-    if(mm===null){ cell.textContent='打刻と同じ'; return; }
+    var lv=staffSummary[k].leave||{mins:0,pay:0}, lcell=document.getElementById('sum-leave-'+k);
+    if(lcell && lv.mins>0) lcell.innerHTML += '<br><span style="font-size:.72rem;font-weight:500;">'+(mm===null?'有休手当 '+formatCurrency(lv.pay):'月次入力の時間に含む')+'</span>';
+    if(mm===null){ cell.textContent = lv.mins>0 ? '打刻と同じ＋有休' : '打刻と同じ'; return; }
     var diff=mm!==staffSummary[k].mins;
     cell.innerHTML='<span style="color:'+(diff?'#d97706':'var(--text-muted)')+';font-weight:700;">📝 '+formatWorkTime(mm)+'<br><span style="font-size:.68rem;">（月次入力）</span></span>';
   });
@@ -1823,7 +1831,7 @@ async function loadMonthlyTab() {
     var cls  = dow===0?'monthly-sun':dow===6?'monthly-sat':'';
     html += '<th class="monthly-day-col '+cls+'">' + d + '<br><span class="monthly-dow">'+dayNames[dow]+'</span></th>';
   });
-  html += '<th class="monthly-total-col">出勤<br>日数</th><th class="monthly-total-col">出勤<br>時間</th></tr>';
+  html += '<th class="monthly-total-col">出勤<br>日数</th><th class="monthly-total-col">出勤<br>時間</th><th class="monthly-total-col">有休<br>時間</th><th class="monthly-total-col">合計<br>時間</th></tr>';
   html += '</thead>';
 
   // スタッフ行
@@ -1879,14 +1887,8 @@ async function loadMonthlyTab() {
         var leaveDays = leaveDates[dateStr];
         // 有休管理の時間数を取得
         var leaveRecsDay = allLeave.filter(function(r){return r.staff_id===s.id&&r.type==='use'&&r.date===dateStr;});
-        var leaveHoursDay = leaveRecsDay.reduce(function(a,r){return a+(r.hours||0);},0);
-        var isHourlyS = s.type==='hourly';
-        // パート・時給：手入力時間のみ、社員：paid_leave_hoursで計算
-        var leaveMins = isHourlyS ? Math.floor(leaveHoursDay*60) : Math.floor(leaveDays*paidLeaveHours*60);
-        // 有休時間は勤務時間に加算しない（含み済み）
-        var leaveLabel = isHourlyS
-          ? (leaveHoursDay>0 ? leaveDays+'日（'+leaveHoursDay+'h）' : leaveDays+'日（時間未入力）')
-          : leaveDays+'日（'+paidLeaveHours+'h）';
+        var leaveHoursDay = leaveRecsDay.reduce(function(a,r){return a+leaveHoursOf(s,r);},0);
+        var leaveLabel = leaveDays+'日（'+leaveHoursDay+'h）';
         html += '<td class="monthly-cell monthly-leave '+cls+'" style="position:relative;">' +
           '<span class="monthly-leave-day">🌿 有休</span><br>' +
           '<span class="monthly-leave-time">' + leaveLabel + '</span><br>' +
@@ -1905,6 +1907,9 @@ async function loadMonthlyTab() {
     var totalLeave = Object.values(leaveDates).reduce(function(a,b){return a+b;},0);
     html += '<td class="monthly-total-cell">' + totalDays + '日' + (totalLeave>0?'<br><span style="font-size:.7rem;color:#16a34a;">有休'+totalLeave+'日</span>':'') + '</td>';
     html += '<td class="monthly-total-cell">' + totalStr  + '</td>';
+    var _lvm = monthLeaveSummary(s, allLeave, year, month).mins;
+    html += '<td class="monthly-total-cell" style="color:var(--success);">' + (_lvm>0 ? formatWorkTime(_lvm) : '-') + '</td>';
+    html += '<td class="monthly-total-cell"><strong>' + formatWorkTime(totalMins + _lvm) + '</strong></td>';
     html += '</tr>';
   });
 
@@ -1962,7 +1967,7 @@ function renderMonthlySp(data){
   html += '<div class="sp-summary">'+
     '<div><span>出勤</span><strong>'+totalDays+'<small>日</small></strong></div>'+
     '<div><span>勤務時間</span><strong>'+formatWorkTime(totalMins).replace('時間','<small>時間</small>').replace('分','<small>分</small>')+'</strong></div>'+
-    '<div><span>有休</span><strong>'+totalLeave+'<small>日</small></strong></div>'+
+    '<div><span>有休</span><strong>'+totalLeave+'<small>日</small></strong>'+(function(){var m=monthLeaveSummary(s,d.leaves,d.year,d.month).mins;return m>0?'<span style="margin-top:2px;color:var(--success);">'+formatWorkTime(m)+'</span>':'';})()+'</div>'+
   '</div>';
 
   html += '<div class="sp-cal">';
