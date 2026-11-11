@@ -931,8 +931,6 @@ async function calcAverageWageFor(staff, year, month, depth){
 async function leavePayForDisplay(staff, year, month, leaves){
   var lv = monthLeaveSummary(staff, leaves, year, month);
   if(staff.type !== 'hourly' || !(lv.days > 0)) return { pay: 0, avg: null, lv: lv, manual: false };
-  var md = await getMonthlyInput(year, month, staff.id);
-  if(getMonthlyWorkMinutes(md) !== null) return { pay: 0, avg: null, lv: lv, manual: true };
   var avg = null;
   try { avg = await calcAverageWageFor(staff, year, month, 2); } catch(e){}
   return { pay: avg ? leavePayByAverage(avg.daily, lv.days) : lv.pay, avg: avg, lv: lv, manual: false };
@@ -1178,7 +1176,7 @@ function manualTimeNote(d){
   if(d.leaveMins > 0){
     lv = d.leaveAuto
       ? '<div style="font-size:.68rem;margin-top:2px;color:var(--success);font-weight:700;">🌿 有休 '+d.leaveDays+'日（手当 '+formatCurrency(d.leavePay)+(d.leaveAvg?'・平均賃金':'')+'）</div>'
-      : '<div style="font-size:.68rem;margin-top:2px;color:var(--text-muted);font-weight:700;">🌿 有休 '+formatWorkTime(d.leaveMins)+'は月次入力の時間に含む</div>';
+      : '';
   }
   return _manualTimeNote(d) + lv;
 }
@@ -2615,7 +2613,7 @@ async function openMonthlyInputModal() {
   html += '<thead><tr style="background:var(--surface2);">';
   html += '<th style="min-width:80px;">氏名</th><th>種別</th>';
   html += '<th>出勤日数</th>';
-  html += '<th>時間数<br><span style="font-size:.68rem;font-weight:400;">（時給のみ・空欄＝打刻の合計＋有休を自動計算／入力する時は有休の時間も含める）</span></th>';
+  html += '<th>時間数<br><span style="font-size:.68rem;font-weight:400;">（時給のみ・空欄＝打刻の合計を使う／有休の時間は含めない：有休手当は自動で計算）</span></th>';
   html += '<th>変動手当（円）</th>';
   // 有休時間列は有休管理から自動取得するため非表示
   html += '<th>備考</th></tr></thead><tbody>';

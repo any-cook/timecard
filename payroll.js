@@ -262,7 +262,8 @@ function computePayslipData(p){
   // 月次入力で時間数を入れている場合は、その時間に有休を含める扱い（二重払いを防ぐ）
   var _lvs = monthLeaveSummary(staff, leaves.map(function(l){ return l.staff_id ? l : Object.assign({}, l, { staff_id: staff.id }); }), year, month);
   var leaveMins = isHourly ? _lvs.mins : 0;
-  var leaveAuto = isHourly && manualMins === null && leaveMins > 0;
+  // 時給スタッフが有休を取った月は、月次入力の時間数とは別に必ず有休手当を付ける
+  var leaveAuto = isHourly && (_lvs.days > 0 || leaveMins > 0);
   // 有休手当：平均賃金（p.leaveAvg.daily）× 有休日数。平均賃金が出せない時（直前3か月の賃金が無い等）は 時間×時給
   var leaveAvg = (p.leaveAvg && p.leaveAvg.daily > 0) ? p.leaveAvg : null;
   var leavePay = !leaveAuto ? 0 : (leaveAvg ? leavePayByAverage(leaveAvg.daily, _lvs.days) : _lvs.pay);
