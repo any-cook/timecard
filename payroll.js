@@ -70,6 +70,71 @@ function leavePayByAverage(daily, days){
   return Math.ceil(Math.round(daily * 100 * (days || 0)) / 100);
 }
 
+// ------------------------------------------------------------
+// 年次有給休暇の付与（労働基準法39条）
+//   初回：入社日から6か月後、その後は1年ごと
+//   通常（週5日以上・年217日以上）：10,11,12,14,16,18,20日
+//   比例付与（年間の出勤日数）：169〜216日／121〜168日／73〜120日／48〜72日
+// ------------------------------------------------------------
+var LEAVE_GRANT_TABLE = {
+  normal: [10,11,12,14,16,18,20],
+  d4:     [7,8,9,10,12,13,15],
+  d3:     [5,6,6,8,9,10,11],
+  d2:     [3,4,4,5,6,6,7],
+  d1:     [1,2,2,2,3,3,3]
+};
+function addMonthsStr(dateStr, n){
+  var p = dateStr.split('-').map(Number);
+  var y = p[0], m = p[1] - 1 + n, d = p[2];
+  y += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
+  var last = new Date(y, m + 1, 0).getDate();
+  return y + '-' + _pad2(m + 1) + '-' + _pad2(Math.min(d, last));
+}
+// 付与日の一覧（入社日から asOf の1年後まで）。index 0 = 勤続6か月
+function leaveGrantDates(hireDate, untilStr){
+  var list = [];
+  if(!hireDate) return list;
+  for(var i=0; i<60; i++){
+    var g = addMonthsStr(hireDate, 6 + 12 * i);
+    if(g > untilStr) break;
+    list.push({ index: i, date: g, years: i === 0 ? 0.5 : i + 0.5 });
+  }
+  return list;
+}
+// 年間の出勤日数から付与日数を決める（社員は常に通常）
+function leaveGrantDaysFor(index, annualDays, fullTime){
+  var i = Math.min(index, 6), key;
+  if(fullTime || annualDays >= 217) key = 'normal';
+  else if(annualDays >= 169) key = 'd4';
+  else if(annualDays >= 121) key = 'd3';
+  else if(annualDays >= 73) key = 'd2';
+  else if(annualDays >= 48) key = 'd1';
+  else return { days: 0, key: 'none' };
+  return { days: LEAVE_GRANT_TABLE[key][i], key: key };
+}
+var LEAVE_GRANT_LABEL = { normal:'通常', d4:'週4日相当', d3:'週3日相当', d2:'週2日相当', d1:'週1日相当', none:'付与なし（年48日未満）' };
+
+// ある付与日の判定（判定期間の出勤日数から付与日数を出す）
+//   workDates: 出勤した日付（有休取得日を含む）の配列、today: 今日
+function evaluateLeaveGrant(staff, grant, workDates, today){
+  var periodStart = grant.index === 0 ? staff.hire_date : addMonthsStr(grant.date, -12);
+  var periodEnd = (function(){ var d = parseDate(grant.date); d.setDate(d.getDate()-1);
+    return d.getFullYear()+'-'+_pad2(d.getMonth()+1)+'-'+_pad2(d.getDate()); })();
+  var countEnd = periodEnd < today ? periodEnd : today;
+  var uniq = {};
+  (workDates||[]).forEach(function(ds){ if(ds >= periodStart && ds <= countEnd) uniq[ds] = true; });
+  var counted = Object.keys(uniq).length;
+  var totalSpan = Math.round((parseDate(periodEnd) - parseDate(periodStart)) / 86400000) + 1;
+  var elapsed = countEnd < periodStart ? 0 : Math.round((parseDate(countEnd) - parseDate(periodStart)) / 86400000) + 1;
+  var projected = (elapsed > 0 && elapsed < totalSpan) ? Math.round(counted * totalSpan / elapsed) : counted; // 期間途中なら見込み
+  var annual = grant.index === 0 ? projected * 2 : projected; // 初回は6か月分なので2倍で年換算
+  var fullTime = staff.type === 'employee';
+  var r = leaveGrantDaysFor(grant.index, annual, fullTime);
+  return { date: grant.date, index: grant.index, years: grant.years, periodStart: periodStart, periodEnd: periodEnd,
+           counted: counted, projected: projected, annual: annual, isEstimate: countEnd < periodEnd,
+           days: r.days, key: r.key, label: LEAVE_GRANT_LABEL[r.key] };
+}
+
 // 保険料額表の1行から、本人負担額（折半額）を銭単位で求める
 // 表の金額は「.5円」を丸めた値のことがあるため、料率（0.01%単位）を割り出して計算し直す
 function insHalfSen(row){
@@ -340,6 +405,7 @@ if (typeof module !== 'undefined') {
     resolveHealthGradeNo: resolveHealthGradeNo, isEmployedInMonth: isEmployedInMonth,
     getMonthlyWorkMinutes: getMonthlyWorkMinutes, calcLeaveBalance: calcLeaveBalance,
     computePayslipData: computePayslipData, monthEndStr: monthEndStr,
+    leaveGrantDates: leaveGrantDates, leaveGrantDaysFor: leaveGrantDaysFor, evaluateLeaveGrant: evaluateLeaveGrant, addMonthsStr: addMonthsStr,
     calcAverageDailyWage: calcAverageDailyWage, leavePayByAverage: leavePayByAverage, monthLeaveSummary: monthLeaveSummary,
     wageAt: wageAt, salaryAt: salaryAt, payValueAt: payValueAt, insHalfSen: insHalfSen, roundHalfDownSen: roundHalfDownSen };
 }

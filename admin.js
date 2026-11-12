@@ -1675,19 +1675,103 @@ async function loadLeaveList(){
   var staffId=document.getElementById('leaveStaffSelect').value,staff=await DB.getStaff(),tbody=document.getElementById('leaveTableBody'),leaveData=await DB.getLeaveAll();
   if(!staffId){
     document.getElementById('leaveDetailSection').style.display='none';
-    tbody.closest('table').querySelector('thead tr').innerHTML='<th>スタッフ</th><th>付与日数</th><th>使用日数</th><th>時効消滅</th><th>残日数</th><th>詳細</th>';tbody.innerHTML='';
+    tbody.closest('table').querySelector('thead tr').innerHTML='<th>スタッフ</th><th>入社日</th><th>毎年の付与月</th><th>次回の付与</th><th>付与日数</th><th>使用日数</th><th>時効消滅</th><th>残日数</th><th>詳細</th>';tbody.innerHTML='<tr><td colspan="9" class="empty-cell">読み込み中...</td></tr>';
     var today=todayStr();
-    staff.filter(function(s){return s.is_active;}).forEach(function(s){var b=calcLeaveBalance(leaveData.filter(function(l){return l.staff_id===s.id;}),today);var tr=document.createElement('tr');tr.innerHTML='<td>'+s.name+'</td><td>'+b.granted+'日</td><td>'+b.used+'日</td><td>'+(b.expired>0?'<span style="color:#dc2626;">'+b.expired+'日</span>':'-')+'</td><td><strong style="color:'+(b.remaining<3?'#dc2626':'#16a34a')+'">'+b.remaining+'日</strong></td><td><button class="btn-sm btn-edit" onclick="selectLeaveStaff(\''+s.id+'\')">詳細</button></td>';tbody.appendChild(tr);});
-    if(!staff.filter(function(s){return s.is_active;}).length)tbody.innerHTML='<tr><td colspan="6" class="empty-cell">スタッフが登録されていません</td></tr>';return;
+    var _act=staff.filter(function(s){return s.is_active;});
+    var _ginfo=await loadLeaveGrantInfo(_act,leaveData);
+    renderLeaveGrantNotice(_act,_ginfo);
+    tbody.innerHTML='';
+    _act.forEach(function(s){var b=calcLeaveBalance(leaveData.filter(function(l){return l.staff_id===s.id;}),today);var g=_ginfo[s.id]||{};var tr=document.createElement('tr');if(g.thisMonth)tr.style.background='#fff7ed';tr.innerHTML='<td>'+s.name+'</td><td>'+(s.hire_date?_ymdJP(s.hire_date):'<span style="color:#d97706;">未登録</span>')+'</td><td>'+(g.month?'<strong>毎年'+g.month+'月'+g.day+'日</strong>':'-')+'</td><td>'+grantCellHtml(g)+'</td><td>'+b.granted+'日</td><td>'+b.used+'日</td><td>'+(b.expired>0?'<span style="color:#dc2626;">'+b.expired+'日</span>':'-')+'</td><td><strong style="color:'+(b.remaining<3?'#dc2626':'#16a34a')+'">'+b.remaining+'日</strong></td><td><button class="btn-sm btn-edit" onclick="selectLeaveStaff(\''+s.id+'\')">詳細</button></td>';tbody.appendChild(tr);});
+    if(!_act.length)tbody.innerHTML='<tr><td colspan="9" class="empty-cell">スタッフが登録されていません</td></tr>';return;
   }
   var s=staff.find(function(x){return x.id===staffId;}),leaves=leaveData.filter(function(l){return l.staff_id===staffId;});
   var bal=calcLeaveBalance(leaves,todayStr());
   var granted=bal.granted,used=bal.used,remaining=bal.remaining;
   document.getElementById('leaveDetailSection').style.display='block';document.getElementById('leaveStaffName').textContent=s?s.name:'';document.getElementById('leaveGranted').textContent=granted+'日';document.getElementById('leaveUsed').textContent=used+'日'+(bal.expired>0?'（時効消滅 '+bal.expired+'日）':'');document.getElementById('leaveRemaining').textContent=remaining+'日';document.getElementById('leaveRemaining').style.color=remaining<3?'#dc2626':'#16a34a';
+  var _gi=document.getElementById('leaveGrantInfo');
+  if(_gi&&s){
+    document.getElementById('leaveGrantNotice').style.display='none';
+    _gi.innerHTML='付与月を確認中...';
+    var _g=(await loadLeaveGrantInfo([s],leaveData))[s.id]||{};
+    _gi.innerHTML = _g.excluded ? '🗓️ 有給の付与：対象外（'+_g.excluded+'）'
+      : _g.noHire ? '🗓️ 入社日が登録されていません。スタッフ管理で入社日を登録すると、付与月が表示されます。'
+      : (_g.month ? '🗓️ <strong>毎年'+_g.month+'月'+_g.day+'日</strong>に付与（入社日 '+_ymdJP(s.hire_date)+'）<br>次回：'+grantCellHtml(_g)+
+        (_g.eval && !_g.registered && _g.eval.days>0 && (_g.thisMonth || _g.eval.date<=todayStr()) ? ' <button class="btn-sm btn-edit" onclick="openLeaveGrantModal(\''+s.id+'\',\''+_g.eval.date+'\','+_g.eval.days+',\'法定付与（勤続'+_yearsLabel(_g.eval.years)+'・'+_g.eval.label+'・判定期間の出勤'+_g.eval.counted+'日）\')">＋ 付与を登録</button>' : (_g.registered?' <span class="leave-notice-done">✅ 登録済み</span>':'')) : '');
+  }
   tbody.closest('table').querySelector('thead tr').innerHTML='<th>日付</th><th>種別</th><th>日数</th><th>理由</th><th>操作</th>';tbody.innerHTML='';
   leaves.slice().sort(function(a,b){return a.date>b.date?-1:1;}).forEach(function(l){var tr=document.createElement('tr');tr.innerHTML='<td>'+formatDateJP(l.date)+'</td><td><span class="badge '+(l.type==='grant'?'badge-active':'badge-special')+'">'+(l.type==='grant'?'付与':'使用')+'</span></td><td>'+l.days+'日</td><td>'+(l.reason||'-')+'</td><td style="white-space:nowrap;"><button class="btn-sm btn-edit" onclick="openLeaveEditModal(\''+l.id+'\')" style="margin-right:4px;">✏️ 編集</button><button class="btn-sm btn-delete" onclick="deleteLeave(\''+l.id+'\')">🗑️ 削除</button></td>';tbody.appendChild(tr);});
   if(!leaves.length)tbody.innerHTML='<tr><td colspan="5" class="empty-cell">有休記録がありません</td></tr>';
 }
+// ============================================================
+// 有給の付与月・付与日数（出勤日数に応じて）
+// ============================================================
+async function loadLeaveGrantInfo(staffList, leaveData){
+  var today = todayStr(), now = new Date();
+  // 直近14か月分の勤怠を取得（判定期間は最長1年）
+  var months = [];
+  for(var i=13; i>=0; i--){ var d = new Date(now.getFullYear(), now.getMonth()-i, 1); months.push({ year:d.getFullYear(), month:d.getMonth()+1 }); }
+  var atts = await Promise.all(months.map(function(m){ return DB.getAttendance(m).catch(function(){ return []; }); }));
+  var all = [].concat.apply([], atts);
+  var curMonthStart = today.slice(0,7) + '-01';
+  var info = {};
+  staffList.forEach(function(s){
+    if(s.type === 'officer'){ info[s.id] = { excluded:'役員' }; return; }
+    if(!s.hire_date){ info[s.id] = { noHire:true }; return; }
+    var grants = leaveGrantDates(s.hire_date, addMonthsStr(today, 13));
+    var next = grants.find(function(g){ return g.date >= curMonthStart; });
+    if(!next){ info[s.id] = { noHire:false, none:true }; return; }
+    var workDates = all.filter(function(r){ return r.staff_id === s.id && r.clock_in_actual; }).map(function(r){ return r.date; })
+      .concat(leaveData.filter(function(l){ return l.staff_id === s.id && l.type === 'use' && l.date; }).map(function(l){ return l.date; }));
+    var ev = evaluateLeaveGrant(s, next, workDates, today);
+    var gm = Number(next.date.slice(5,7)), gd = Number(next.date.slice(8,10));
+    // 付与日の前後1か月に「付与」の記録があれば登録済み
+    var lo = addMonthsStr(next.date, -1), hi = addMonthsStr(next.date, 1);
+    var registered = leaveData.some(function(l){ return l.staff_id === s.id && l.type === 'grant' && l.date >= lo && l.date <= hi; });
+    info[s.id] = { month: gm, day: gd, eval: ev, registered: registered, thisMonth: next.date.slice(0,7) === today.slice(0,7) };
+  });
+  return info;
+}
+function _ymdJP(ds){ if(!ds) return ""; var p=ds.split("-").map(Number); return p[0]+"年"+p[1]+"月"+p[2]+"日"; }
+function _yearsLabel(y){ var yy = Math.floor(y), half = y - yy >= 0.5; return (yy ? yy+'年' : '') + (half ? '6か月' : ''); }
+function grantCellHtml(g){
+  if(!g) return '-';
+  if(g.excluded) return '<span style="color:var(--text-muted);">対象外（'+g.excluded+'）</span>';
+  if(g.noHire) return '<span style="color:#d97706;">入社日を登録してください</span>';
+  if(g.none) return '-';
+  var e = g.eval;
+  return _ymdJP(e.date)+'<br><span style="font-size:.75rem;color:var(--text-muted);">'+(e.isEstimate?'見込み ':'')+'<strong style="color:var(--accent-h);">'+e.days+'日</strong>（勤続'+_yearsLabel(e.years)+'・'+e.label+'・出勤'+e.counted+'日'+(e.isEstimate?'／年換算'+e.annual+'日':'')+'）</span>';
+}
+function renderLeaveGrantNotice(staffList, info){
+  var box = document.getElementById('leaveGrantNotice');
+  if(!box) return;
+  var m = new Date().getMonth()+1;
+  var rows = staffList.filter(function(s){ return info[s.id] && info[s.id].thisMonth; });
+  if(!rows.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display='block';
+  box.innerHTML = '<div class="leave-notice"><div class="leave-notice-title">📅 今月（'+m+'月）は有給の付与月です</div>'+
+    rows.map(function(s){
+      var g = info[s.id], e = g.eval;
+      var reason = '法定付与（勤続'+_yearsLabel(e.years)+'・'+e.label+'・判定期間の出勤'+e.counted+'日）';
+      return '<div class="leave-notice-row"><strong>'+s.name+'</strong><span>'+_ymdJP(e.date)+' 付与</span>'+
+        '<span><strong style="color:var(--accent-h);">'+e.days+'日</strong>（勤続'+_yearsLabel(e.years)+'・'+e.label+'・出勤'+e.counted+'日'+(e.isEstimate?'・見込み':'')+'）</span>'+
+        (g.registered ? '<span class="leave-notice-done">✅ 登録済み</span>'
+          : (e.days > 0 ? '<button class="btn-sm btn-edit" onclick="openLeaveGrantModal(\''+s.id+'\',\''+e.date+'\','+e.days+',\''+reason+'\')">＋ 付与を登録</button>' : '<span style="color:var(--text-muted);">付与なし</span>'))+
+        '</div>';
+    }).join('')+
+    '<div class="leave-notice-foot">※ 付与日数は判定期間の出勤日数（有休取得日を含む）から計算しています。出勤率が8割未満の人は付与されません。</div></div>';
+}
+async function openLeaveGrantModal(staffId, date, days, reason){
+  document.getElementById('leaveStaffSelect').value = staffId;
+  await openLeaveModal();
+  document.getElementById('leaveModalStaff').value = staffId;
+  document.getElementById('leaveType').value = 'grant';
+  document.getElementById('leaveDate').value = date;
+  document.getElementById('leaveDays').value = days;
+  document.getElementById('leaveHours').value = '';
+  document.getElementById('leaveReason').value = reason;
+  if(typeof onLeaveStaffChange === 'function') onLeaveStaffChange();
+}
+
 function selectLeaveStaff(staffId){document.getElementById('leaveStaffSelect').value=staffId;loadLeaveList();}
 async function openLeaveModal(){
   var staffId=document.getElementById('leaveStaffSelect').value,staff=await DB.getStaff(),sel=document.getElementById('leaveModalStaff');
