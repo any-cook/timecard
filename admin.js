@@ -1320,7 +1320,6 @@ function buildPayslipHtml(d, settings){
   var noteText = settings.note || 'いつも有難うございます。';
   if (noteText) html += '<div class="ps-note">' + noteText + '</div>';
   if (d.note) html += '<div class="ps-note" style="margin-top:6px;background:#fff4e6;border-color:#f0a040;">📝 ' + d.note + '</div>';
-  if (d.leavePay > 0 && d.leaveAvg) html += '<div class="ps-note" style="margin-top:6px;background:#eaf7ef;border-color:#9fd3b1;">🌿 有休手当 '+numFmt(d.leavePay)+'円 ＝ '+averageWageNote(d.leaveAvg)+' × '+d.leaveDays+'日</div>';
 
   var detailTable = '<table class="data-table"><thead><tr><th>日付</th><th>出勤(実)</th><th>退勤(実)</th><th>出勤(計)</th><th>退勤(計)</th><th>出勤時間</th><th>時給</th><th>日給</th></tr></thead><tbody>'+detailRows+'</tbody></table>';
   var showDetail = settings.show_detail || 'collapse';
