@@ -1257,7 +1257,6 @@ function buildPayslipHtml(d, settings){
   // 支給列
   var basicPayLabel = d.psType === 'officer' ? '役員報酬' : '基本給';
   var pay = [[basicPayLabel, numFmt(d.grossPay)]];
-  if(d.leavePay > 0) pay.push(['有休手当', numFmt(d.leavePay)]);
   pay.push(['非課税通勤費', numFmt(d.commute.taxFree)]);
   // パート・時給のみ：基本給の上に時給を表示（月の途中で変わった時は 1,070→1,130）
   if(staff.type === 'hourly'){
@@ -1270,6 +1269,8 @@ function buildPayslipHtml(d, settings){
   if(d.contributionBonus > 0) pay.push(['貢献手当', numFmt(d.contributionBonus)]);
   if(d.commute.taxable > 0) pay.push(['課税通勤費', numFmt(d.commute.taxable)]);
   d.payItems.forEach(function(i){ pay.push([i.name, i.calc_add==='sub' ? '▲ '+numFmt(i.amount) : numFmt(i.amount)]); });
+  // 有休手当は手当（食事手当など）の下に表示
+  if(d.leavePay > 0) pay.push(['有休手当', numFmt(d.leavePay)]);
   // 控除列
   var ded = [
     ['健康保険料', numFmt(d.health)],
@@ -1317,7 +1318,7 @@ function buildPayslipHtml(d, settings){
   html += '</div>';
 
   var noteText = settings.note || 'いつも有難うございます。';
-  if (noteText) html += '<div class="ps-note">※ ' + noteText + '</div>';
+  if (noteText) html += '<div class="ps-note">' + noteText + '</div>';
   if (d.note) html += '<div class="ps-note" style="margin-top:6px;background:#fff4e6;border-color:#f0a040;">📝 ' + d.note + '</div>';
   if (d.leavePay > 0 && d.leaveAvg) html += '<div class="ps-note" style="margin-top:6px;background:#eaf7ef;border-color:#9fd3b1;">🌿 有休手当 '+numFmt(d.leavePay)+'円 ＝ '+averageWageNote(d.leaveAvg)+' × '+d.leaveDays+'日</div>';
 
